@@ -4,13 +4,15 @@
 
 'use strict';
 
-const CACHE = 'csv-viewer-v2.0.0';   // bump with VERSION to invalidate
+const CACHE = 'csv-viewer-v2.1.1';   // bump with VERSION to invalidate
 
 const SHELL = [
     './',
     'index.html',
-    'app.js',
-    'styles.css',
+    'src/core.js',
+    'src/app.js',
+    'src/worker.js',
+    'src/styles.css',
     'favicon.svg',
     'manifest.webmanifest',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
@@ -34,7 +36,7 @@ self.addEventListener('fetch', e => {
     if (e.request.method !== 'GET') return;
     const url = new URL(e.request.url);
     const isShell = url.origin === location.origin
-        ? /\/(index\.html|app\.js|styles\.css|favicon\.svg|manifest\.webmanifest)$|\/$/.test(url.pathname)
+        ? /\/(index\.html|favicon\.svg|manifest\.webmanifest)$|\/src\/[\w.-]+\.(?:js|css)$|\/$/.test(url.pathname)
         : url.hostname === 'cdn.jsdelivr.net';
     if (!isShell) return;
     e.respondWith(

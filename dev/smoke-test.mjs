@@ -1,12 +1,15 @@
-// Smoke test for the pure-logic half of app.js (parser, sniffing, type
-// inference, formatting, filtering). Run: node dev/smoke-test.mjs
+// Smoke test for the pure-logic parts of src/core.js + src/app.js
+// (parser, sniffing, inference, formatting, filtering, layout solver).
+// Run: node dev/smoke-test.mjs
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const src = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const core = readFileSync(new URL('../src/core.js', import.meta.url), 'utf8');
+const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const ctx = { document: { addEventListener() {}, getElementById: () => null }, Intl, console };
 vm.createContext(ctx);
-vm.runInContext(src, ctx);
+vm.runInContext(core, ctx);
+vm.runInContext(app, ctx);
 const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
         solveWidths, classifyNumber, engFormat, looksHeaderless,
@@ -121,7 +124,9 @@ check('floors when nothing fits', solveWidths([constant, spread], [60, 70], 100)
 // --- number format classification (greater_tables rules)
 check('year by range', classifyNumber('started', [1990, 2005, 2024], 0).format, 'year');
 check('year by title', classifyNumber('Accident Year', [1492, 2120], 0).format, 'year');
-check('not year out of range', classifyNumber('count', [1990, 2031], 0).format, 'int');
+check('year bounds inclusive', classifyNumber('proj', [1800, 2030, 2100], 0).format, 'year');
+check('not year out of range', classifyNumber('count', [1990, 2101], 0).format, 'int');
+check('not year below range', classifyNumber('count', [1799, 1990], 0).format, 'int');
 check('int gets commas format', classifyNumber('pages', [880, 1225], 0), { format: 'int', dec: 0 });
 check('eng for wide range', classifyNumber('x', [0.0000012, 4500000], 7).format, 'eng');
 // money rules trump the magnitude rule

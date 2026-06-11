@@ -9,7 +9,8 @@ formatting rules.
 Per numeric column, first match wins:
 
 1. **Year** — all integers AND (header matches `year|yr|vintage|cohort`
-   OR all values in 1800–2030): plain, no commas (`1995`).
+   OR all values in 1800–2100 inclusive, v2.1.1): plain, no commas
+   (`1995`).
 2. **Money by header** — header matches `amount|amt|balance|price|cost|
    fee|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|
    income|expense|revenue` or a currency symbol/code: exactly 2dp with
@@ -39,6 +40,25 @@ against each row's cells concatenated into one string — formatted values
 first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
+
+## 2026-06-12 — v2.1.1: year bounds + phone icons
+
+- Year auto-detect was literal-spec `1800 < x < 2030` (so 1801–2029);
+  Steve's 1990–2030 column failed on the boundary. Now **1800–2100
+  inclusive** (pinned formatting rules below updated).
+- PWA icons for phones: manifest 192/512 PNG + maskable 512 (white on
+  brand blue), apple-touch-icon 180 for iOS. Rendered from the real
+  glyph via headless Edge; wrapper pages kept in dev/icon-build/.
+
+## 2026-06-11 — v2.1.0: worker + src/ restructure
+
+- Web Worker now parses+infers files ≥ 1 MB off the main thread (status
+  bar shows progress); small files stay synchronous; file:// falls back
+  gracefully. The last main-thread freeze is gone.
+- Source git-mv'd into Vite-shaped layout: `src/{core,app,worker}.js` +
+  `src/styles.css`; `core.js` is the pure shared half (page + worker).
+  index.html, favicon, manifest, sw.js stay at root (sw scope). Still
+  zero-build; Vite migration notes in dev/plan-2.1.
 
 ## 2026-06-11 — v2.0.0: the speed release
 

@@ -80,21 +80,29 @@ in values, currency, paren negatives, ISO + US dates, blanks).
 | File | Role |
 |---|---|
 | `index.html` | page shell: ingest view (drop zone + paste box) and table view |
-| `app.js` | all logic — parser, type inference, formatting, filter/sort, render |
-| `styles.css` | drop zone, sticky header, alignment classes, column width caps |
-| `favicon.svg` | Bootstrap `table` glyph, primary blue — also the PWA icon |
-| `manifest.webmanifest` | PWA manifest (standalone; install via Edge on localhost/https) |
-| `sw.js` | service worker — offline app shell; never caches `?src=` data |
-| `dev/smoke-test.mjs` | Node smoke test over the pure-logic half of `app.js` |
+| `src/core.js` | pure data logic, DOM-free: parse, inference, `processData` — loaded by page AND worker |
+| `src/app.js` | UI: state, formatting, fzf search, width layout, rendering, events, worker mgmt |
+| `src/worker.js` | parse + inference off the main thread (texts ≥ 1 MB); `importScripts('core.js')` |
+| `src/styles.css` | drop zone, sticky header, alignment classes, status bar |
+| `favicon.svg` | Bootstrap `table` glyph, primary blue — also the PWA icon (root: served as-is) |
+| `manifest.webmanifest` | PWA manifest (root) |
+| `sw.js` | service worker — offline app shell; MUST stay at root (scope); never caches `?src=` data |
+| `dev/smoke-test.mjs` | Node smoke test over `src/core.js` + pure parts of `src/app.js` |
 
-Pipeline in `app.js`: ingest (drop / browse / paste / `?src=<url>`) →
-`parseCSV` (RFC 4180, `sniffDelimiter`) → `inferColumns` (strict
-all-or-nothing: number / date / text; numeric format year / int / eng /
-float) → `state` → `rebuildView` (fzf global search + per-column filters,
-type-aware sort) → render. Column widths solved once per load
+Layout is Vite-shaped (index.html at root, source under `src/`) but there
+is NO build step — plain scripts, worker via `importScripts`. When Vite
+ever lands: favicon/manifest/sw move to `public/`, scripts become module
+imports.
+
+Pipeline: ingest (drop / browse / paste / `?src=<url>`) → `processData`
+in `core.js` (synchronous < 1 MB, Web Worker above; `file://` falls back
+to synchronous) → `installData` → `rebuildView` (fzf global search +
+per-column filters, type-aware sort) → render. Large files: lazy
+formatting, deferred chunked search index, sampled width measurement
+(see `dev/plan-2.0-speedups.md`). Column widths solved once per load
 (equal-risk VaR allocation), frozen w.r.t. filtering. Version lives in
-`const VERSION` in `app.js` (header + footer) and in the `sw.js` cache
-name — bump both.
+`const VERSION` in `src/app.js` and in the `sw.js` cache name — bump
+both.
 
 ## Formatting spec
 

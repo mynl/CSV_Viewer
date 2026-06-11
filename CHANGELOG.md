@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.1.1 (2026-06-12)
+
+- **Year range now 1800–2100 inclusive** (was the literal-spec
+  1801–2029): a 1990–2030 projection column year-ifies properly, with
+  headroom for forward projections. Boundary tests added.
+- **Phone-grade PWA icons**: 192/512 PNGs (purpose `any`) plus a
+  maskable 512 (white glyph on brand blue, safe-zone padded) in the
+  manifest, and a 180×180 `apple-touch-icon` for iOS (which ignores
+  manifest icons). Rasterized from the actual bi-table SVG with headless
+  Edge; the build pages live in `dev/icon-build/` for regeneration.
+
+## 2.1.0 (2026-06-11)
+
+Executed from `dev/plan-2.1-worker-restructure.md`.
+
+- **Web Worker parsing**: texts ≥ 1 MB parse + infer off the main thread
+  — the tab stays live with "parsing name (14.6 MB)…" in the status bar.
+  Small inputs keep the zero-latency synchronous path; `file://` (no
+  worker allowed) falls back to synchronous automatically. Stale worker
+  replies (rapid re-drops, header toggles) are discarded by generation.
+- **Source restructured into `src/`** (git mv, Vite-shaped, still no
+  build): `src/core.js` (pure data logic, shared by page and worker via
+  `importScripts`), `src/app.js` (UI), `src/worker.js`,
+  `src/styles.css`. `index.html`, `favicon.svg`, `manifest.webmanifest`,
+  and `sw.js` stay at root (service-worker scope requires it).
+- New pure entry point `processData(text, headerOverride)` in core —
+  the md-vs-CSV decision, parse, header detection, inference, guessed
+  names in one testable function.
+
 ## 2.0.0 (2026-06-11)
 
 Large-file release, executed from `dev/plan-2.0-speedups.md`. Internal
