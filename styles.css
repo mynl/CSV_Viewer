@@ -1,0 +1,69 @@
+/* csv-viewer styles */
+
+.drop-zone {
+    min-height: 200px;
+    cursor: pointer;
+    border-style: dashed !important;
+    border-color: #ced4da;
+    transition: all 0.15s ease-in-out;
+}
+.drop-zone:hover,
+.drop-zone.drag-over {
+    background-color: #fff !important;
+    border-color: #0d6efd !important;
+}
+
+/* Table */
+.table-wrap {
+    overflow: auto;
+    max-height: calc(100vh - 170px);
+}
+
+#data-table {
+    width: auto;            /* autosize columns to content */
+    min-width: 100%;
+    font-variant-numeric: tabular-nums;
+}
+
+#data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    box-shadow: inset 0 -2px 0 #dee2e6;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+#data-table thead th .sort-arrow {
+    display: inline-block;
+    width: 1em;
+    color: #0d6efd;
+}
+
+#data-table thead tr.filter-row th {
+    cursor: default;
+    box-shadow: inset 0 -2px 0 #dee2e6;
+    top: 33px;              /* sits below the header row */
+    padding: 2px 4px;
+}
+#data-table thead tr.filter-row input {
+    font-size: 0.78rem;
+    padding: 1px 6px;
+    min-width: 4em;
+}
+#data-table thead tr.filter-row input.active-filter {
+    background-color: #e7f1ff;
+    border-color: #0d6efd;
+}
+
+#data-table td {
+    white-space: nowrap;
+    max-width: 50ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#data-table .col-number, #data-table .col-date { text-align: right; }
+#data-table .col-text { text-align: left; }
+#data-table td.blank { color: #adb5bd; }
