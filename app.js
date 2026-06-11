@@ -7,7 +7,7 @@
 
 'use strict';
 
-const VERSION = '1.4.0';
+const VERSION = '1.4.1';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
 
 // ---------------------------------------------------------------- parsing
@@ -85,7 +85,7 @@ function parseCSV(text, delim) {
 
 // --------------------------------------------------------- type inference
 
-const NUM_RE = /^\(?\$?-?[0-9][0-9,]*(\.[0-9]+)?%?\)?$/;
+const NUM_RE = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/;
 const ISO_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/;
 const NUMDATE_RE = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/;
 const DMON_RE = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/;   // 5 Jan 2024, 05-Jan-24
@@ -93,7 +93,8 @@ const MOND_RE = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/; // Jan 5
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december'];
 
-/* Parse a number: thousands commas, (123) negatives, leading $, trailing %.
+/* Parse a number: thousands commas, (123) negatives, leading $, trailing %,
+ * scientific notation (1e-03), bare leading-dot floats (.5).
  * Returns {v, dec} or null. */
 function parseNumber(s) {
     s = s.trim();
@@ -107,8 +108,12 @@ function parseNumber(s) {
     if (!isFinite(v)) return null;
     if (neg) v = -v;
     if (pct) v /= 100;
-    const dot = s.indexOf('.');
-    let dec = dot < 0 ? 0 : s.length - dot - 1;
+    // decimals implied by the string, exponent-aware: 1e-03 -> 3, 1.5e-3 -> 4
+    const em = /^([^eE]*)[eE]([+-]?\d+)$/.exec(s);
+    const mant = em ? em[1] : s;
+    const exp = em ? +em[2] : 0;
+    const dot = mant.indexOf('.');
+    let dec = Math.max(0, (dot < 0 ? 0 : mant.length - dot - 1) - exp);
     if (pct) dec += 2;
     return { v, dec };
 }

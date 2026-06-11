@@ -31,7 +31,8 @@ Dates: recognized liberally (ISO, `13/01/2024`, `13-05-24`, `13.05.2024`,
 day-first vs month-first decided **per column** (any day > 12 flips the
 column to day-first, else US month-first); always displayed ISO
 `yyyy-mm-dd`, center-aligned. Numbers right, text left. Number parsing
-accepts `1,234.56`, `(2,500)`, `$99.50`, `12.5%`.
+accepts `1,234.56`, `(2,500)`, `$99.50`, `12.5%`, `1e-03`, `.5` (v1.4.1:
+scientific notation, with exponent-aware implied decimals).
 
 ## 2026-06-11 — v1.4.0: header toggle, liberal dates, money 2dp
 

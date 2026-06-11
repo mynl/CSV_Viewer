@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.1 (2026-06-11)
+
+Bug fix.
+
+- Scientific notation (`1e-03`, `2.5E+05`) and bare leading-dot floats
+  (`.5`) are now recognized as numbers — previously one such value made
+  the strict inference demote the whole column to left-aligned text.
+  Implied decimals are exponent-aware (`1e-03` → 3dp, `1.5e-3` → 4dp), so
+  the downstream format rules see sensible precision.
+
 ## 1.4.0 (2026-06-11)
 
 Executed from `dev/plan-1.4-header-toggle-dates-money.md`.

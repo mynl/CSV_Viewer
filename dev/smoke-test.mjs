@@ -42,6 +42,15 @@ check('num percent', parseNumber('12.5%'), { v: 0.125, dec: 3 });
 check('num dollar', parseNumber('$99.50'), { v: 99.5, dec: 2 });
 check('num reject text', parseNumber('12 Main St'), null);
 check('num reject date', parseNumber('2024-01-02'), null);
+check('num sci small', parseNumber('1e-03'), { v: 0.001, dec: 3 });
+check('num sci mantissa dec', parseNumber('1.5e-3'), { v: 0.0015, dec: 4 });
+check('num sci big', parseNumber('2.5E+05'), { v: 250000, dec: 0 });
+check('num bare dot', parseNumber('.5'), { v: 0.5, dec: 1 });
+check('num reject lone e', parseNumber('1e'), null);
+// the 1.4.1 bug: a 1e-03 column must be a number column, right-aligned
+const scicols = inferColumns(['k'], [['1e-03'], ['2.5e-03'], ['1e-02']]);
+check('sci column is number', scicols[0].type, 'number');
+check('sci column renders', formatCell('2.5e-03', scicols[0], 1), '0.0025');
 
 // --- dates
 check('date iso', parseDate('2024-02-18'), { t: new Date(2024,1,18).getTime(), hasTime: false });
