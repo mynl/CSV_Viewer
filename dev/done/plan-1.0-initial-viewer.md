@@ -1,4 +1,4 @@
-# plan-viewer — CSV viewer SPA, v1.0
+# plan-1.0-initial-viewer — CSV viewer SPA, v1.0
 
 ## Goal
 

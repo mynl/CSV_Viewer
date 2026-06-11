@@ -1,6 +1,10 @@
-# plan-punchup — fuzzy search + equal-risk column widths (v1.1)
+# plan-1.1-fuzzy-and-widths — fuzzy search + equal-risk column widths (v1.1)
 
-Status: **designed, awaiting go-ahead.** From discussion 2026-06-11.
+Status: **executed as 1.1.0** (2026-06-11); stays in `dev/` until the author
+says it is done. Decisions taken during execution: widths frozen at the
+full-table layout per the author (no live re-solve on filtering, only on
+window resize); fzf-v1-style O(n) scoring rather than the v2 DP (plenty at
+this scale, and simpler); `^abc$` degrades to exact substring.
 
 ## 1. fzf-style fuzzy matching in the global search box
 

@@ -1,8 +1,65 @@
 # Changelog
 
+## 1.2.0 (2026-06-11)
+
+Formatting, keyboard, and PWA release, executed from
+`dev/plan-1.2-formatting-keyboard-pwa.md`. Number formatting now follows
+the greater_tables conventions.
+
+- **Number formats per column**: integers always get thousands commas
+  EXCEPT year columns (all-integer and header matches
+  `year|yr|vintage|cohort` or all values in 1800–2030), rendered plain;
+  float columns spanning > 6 orders of magnitude use engineering format
+  (3 significant digits, SI suffixes n µ m k M G T).
+- **Sensible float format** (white whale candidate): uniform per-column
+  decimals `d = clamp(min(maxObservedDecimals, 3 − floor(log10(mean|x|))),
+  0, 6)` — ~4 significant digits at the column's typical magnitude, never
+  more precision than the raw data carried. Money-scale columns drop
+  cents; unit-scale keep them.
+- Dates now **center-aligned** (greater_tables convention; were right).
+- `Ctrl+O`: from the table view returns to the ingest screen; from the
+  ingest screen opens the file browser directly.
+- `Esc` in any filter box (global or column) clears that filter and blurs.
+- Favicon: the navbar's Bootstrap `table` glyph as an SVG favicon in
+  primary blue (`favicon.svg`).
+- Version shown in fine print under "CSV Viewer" in the header.
+- Table default font size reduced to 0.8rem (~80%).
+- **`?src=<url>`**: the page auto-loads a CSV named in the query string
+  (errors surface in the ingest error pane; cross-origin subject to CORS).
+  Enables iframe embedding in blog posts.
+- **PWA**: `manifest.webmanifest` (standalone, grid icon) + `sw.js`
+  service worker precaching the app shell and CDN CSS for offline use;
+  installable from Edge/Chrome when served over localhost or https.
+  `?src=` data fetches are never cached. Not wired for .csv file
+  association (deliberately).
+- Smoke test extended to 67 checks (format classification, year detection,
+  engineering format).
+
+## 1.1.0 (2026-06-11)
+
+Punch-up release, executed from `dev/done/plan-1.1-fuzzy-and-widths.md`.
+
+- **fzf-style global search**: space-separated terms AND together; fuzzy
+  subsequence matching with fzf-v1-style scoring (word-boundary and
+  consecutive-match bonuses, window and late-start penalties). Extended
+  syntax subset: `'exact`, `!exclude`, `^prefix`, `suffix$`; smart case
+  (uppercase in a term = case-sensitive). When no column sort is active,
+  rows order by match score, best first.
+- **Tight columns + equal-risk width allocation**: formatted cell widths
+  measured once per load (canvas `measureText`); columns get their minimum
+  fully-visible width when everything fits, otherwise the single percentile
+  q is found (bisection) such that per-column q-th-percentile widths sum to
+  the viewport — every column truncates with equal probability; low-sd
+  columns display fully. Widths are frozen per load (no live reflow while
+  filtering); they re-solve only on window resize. Implemented via
+  `<colgroup>` + `table-layout: fixed`.
+- Tooltips now appear only on actually-truncated cells (delegated, lazy).
+- Smoke test extended to 51 checks (query parser, fuzzy scoring, width
+  solver).
+
 ## 1.0.0 (2026-06-11)
 
-Initial release, executed from `dev/plan-viewer.md`.
+Initial release, executed from `dev/done/plan-1.0-initial-viewer.md`.
 
 - Zero-build vanilla JS/HTML SPA: open `index.html`, no server or framework.
 - Ingest screen modeled on the archivum `/ingest` page: drag-and-drop zone

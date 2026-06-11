@@ -76,12 +76,30 @@ in values, currency, paren negatives, ISO + US dates, blanks).
 | `index.html` | page shell: ingest view (drop zone + paste box) and table view |
 | `app.js` | all logic — parser, type inference, formatting, filter/sort, render |
 | `styles.css` | drop zone, sticky header, alignment classes, column width caps |
+| `favicon.svg` | Bootstrap `table` glyph, primary blue — also the PWA icon |
+| `manifest.webmanifest` | PWA manifest (standalone; install via Edge on localhost/https) |
+| `sw.js` | service worker — offline app shell; never caches `?src=` data |
 | `dev/smoke-test.mjs` | Node smoke test over the pure-logic half of `app.js` |
 
-Pipeline in `app.js`: ingest → `parseCSV` (RFC 4180, `sniffDelimiter`) →
-`inferColumns` (strict all-or-nothing: number / date / text) → `state` →
-`rebuildView` (global + per-column filters, type-aware sort) → render.
-Version lives in `const VERSION` in `app.js`, shown in the footer.
+Pipeline in `app.js`: ingest (drop / browse / paste / `?src=<url>`) →
+`parseCSV` (RFC 4180, `sniffDelimiter`) → `inferColumns` (strict
+all-or-nothing: number / date / text; numeric format year / int / eng /
+float) → `state` → `rebuildView` (fzf global search + per-column filters,
+type-aware sort) → render. Column widths solved once per load
+(equal-risk VaR allocation), frozen w.r.t. filtering. Version lives in
+`const VERSION` in `app.js` (header + footer) and in the `sw.js` cache
+name — bump both.
+
+## Formatting spec
+
+Number/date display follows the author's
+[greater_tables](https://github.com/mynl/greater_tables_project)
+conventions — he is **very** particular about this: integers comma-
+separated, years plain (no commas), floats with uniform per-column
+decimals based on typical magnitude, engineering format (SI suffixes) for
+columns spanning many orders of magnitude, dates ISO and center-aligned,
+numbers right, text left. Check greater_tables before inventing any new
+formatting behavior.
 
 ## Documentation and code style
 
@@ -94,9 +112,10 @@ and alignment is the point of the project.
 
 These are standing rules — follow them without being re-asked.
 
-- **Work proceeds from plan docs**: `dev/plan-<desc>.md` (descriptive names,
-  not numbered). Move a plan to `dev/done/` **only when the author says it is
-  done** — not when the code lands.
+- **Work proceeds from plan docs**: `dev/plan-<version>-<desc>.md`
+  (e.g. `plan-1.2-formatting-keyboard-pwa.md` — version then short
+  description). Move a plan to `dev/done/` **only when the author says it
+  is done** — not when the code lands.
 - **Every plan-based code change bumps the version** (`VERSION` in `app.js`).
   Pure tidying does not.
 - **Keep `CHANGELOG.md` current** — each version bump adds a `## <version>`

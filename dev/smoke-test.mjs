@@ -8,7 +8,8 @@ const ctx = { document: { addEventListener() {}, getElementById: () => null }, I
 vm.createContext(ctx);
 vm.runInContext(src, ctx);
 const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
-        formatCell, makeColPredicate } = ctx;
+        formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
+        solveWidths, classifyNumber, engFormat } = ctx;
 
 let failures = 0;
 function check(label, got, want) {
@@ -73,6 +74,62 @@ const when = cols[3];
 check('filter date >=', [0,1,2].map(r => { const p = makeColPredicate('>=2024-06-01', when); return p(rows[r][3], r); }), [false, false, true]);
 const name = cols[0];
 check('filter substring', [0,1,2].map(r => { const p = makeColPredicate('ALph', name); return p(rows[r][0], r); }), [true, false, false]);
+
+// --- fzf query parsing
+check('query kinds', parseQuery("abc 'def !ghi ^jk lm$").map(t => t.kind),
+      ['fuzzy', 'exact', 'exact', 'prefix', 'suffix']);
+check('query negate', parseQuery('!ghi')[0].negate, true);
+check('query smart case', parseQuery('abc Abc').map(t => t.cs), [false, true]);
+
+// --- fuzzy scoring
+check('fuzzy no match', fuzzyScore('xyz', 'middlemarch'), -1);
+check('fuzzy subsequence matches', fuzzyScore('mlch', 'middlemarch') >= 0, true);
+check('fuzzy consecutive beats scattered',
+      fuzzyScore('march', 'middlemarch') > fuzzyScore('mac', 'middlemarch'), true);
+check('fuzzy boundary beats mid-word',
+      fuzzyScore('big', 'the big short') > fuzzyScore('big', 'ambiguous'), true);
+
+// --- term evaluation (match/score against row text)
+const lowRow = 'war and peace tolstoy, leo', rawRow = 'War and Peace Tolstoy, Leo';
+check('term exact', termScore(parseQuery("'peace")[0], lowRow, rawRow) >= 0, true);
+check('term negate excludes', termScore(parseQuery('!peace')[0], lowRow, rawRow), -1);
+check('term case-sensitive', termScore(parseQuery('PEACE')[0], lowRow, rawRow), -1);
+check('term prefix', termScore(parseQuery('^war')[0], lowRow, rawRow) >= 0, true);
+
+// --- equal-risk width solver (arrays sorted ascending)
+const constant = Array(99).fill(100);            // sd = 0
+const spread = Array.from({ length: 99 }, (_, i) => 10 + 10 * i);  // 10..990
+check('widths fit -> natural (tight)',
+      solveWidths([constant, spread], [50, 50], 5000), [100, 990]);
+const squeezed = solveWidths([constant, spread], [50, 50], 600);
+check('squeeze respects budget', squeezed[0] + squeezed[1] <= 600, true);
+check('squeeze: low-sd col shown fully', squeezed[0], 100);
+check('squeeze: high-sd col absorbs it', squeezed[1] < 990, true);
+check('floors when nothing fits', solveWidths([constant, spread], [60, 70], 100), [100, 70]);
+
+// --- number format classification (greater_tables rules)
+check('year by range', classifyNumber('started', [1990, 2005, 2024], 0).format, 'year');
+check('year by title', classifyNumber('Accident Year', [1492, 2120], 0).format, 'year');
+check('not year out of range', classifyNumber('count', [1990, 2031], 0).format, 'int');
+check('int gets commas format', classifyNumber('pages', [880, 1225], 0), { format: 'int', dec: 0 });
+check('eng for wide range', classifyNumber('x', [0.0000012, 4500000], 7).format, 'eng');
+// sensible float: money-scale (mean ~1e4) drops cents; unit-scale keeps them
+check('float money-scale dec 0', classifyNumber('loss', [12500.25, 9800.5], 2).dec, 0);
+check('float unit-scale dec 2', classifyNumber('price', [12.5, 9.25], 2).dec, 2);
+check('float small-scale capped by observed', classifyNumber('rate', [0.015, 0.025], 3).dec, 3);
+
+// year column renders plain
+const ycols = inferColumns(['year', 'n'], [['1995', '1,200'], ['2020', '7']]);
+check('year renders no comma', formatCell('1995', ycols[0], 0), '1995');
+check('int renders comma', formatCell('1,200', ycols[1], 0), '1,200');
+
+// --- engineering format
+check('eng kilo', engFormat(12345), '12.3k');
+check('eng mega', engFormat(4500000), '4.5M');
+check('eng milli', engFormat(0.00123), '1.23m');
+check('eng negative', engFormat(-12345), '-12.3k');
+check('eng zero', engFormat(0), '0');
+check('eng unit range', engFormat(123.4), '123');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

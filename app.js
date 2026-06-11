@@ -7,7 +7,7 @@
 
 'use strict';
 
-const VERSION = '1.0.0';
+const VERSION = '1.2.0';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
 
 // ---------------------------------------------------------------- parsing
@@ -122,6 +122,44 @@ function parseDate(s) {
     return null;
 }
 
+const YEAR_TITLE_RE = /\b(year|yr|vintage|cohort)\b/i;
+
+/* Choose a numeric column's display format (greater_tables rules):
+ *   year  — integers, header says year-ish OR all values in (1800, 2030);
+ *           plain, no commas
+ *   int   — all integer-valued; commas, no decimals
+ *   eng   — floats spanning > 6 orders of magnitude; engineering format
+ *   float — uniform decimals d = clamp(min(maxObservedDecimals,
+ *           3 - floor(log10(mean|x| over nonzero))), 0, 6): ~4 significant
+ *           digits at the column's typical magnitude, never more precision
+ *           than the raw data carried. */
+function classifyNumber(name, values, maxDec) {
+    const xs = values.filter(v => v !== null);
+    const allInt = xs.every(v => Number.isInteger(v));
+    if (allInt) {
+        const yearish = YEAR_TITLE_RE.test(name) || xs.every(v => v > 1800 && v < 2030);
+        return xs.length && yearish ? { format: 'year', dec: 0 } : { format: 'int', dec: 0 };
+    }
+    const nz = xs.filter(v => v !== 0).map(Math.abs);
+    if (!nz.length) return { format: 'float', dec: Math.min(maxDec, 6) };
+    if (Math.max(...nz) / Math.min(...nz) > 1e6) return { format: 'eng', dec: 0 };
+    const meanAbs = nz.reduce((a, b) => a + b, 0) / nz.length;
+    const dec = Math.max(0, Math.min(maxDec, 3 - Math.floor(Math.log10(meanAbs)), 6));
+    return { format: 'float', dec };
+}
+
+/* Engineering format, 3 significant digits, SI suffixes n..T. */
+const ENG_SUFFIX = { '-9': 'n', '-6': 'µ', '-3': 'm', 0: '', 3: 'k', 6: 'M', 9: 'G', 12: 'T' };
+
+function engFormat(v) {
+    if (v === 0) return '0';
+    const a = Math.abs(v);
+    let e = Math.floor(Math.log10(a) / 3) * 3;
+    e = Math.max(-9, Math.min(12, e));
+    const m = a / 10 ** e;
+    return (v < 0 ? '-' : '') + Number(m.toPrecision(3)) + ENG_SUFFIX[e];
+}
+
 /* Classify each column over its non-blank values: number if all parse as
  * numbers, else date if all parse as dates, else text. Strict for v1.0. */
 function inferColumns(headers, rows) {
@@ -146,7 +184,10 @@ function inferColumns(headers, rows) {
             if (!isNum && !isDate) break;
         }
         if (seen === 0) return { name, type: 'text', values: null };
-        if (isNum) return { name, type: 'number', dec: Math.min(maxDec, 6), values: numv };
+        if (isNum) {
+            const cls = classifyNumber(name, numv, maxDec);
+            return { name, type: 'number', format: cls.format, dec: cls.dec, values: numv };
+        }
         if (isDate) return { name, type: 'date', hasTime, values: datev };
         return { name, type: 'text', values: null };
     });
@@ -160,6 +201,8 @@ function formatCell(raw, col, r) {
     if (col.type === 'number') {
         const v = col.values[r];
         if (v === null) return raw;
+        if (col.format === 'year') return String(v);
+        if (col.format === 'eng') return engFormat(v);
         return v.toLocaleString('en-US',
             { minimumFractionDigits: col.dec, maximumFractionDigits: col.dec });
     }
@@ -175,6 +218,162 @@ function formatCell(raw, col, r) {
     return raw;
 }
 
+// ----------------------------------------------------------- fuzzy search
+
+/* fzf-style global search. Query = space-separated terms, ANDed.
+ * Term prefixes/suffixes (a subset of fzf extended syntax):
+ *   abc     fuzzy subsequence match (scored)
+ *   'abc    exact substring
+ *   !abc    exclude rows containing abc (exact substring)
+ *   ^abc    row text starts with abc;  abc$  row text ends with abc
+ * Smart case: a term containing an uppercase letter matches case-
+ * sensitively; otherwise case-insensitive. */
+function parseQuery(q) {
+    const terms = [];
+    for (let tok of q.trim().split(/\s+/)) {
+        if (!tok) continue;
+        const t = { kind: 'fuzzy', negate: false };
+        if (tok.startsWith('!')) { t.negate = true; t.kind = 'exact'; tok = tok.slice(1); }
+        if (tok.startsWith("'")) { t.kind = 'exact'; tok = tok.slice(1); }
+        if (tok.startsWith('^')) { t.kind = 'prefix'; tok = tok.slice(1); }
+        if (tok.endsWith('$'))   { t.kind = t.kind === 'prefix' ? 'exact' : 'suffix'; tok = tok.slice(0, -1); }
+        if (!tok) continue;
+        t.cs = /[A-Z]/.test(tok);
+        t.str = t.cs ? tok : tok.toLowerCase();
+        terms.push(t);
+    }
+    return terms;
+}
+
+const BOUNDARY_RE = /[\s_\-\/\\.,:;()[\]{}"']/;
+
+/* fzf-v1-style scored subsequence match. Forward pass finds the first
+ * subsequence match; backward pass tightens the window; bonuses for word-
+ * boundary and consecutive matches, penalties for window slack and a late
+ * start. Returns a score >= 0, or -1 for no match. O(hay length). */
+function fuzzyScore(needle, hay) {
+    const n = hay.length, m = needle.length;
+    if (m === 0) return 0;
+    if (m > n) return -1;
+    let j = 0, end = -1;
+    for (let i = 0; i < n; i++) {
+        if (hay[i] === needle[j]) { j++; if (j === m) { end = i; break; } }
+    }
+    if (end < 0) return -1;
+    j = m - 1;
+    let start = end;
+    for (let i = end; i >= 0; i--) {
+        if (hay[i] === needle[j]) { start = i; j--; if (j < 0) break; }
+    }
+    let score = 100 - 3 * (end - start + 1 - m) - Math.min(start, 20);
+    j = 0;
+    let prevMatched = false;
+    for (let i = start; i <= end && j < m; i++) {
+        if (hay[i] === needle[j]) {
+            if (i === 0 || BOUNDARY_RE.test(hay[i - 1])) score += 8;
+            if (prevMatched) score += 4;
+            prevMatched = true; j++;
+        } else prevMatched = false;
+    }
+    return score;
+}
+
+/* Evaluate one term against a row's concatenated text. Returns -1 for no
+ * match, else the term's score contribution (0 for non-fuzzy kinds). */
+function termScore(t, rowLow, rowRaw) {
+    const hay = t.cs ? rowRaw : rowLow;
+    let ok, score = 0;
+    switch (t.kind) {
+        case 'exact':  ok = hay.includes(t.str); break;
+        case 'prefix': ok = hay.startsWith(t.str); break;
+        case 'suffix': ok = hay.endsWith(t.str); break;
+        default: {
+            const s = fuzzyScore(t.str, hay);
+            ok = s >= 0; score = s;
+        }
+    }
+    if (t.negate) ok = !ok;
+    return ok ? score : -1;
+}
+
+// ----------------------------------------------------- column width layout
+
+/* Widths are measured once per load from the FULL table and frozen — they
+ * deliberately do not respond to filtering (distracting), only to window
+ * resize. */
+
+const CELL_PAD = 18;     // padding + border + safety, px
+const MIN_COL = 50;      // absolute floor, px
+
+/* Measure formatted cell and header widths with a canvas in the table's
+ * font. Returns {arrays, floors}: per-column sorted cell widths and minimum
+ * (header-driven) widths. */
+function measureLayout() {
+    const canvas = measureLayout._c || (measureLayout._c = document.createElement('canvas'));
+    const ctx = canvas.getContext('2d');
+    const cs = getComputedStyle($('data-table'));
+    const font = `${cs.fontSize} ${cs.fontFamily}`;
+    const arrays = [], floors = [];
+    for (let c = 0; c < state.cols.length; c++) {
+        ctx.font = `bold ${font}`;
+        // 14px ≈ the sort-arrow slot in the header
+        floors.push(Math.max(MIN_COL,
+            Math.ceil(ctx.measureText(state.cols[c].name).width) + 14 + CELL_PAD));
+        ctx.font = font;
+        const w = [];
+        for (let r = 0; r < state.rows.length; r++) {
+            const text = state.formatted[r][c];
+            if (text !== '') w.push(Math.ceil(ctx.measureText(text).width) + CELL_PAD);
+        }
+        w.sort((a, b) => a - b);
+        arrays.push(w);
+    }
+    return { arrays, floors };
+}
+
+/* Allocate column widths into `avail` px. Tight (every cell fully visible)
+ * if it fits; otherwise the equal-risk VaR rule: bisect for the single
+ * percentile q such that the per-column q-th percentile widths (floored)
+ * sum to avail — every column truncates with the same probability 1 - q.
+ * `arrays` must be sorted ascending. */
+function solveWidths(arrays, floors, avail) {
+    const pct = (s, q) => s.length ? s[Math.floor(q * (s.length - 1))] : 0;
+    const widthsAt = q => arrays.map((s, j) => Math.max(floors[j], pct(s, q)));
+    const total = w => w.reduce((a, b) => a + b, 0);
+
+    const natural = widthsAt(1);
+    if (total(natural) <= avail) return natural;
+    if (total(widthsAt(0)) >= avail) return widthsAt(0);   // floors + scroll
+
+    let lo = 0, hi = 1;                  // f(lo) <= avail < f(hi); f monotone
+    for (let k = 0; k < 32; k++) {
+        const mid = (lo + hi) / 2;
+        if (total(widthsAt(mid)) <= avail) lo = mid; else hi = mid;
+    }
+    return widthsAt(lo);
+}
+
+/* Solve against the current viewport and pin widths via <colgroup> +
+ * table-layout: fixed. */
+function applyLayout() {
+    if (!state.layout) return;
+    const table = $('data-table');
+    const avail = table.parentElement.clientWidth;
+    if (!avail) return;
+    const widths = solveWidths(state.layout.arrays, state.layout.floors, avail);
+    let cg = table.querySelector('colgroup');
+    if (cg) cg.remove();
+    cg = document.createElement('colgroup');
+    for (const w of widths) {
+        const col = document.createElement('col');
+        col.style.width = w + 'px';
+        cg.appendChild(col);
+    }
+    table.prepend(cg);
+    table.style.tableLayout = 'fixed';
+    table.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
+}
+
 // ------------------------------------------------------------------ state
 
 const state = {
@@ -183,7 +382,10 @@ const state = {
     rows: [],          // raw string cells
     cols: [],          // inference results, parallel to headers
     formatted: [],     // formatted display strings, parallel to rows
-    searchable: [],    // lower-cased concatenated row text for global filter
+    searchRaw: [],     // concatenated row text (formatted + raw) per row
+    searchLow: [],     // lower-cased version, for case-insensitive terms
+    scores: [],        // fuzzy match score per row (current query)
+    layout: null,      // {arrays, floors} from measureLayout, frozen per load
     view: [],          // row indices after filter + sort
     sortCol: null,
     sortDir: 1,
@@ -238,25 +440,38 @@ function makeColPredicate(filter, col) {
 
 function rebuildView() {
     const { rows, cols } = state;
-    const global = state.globalFilter.trim().toLowerCase();
+    const terms = parseQuery(state.globalFilter);
+    const hasFuzzy = terms.some(t => t.kind === 'fuzzy' && !t.negate);
     const preds = state.colFilters.map((f, c) => makeColPredicate(f || '', cols[c]));
-    const active = preds.some(p => p) || global;
+    const active = preds.some(p => p) || terms.length;
 
     let idx = [];
+    state.scores = [];
     for (let r = 0; r < rows.length; r++) {
+        let score = 0;
         if (active) {
-            if (global && !state.searchable[r].includes(global)) continue;
             let ok = true;
-            for (let c = 0; c < preds.length; c++) {
-                if (preds[c] && !preds[c]((rows[r][c] ?? ''), r)) { ok = false; break; }
+            for (const t of terms) {
+                const s = termScore(t, state.searchLow[r], state.searchRaw[r]);
+                if (s < 0) { ok = false; break; }
+                score += s;
+            }
+            if (ok) {
+                for (let c = 0; c < preds.length; c++) {
+                    if (preds[c] && !preds[c]((rows[r][c] ?? ''), r)) { ok = false; break; }
+                }
             }
             if (!ok) continue;
         }
+        state.scores[r] = score;
         idx.push(r);
     }
 
     const sc = state.sortCol;
-    if (sc !== null) {
+    if (sc === null && hasFuzzy) {
+        // no explicit sort: best fuzzy matches first, original order on ties
+        idx.sort((a, b) => (state.scores[b] - state.scores[a]) || (a - b));
+    } else if (sc !== null) {
         const col = state.cols[sc];
         const dir = state.sortDir;
         if (col.type === 'text') {
@@ -313,6 +528,16 @@ function renderHead() {
             inp.classList.toggle('active-filter', inp.value.trim() !== '');
             refresh();
         });
+        inp.addEventListener('keydown', e => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                inp.value = '';
+                state.colFilters[c] = '';
+                inp.classList.remove('active-filter');
+                inp.blur();
+                refresh();
+            }
+        });
         th.appendChild(inp);
         fr.appendChild(th);
     });
@@ -320,7 +545,7 @@ function renderHead() {
 }
 
 function renderBody() {
-    const { rows, cols, view, formatted } = state;
+    const { cols, view, formatted } = state;
     const cap = state.showAll ? view.length : Math.min(view.length, RENDER_CAP);
     const parts = [];
     for (let i = 0; i < cap; i++) {
@@ -328,9 +553,7 @@ function renderBody() {
         const cells = cols.map((col, c) => {
             const text = formatted[r][c];
             if (text === '') return `<td class="col-${col.type} blank">·</td>`;
-            const raw = (rows[r][c] ?? '').trim();
-            const title = raw.length > 50 ? ` title="${escapeHtml(raw)}"` : '';
-            return `<td class="col-${col.type}"${title}>${escapeHtml(text)}</td>`;
+            return `<td class="col-${col.type}">${escapeHtml(text)}</td>`;
         });
         parts.push(`<tr>${cells.join('')}</tr>`);
     }
@@ -400,8 +623,9 @@ function loadText(text, fileName) {
         state.rows = rows;
         state.cols = cols;
         state.formatted = rows.map((row, r) => cols.map((col, c) => formatCell(row[c], col, r)));
-        state.searchable = state.formatted.map(
-            (frow, r) => (frow.join(' ') + ' ' + rows[r].join(' ')).toLowerCase());
+        state.searchRaw = state.formatted.map(
+            (frow, r) => frow.join(' ') + ' ' + rows[r].join(' '));
+        state.searchLow = state.searchRaw.map(s => s.toLowerCase());
         state.sortCol = null;
         state.sortDir = 1;
         state.globalFilter = '';
@@ -414,6 +638,8 @@ function loadText(text, fileName) {
         $('table-view').classList.remove('d-none');
         $('toolbar').classList.remove('d-none');
         renderHead();
+        state.layout = measureLayout();   // frozen for this load
+        applyLayout();
         refresh();
     } catch (err) {
         showError(err.message || String(err));
@@ -474,6 +700,24 @@ function initEvents() {
         state.globalFilter = e.target.value;
         refresh();
     });
+    $('global-filter').addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.target.value = '';
+            state.globalFilter = '';
+            e.target.blur();
+            refresh();
+        }
+    });
+
+    // Ctrl+O: from the table, back to ingest; from ingest, straight to browse
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+            e.preventDefault();
+            if ($('ingest-view').classList.contains('d-none')) showIngest();
+            else fi.click();
+        }
+    });
     $('clear-filters-btn').addEventListener('click', () => {
         state.globalFilter = '';
         state.colFilters = state.colFilters.map(() => '');
@@ -483,9 +727,50 @@ function initEvents() {
     });
     $('open-btn').addEventListener('click', showIngest);
     $('show-all-btn').addEventListener('click', () => { state.showAll = true; renderBody(); });
+
+    // re-solve column widths on resize (widths stay frozen w.r.t. filtering)
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(applyLayout, 150);
+    });
+
+    // tooltip with the full text, only for cells actually truncated
+    $('data-table').addEventListener('mouseover', e => {
+        const cell = e.target.closest('td, th');
+        if (cell && !cell.title && cell.scrollWidth > cell.clientWidth) {
+            cell.title = cell.textContent;
+        }
+    });
+}
+
+/* Auto-load a CSV from ?src=<url>. Subject to CORS on cross-origin hosts;
+ * intended for same-origin embeds (e.g. a blog post's own resources). */
+function loadFromUrl(url) {
+    fetch(url)
+        .then(resp => {
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            return resp.text();
+        })
+        .then(text => loadText(text, decodeURIComponent(url.split('/').pop() || url)))
+        .catch(err => showError(`Could not load ?src=${url} — ${err.message}`));
+}
+
+/* Register the service worker (PWA install + offline shell). Only possible
+ * on https or localhost; a no-op when opened from file://. */
+function initPWA() {
+    if ('serviceWorker' in navigator
+        && (location.protocol === 'https:'
+            || ['localhost', '127.0.0.1'].includes(location.hostname))) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     $('version').textContent = 'v' + VERSION;
+    $('header-version').textContent = 'v' + VERSION;
     initEvents();
+    initPWA();
+    const src = new URLSearchParams(location.search).get('src');
+    if (src) loadFromUrl(src);
 });
