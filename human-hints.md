@@ -40,6 +40,48 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-11 — v1.5.1: status bar lower left
+
+- File name / row counts / showing-N moved to a fixed lower-left status
+  bar; duplicate version line in the old footer dropped (version stays
+  top left). Next up per Steve: the speed-up ideas below (sampling,
+  deferred search index, worker) — NOT bundling.
+
+## 2026-06-11 — 250K-row limit + the Vite question (discussed, NOT executed)
+
+- Steve hit a limit on a 250K-row synthetic df. Diagnosis: main-thread
+  load work — parse, inference, formatted cache, search strings, and
+  (prime suspect) `measureText` over every cell in `measureLayout`.
+- Key fact: Vite = bundling = organization, NOT runtime speed. Zero help
+  for this.
+- Fix order when Steve says go: (1) sample width measurement (~2K rows
+  per column — percentiles from a sample, tiny change, likely the big
+  win); (2) defer search-string building to first search; (3) Web Worker
+  for parse+inference (possible without a build; Vite merely nicer).
+  Adopt Vite at the worker step if at all.
+- Drop-to-replace: already works, Steve amused; do nothing. Tabs:
+  rejected — browser has tabs. DONE.
+
+## 2026-06-11 — ideas discussed, NOT executed (Steve's orders)
+
+- **Drop-to-replace**: already works (v1.0 accepts drops anywhere,
+  including the table view) — just lacks a visual cue. Polish = ~20-line
+  overlay, a future 1.5.x.
+- **Tabs**: medium yell. ~120–180 lines (state-array + global swap +
+  tab-strip chrome); no speed cost, but memory ×3–4 per open file, and a
+  drop-semantics conflict with drop-to-replace (replace current vs open
+  new). Pushback: browser/PWA tabs already do this. Verdict pending
+  Steve's actual usage.
+
+## 2026-06-11 — v1.5.0: markdown pipe tables
+
+- Markdown tables open everywhere CSVs do; alignment follows the
+  `|:--|:-:|--:|` separator spec (overrides type alignment; bare `---`
+  defers to the viewer). ~50 lines, no speed impact.
+- **New standing principle (recorded in CLAUDE.md + claude-generic.md):
+  YELL if an ask is involved** — big code-size or speed cost means stop
+  and tell Steve first; his need for speed outweighs occasional whims.
+
 ## 2026-06-11 — v1.4.1 / v1.4.2: sci-notation fix, column drag-resize
 
 - 1.4.1 (committed): `1e-03` etc. now parse as numbers (one such value

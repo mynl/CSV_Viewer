@@ -13,10 +13,25 @@
     border-color: #0d6efd !important;
 }
 
+/* Status bar — lower left */
+#status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    padding: 3px 12px;
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-align: left;
+}
+
 /* Table */
 .table-wrap {
     overflow: auto;
-    max-height: calc(100vh - 170px);
+    max-height: calc(100vh - 195px);
 }
 
 /* Widths are pinned per load via <colgroup> + table-layout: fixed (set from
@@ -83,4 +98,8 @@ body.col-resizing { cursor: col-resize; user-select: none; }
 #data-table .col-number { text-align: right; }
 #data-table .col-date { text-align: center; }   /* greater_tables convention */
 #data-table .col-text { text-align: left; }
+/* markdown alignment spec overrides type alignment (must come after) */
+#data-table .align-left { text-align: left; }
+#data-table .align-center { text-align: center; }
+#data-table .align-right { text-align: right; }
 #data-table td.blank { color: #adb5bd; }

@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.5.1 (2026-06-11)
+
+- **Status bar moved to the lower left** (fixed footer): file name,
+  `shown of total rows × cols`, `showing rows 1–N` when render-capped,
+  and the headers-guessed note. Hidden on the ingest screen.
+- The old bottom-center `csv-viewer vX.Y.Z` footer line dropped — the
+  version already lives under "CSV Viewer" top left.
+
+## 1.5.0 (2026-06-11)
+
+Executed from `dev/plan-1.5-markdown-tables.md`.
+
+- **Markdown pipe tables** open like CSVs (file, paste, drag, `?src=`):
+  detected by the `|:--|--:|`-style separator row, outer pipes optional,
+  escaped `\|` honored inside cells. **Alignment follows the separator
+  spec** (`:--` left, `:-:` center, `--:` right) and overrides the
+  type-based alignment; bare `---` keeps the viewer's default. All
+  downstream machinery (type inference, number/date formatting, search,
+  filters, width allocation) applies unchanged.
+- File picker accepts `.md`/`.markdown`; fixture `dev/sample-table.md`;
+  smoke test extended to 113 checks.
+
 ## 1.4.3 (2026-06-11)
 
 - Expand is no longer a toggle: separate **Expand** and **Contract**

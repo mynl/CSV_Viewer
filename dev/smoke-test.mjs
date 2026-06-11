@@ -10,7 +10,8 @@ vm.runInContext(src, ctx);
 const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
         solveWidths, classifyNumber, engFormat, looksHeaderless,
-        guessHeaders, cleanCsvText, dateNeedsDayFirst } = ctx;
+        guessHeaders, cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
+        parseMarkdownTable, splitMdRow } = ctx;
 
 let failures = 0;
 function check(label, got, want) {
@@ -195,6 +196,23 @@ check('clean leaves good text alone', cleanCsvText('a,b\n1,2'), 'a,b\n1,2');
 // --- expand-all = solver with infinite budget returns natural widths
 check('expand: infinite budget -> natural',
       solveWidths([constant, spread], [50, 50], Infinity), [100, 990]);
+
+// --- markdown pipe tables (1.5)
+const md = `| Book | Year | Price |
+|:-----|:----:|------:|
+| War and Peace | 1869 | 24.99 |
+| Middlemarch | 1871 | 18.50 |`;
+check('md detected', isMarkdownTable(md), true);
+check('csv not md', isMarkdownTable('a,b\n1,2'), false);
+check('pipe csv not md', isMarkdownTable('a|b\n1|2'), false);
+const mdt = parseMarkdownTable(md);
+check('md headers', mdt.headers, ['Book', 'Year', 'Price']);
+check('md aligns', mdt.aligns, ['left', 'center', 'right']);
+check('md rows', mdt.rows[0], ['War and Peace', '1869', '24.99']);
+check('md no outer pipes', parseMarkdownTable('a | b\n--- | ---\n1 | 2').rows, [['1', '2']]);
+check('md escaped pipe', splitMdRow('| a \\| b | c |'), ['a | b', 'c']);
+check('md bare dashes -> no align override',
+      parseMarkdownTable('a|b\n---|---\n1|2').aligns, [null, null]);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

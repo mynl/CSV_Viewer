@@ -7,7 +7,7 @@
 
 'use strict';
 
-const VERSION = '1.4.3';
+const VERSION = '1.5.1';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
 
 // ---------------------------------------------------------------- parsing
@@ -81,6 +81,55 @@ function parseCSV(text, delim) {
     // drop trailing fully-blank lines
     while (rows.length && rows[rows.length - 1].every(c => c.trim() === '')) rows.pop();
     return rows;
+}
+
+// --------------------------------------------------- markdown pipe tables
+
+/* Split a markdown table row: optional outer pipes, cells split on |,
+ * honoring escaped \| inside a cell. */
+function splitMdRow(line) {
+    line = line.trim();
+    if (line.startsWith('|')) line = line.slice(1);
+    if (line.endsWith('|') && !line.endsWith('\\|')) line = line.slice(0, -1);
+    const cells = [];
+    let cur = '';
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '\\' && line[i + 1] === '|') { cur += '|'; i++; }
+        else if (ch === '|') { cells.push(cur); cur = ''; }
+        else cur += ch;
+    }
+    cells.push(cur);
+    return cells.map(c => c.trim());
+}
+
+const MD_ALIGN_CELL_RE = /^:?-+:?$/;
+
+/* A markdown table = first non-blank line has a pipe, second is an
+ * alignment separator row (every cell like ---, :--, :-:, --:). */
+function isMarkdownTable(text) {
+    const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim() !== '');
+    if (lines.length < 2 || !lines[0].includes('|')) return false;
+    const sep = splitMdRow(lines[1]);
+    return sep.length > 0 && sep.every(c => MD_ALIGN_CELL_RE.test(c));
+}
+
+/* Returns {headers, rows, aligns}; aligns[i] is 'left' | 'center' |
+ * 'right' | null (null = keep the viewer's type-based alignment). */
+function parseMarkdownTable(text) {
+    const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim() !== '');
+    const headers = splitMdRow(lines[0]).map((h, i) => h || `col${i + 1}`);
+    const aligns = splitMdRow(lines[1]).map(c => {
+        const l = c.startsWith(':'), r = c.endsWith(':');
+        return l && r ? 'center' : r ? 'right' : l ? 'left' : null;
+    });
+    while (aligns.length < headers.length) aligns.push(null);
+    const rows = lines.slice(2).filter(l => l.includes('|')).map(r => {
+        const out = splitMdRow(r).slice(0, headers.length);
+        while (out.length < headers.length) out.push('');
+        return out;
+    });
+    return { headers, rows, aligns };
 }
 
 // --------------------------------------------------------- type inference
@@ -639,6 +688,11 @@ function rebuildView() {
 
 const $ = id => document.getElementById(id);
 
+/* Type-based alignment class, overridden by a markdown alignment spec. */
+function cellClass(col) {
+    return col.align ? `col-${col.type} align-${col.align}` : `col-${col.type}`;
+}
+
 function renderHead() {
     const { cols } = state;
     const head = $('table-head');
@@ -647,7 +701,7 @@ function renderHead() {
     const hr = document.createElement('tr');
     cols.forEach((col, c) => {
         const th = document.createElement('th');
-        th.className = `col-${col.type}`;
+        th.className = cellClass(col);
         const arrow = state.sortCol === c ? (state.sortDir === 1 ? '▲' : '▼') : '';
         th.innerHTML = `<span class="sort-arrow">${arrow}</span>${escapeHtml(col.name)}`;
         th.title = `${col.name} (${col.type}) — click to sort`;
@@ -701,8 +755,8 @@ function renderBody() {
         const r = view[i];
         const cells = cols.map((col, c) => {
             const text = formatted[r][c];
-            if (text === '') return `<td class="col-${col.type} blank">·</td>`;
-            return `<td class="col-${col.type}">${escapeHtml(text)}</td>`;
+            if (text === '') return `<td class="${cellClass(col)} blank">·</td>`;
+            return `<td class="${cellClass(col)}">${escapeHtml(text)}</td>`;
         });
         parts.push(`<tr>${cells.join('')}</tr>`);
     }
@@ -719,14 +773,16 @@ function renderBody() {
 }
 
 function renderStatus() {
+    const fmt = n => n.toLocaleString();
     const total = state.rows.length;
     const shown = state.view.length;
-    const counts = shown === total
-        ? `${total.toLocaleString()} rows`
-        : `${shown.toLocaleString()} of ${total.toLocaleString()} rows`;
-    $('status').textContent =
-        `${state.fileName ? state.fileName + ' — ' : ''}${counts} × ${state.cols.length} cols`
-        + (state.guessedHeaders ? ' (headers guessed)' : '');
+    const cap = state.showAll ? shown : Math.min(shown, RENDER_CAP);
+    let s = state.fileName ? state.fileName + ' — ' : '';
+    s += shown === total ? `${fmt(total)} rows` : `${fmt(shown)} of ${fmt(total)} rows`;
+    s += ` × ${state.cols.length} cols`;
+    if (cap < shown) s += ` — showing rows 1–${fmt(cap)}`;
+    if (state.guessedHeaders) s += ' (headers guessed)';
+    $('status').textContent = s;
 }
 
 function refresh() {
@@ -759,22 +815,34 @@ function loadText(text, fileName, headerOverride = null) {
     try {
         text = cleanCsvText(text);
         if (!text.trim()) throw new Error('No data found.');
-        const delim = sniffDelimiter(text);
-        const all = parseCSV(text, delim);
-        if (all.length < 2) throw new Error('Need a header row and at least one data row.');
-        const headerless = headerOverride === null ? looksHeaderless(all[0]) : !headerOverride;
-        const headers = headerless
-            ? all[0].map((_, i) => `col${i + 1}`)
-            : all[0].map((h, i) => h.trim() || `col${i + 1}`);
-        const rows = (headerless ? all : all.slice(1)).map(r => {
-            // normalize ragged rows to header length
-            if (r.length === headers.length) return r;
-            const out = r.slice(0, headers.length);
-            while (out.length < headers.length) out.push('');
-            return out;
-        });
+        let headers, rows, aligns = null, headerless;
+        if (isMarkdownTable(text)) {
+            ({ headers, rows, aligns } = parseMarkdownTable(text));
+            headerless = headerOverride === false;   // md tables are headed by definition
+            if (headerless) {
+                rows = [headers, ...rows];
+                headers = headers.map((_, i) => `col${i + 1}`);
+            }
+            if (!rows.length) throw new Error('Markdown table has no data rows.');
+        } else {
+            const delim = sniffDelimiter(text);
+            const all = parseCSV(text, delim);
+            if (all.length < 2) throw new Error('Need a header row and at least one data row.');
+            headerless = headerOverride === null ? looksHeaderless(all[0]) : !headerOverride;
+            headers = headerless
+                ? all[0].map((_, i) => `col${i + 1}`)
+                : all[0].map((h, i) => h.trim() || `col${i + 1}`);
+            rows = (headerless ? all : all.slice(1)).map(r => {
+                // normalize ragged rows to header length
+                if (r.length === headers.length) return r;
+                const out = r.slice(0, headers.length);
+                while (out.length < headers.length) out.push('');
+                return out;
+            });
+        }
         const cols = inferColumns(headers, rows);
         if (headerless) guessHeaders(cols);
+        if (aligns) cols.forEach((c, i) => { if (aligns[i]) c.align = aligns[i]; });
         state.rawText = text;             // kept for the header toggle
         state.fileName = fileName || '';
         state.guessedHeaders = headerless;
@@ -797,6 +865,7 @@ function loadText(text, fileName, headerOverride = null) {
         $('ingest-view').classList.add('d-none');
         $('table-view').classList.remove('d-none');
         $('toolbar').classList.remove('d-none');
+        $('status-bar').classList.remove('d-none');
         $('header-btn').classList.toggle('active', !headerless);
         renderHead();
         state.layout = measureLayout();   // frozen for this load
@@ -823,6 +892,7 @@ function showError(msg) {
 function showIngest() {
     $('table-view').classList.add('d-none');
     $('toolbar').classList.add('d-none');
+    $('status-bar').classList.add('d-none');
     $('ingest-view').classList.remove('d-none');
 }
 
@@ -888,7 +958,11 @@ function initEvents() {
         refresh();
     });
     $('open-btn').addEventListener('click', showIngest);
-    $('show-all-btn').addEventListener('click', () => { state.showAll = true; renderBody(); });
+    $('show-all-btn').addEventListener('click', () => {
+        state.showAll = true;
+        renderBody();
+        renderStatus();
+    });
     // separate buttons by design — no mode-flipping play/pause toggles
     $('expand-btn').addEventListener('click', () => {
         state.expandAll = true;
@@ -943,7 +1017,6 @@ function initPWA() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    $('version').textContent = 'v' + VERSION;
     $('header-version').textContent = 'v' + VERSION;
     initEvents();
     initPWA();

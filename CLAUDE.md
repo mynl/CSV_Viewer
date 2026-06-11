@@ -34,6 +34,10 @@ These rules apply in every project — follow them without being re-asked.
 - Prefer explicit, documented recipes over magic / auto-install behavior.
 - UI: no buttons that change meaning with state (the infamous play/pause)
   — use separate, explicitly-labeled actions instead.
+- **YELL if a request is involved.** The author assumes his asks are easy.
+  If one implies a big increase in code size or a decrease in speed, do
+  NOT just build it — say so first and let him decide. His need for speed
+  outweighs his occasional whims.
 - Keep rendered output tight — no gratuitous blank lines in blocks.
 - US spelling throughout (prose, docstrings, comments, identifiers).
 - **Keep `human-hints.md` current** — a very high-level summary of what we

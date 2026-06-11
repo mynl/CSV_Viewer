@@ -1,9 +1,10 @@
 # csv-viewer
 
-A no-nonsense CSV viewer: a zero-build, single-page web app in vanilla
-JS/HTML. Drag a file in (or paste data), get a sortable, filterable,
-properly formatted table. Everything runs in the browser; nothing is
-uploaded anywhere.
+A no-nonsense CSV (and markdown table) viewer: a zero-build, single-page
+web app in vanilla JS/HTML. Drag a file in (or paste data), get a
+sortable, filterable, properly formatted table. Everything runs in the
+browser; nothing is uploaded anywhere. Markdown pipe tables are detected
+automatically and honor their `|:--|--:|` alignment spec.
 
 ## Use
 
