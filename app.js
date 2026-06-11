@@ -7,8 +7,11 @@
 
 'use strict';
 
-const VERSION = '1.5.1';
+const VERSION = '2.0.0';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
+const EAGER_CELLS = 200000;       // below this, format + index everything at load
+const WIDTH_SAMPLE = 2000;        // rows sampled per column for width percentiles
+const INDEX_CHUNK = 10000;        // rows per chunk when building the search index
 
 // ---------------------------------------------------------------- parsing
 
@@ -248,12 +251,21 @@ function classifyNumber(name, values, maxDec) {
         return { format: 'int', dec: 0 };
     }
     if (!allInt && MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
-    const nz = xs.filter(v => v !== 0).map(Math.abs);
-    if (!nz.length) return { format: 'float', dec: Math.min(maxDec, 6) };
+    // loop, not Math.max(...spread): a 250K-element spread blows the stack
+    let nNz = 0, maxAbs = 0, minAbs = Infinity, sum = 0;
+    for (const v of xs) {
+        if (v === 0) continue;
+        const a = Math.abs(v);
+        nNz++;
+        if (a > maxAbs) maxAbs = a;
+        if (a < minAbs) minAbs = a;
+        sum += a;
+    }
+    if (!nNz) return { format: 'float', dec: Math.min(maxDec, 6) };
     // money by value: ≤ 2 observed decimals and everything under 100,000
-    if (!allInt && maxDec <= 2 && Math.max(...nz) < 1e5) return { format: 'float', dec: 2 };
-    if (Math.max(...nz) / Math.min(...nz) > 1e6) return { format: 'eng', dec: 0 };
-    const meanAbs = nz.reduce((a, b) => a + b, 0) / nz.length;
+    if (!allInt && maxDec <= 2 && maxAbs < 1e5) return { format: 'float', dec: 2 };
+    if (maxAbs / minAbs > 1e6) return { format: 'eng', dec: 0 };
+    const meanAbs = sum / nNz;
     const dec = Math.max(0, Math.min(maxDec, 3 - Math.floor(Math.log10(meanAbs)), 6));
     return { format: 'float', dec };
 }
@@ -275,7 +287,9 @@ function engFormat(v) {
 function inferColumns(headers, rows) {
     return headers.map((name, c) => {
         let isNum = true, isDate = true, maxDec = 0, seen = 0;
+        let dayFirst = false, hasTime = false;
         const numv = new Array(rows.length).fill(null);
+        let datev = new Array(rows.length).fill(null);
         for (let r = 0; r < rows.length; r++) {
             const raw = (rows[r][c] ?? '').trim();
             if (raw === '') continue;
@@ -285,8 +299,16 @@ function inferColumns(headers, rows) {
                 if (p) { numv[r] = p.v; if (p.dec > maxDec) maxDec = p.dec; }
                 else isNum = false;
             }
-            // candidacy only: ambiguous m/d vs d/m is resolved per column below
-            if (isDate && !(parseDate(raw, false) || parseDate(raw, true))) isDate = false;
+            if (isDate) {
+                // parse month-first; matchability is convention-independent,
+                // so one parse decides candidacy. Track the day-first signal.
+                const p = parseDate(raw, false);
+                if (p) {
+                    datev[r] = p.t;
+                    hasTime = hasTime || p.hasTime;
+                    if (!dayFirst && dateNeedsDayFirst(raw)) dayFirst = true;
+                } else isDate = false;
+            }
             if (!isNum && !isDate) break;
         }
         if (seen === 0) return { name, type: 'text', values: null };
@@ -295,18 +317,15 @@ function inferColumns(headers, rows) {
             return { name, type: 'number', format: cls.format, dec: cls.dec, values: numv };
         }
         if (isDate) {
-            // second pass with a single per-column day/month convention
-            let dayFirst = false, hasTime = false;
-            for (let r = 0; r < rows.length; r++) {
-                const raw = (rows[r][c] ?? '').trim();
-                if (raw !== '' && dateNeedsDayFirst(raw)) { dayFirst = true; break; }
-            }
-            const datev = new Array(rows.length).fill(null);
-            for (let r = 0; r < rows.length; r++) {
-                const raw = (rows[r][c] ?? '').trim();
-                if (raw === '') continue;
-                const p = parseDate(raw, dayFirst);
-                if (p) { datev[r] = p.t; hasTime = hasTime || p.hasTime; }
+            if (dayFirst) {
+                // re-parse the whole column day-first (rare: UK-style data)
+                datev = new Array(rows.length).fill(null);
+                for (let r = 0; r < rows.length; r++) {
+                    const raw = (rows[r][c] ?? '').trim();
+                    if (raw === '') continue;
+                    const p = parseDate(raw, true);
+                    if (p) datev[r] = p.t;
+                }
             }
             return { name, type: 'date', hasTime, values: datev };
         }
@@ -342,6 +361,19 @@ function guessHeaders(cols) {
 
 // ------------------------------------------------------------- formatting
 
+/* Intl.NumberFormat construction is ~100x the cost of a format call —
+ * cache one formatter per decimal count. */
+const NF_CACHE = new Map();
+function numberFormatter(dec) {
+    let nf = NF_CACHE.get(dec);
+    if (!nf) {
+        nf = new Intl.NumberFormat('en-US',
+            { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        NF_CACHE.set(dec, nf);
+    }
+    return nf;
+}
+
 function formatCell(raw, col, r) {
     raw = (raw ?? '').trim();
     if (raw === '') return '';
@@ -350,8 +382,7 @@ function formatCell(raw, col, r) {
         if (v === null) return raw;
         if (col.format === 'year') return String(v);
         if (col.format === 'eng') return engFormat(v);
-        return v.toLocaleString('en-US',
-            { minimumFractionDigits: col.dec, maximumFractionDigits: col.dec });
+        return numberFormatter(col.dec).format(v);
     }
     if (col.type === 'date') {
         const t = col.values[r];
@@ -460,6 +491,8 @@ function measureLayout() {
     const ctx = canvas.getContext('2d');
     const cs = getComputedStyle($('data-table'));
     const font = `${cs.fontSize} ${cs.fontFamily}`;
+    // sampled, not exhaustive: quantiles from ~2K rows per column (2.0.0)
+    const sample = sampleIndices(state.rows.length, WIDTH_SAMPLE);
     const arrays = [], floors = [];
     for (let c = 0; c < state.cols.length; c++) {
         ctx.font = `bold ${font}`;
@@ -468,8 +501,8 @@ function measureLayout() {
             Math.ceil(ctx.measureText(state.cols[c].name).width) + 14 + CELL_PAD));
         ctx.font = font;
         const w = [];
-        for (let r = 0; r < state.rows.length; r++) {
-            const text = state.formatted[r][c];
+        for (const r of sample) {
+            const text = getFormattedRow(r)[c];
             if (text !== '') w.push(Math.ceil(ctx.measureText(text).width) + CELL_PAD);
         }
         w.sort((a, b) => a - b);
@@ -561,6 +594,65 @@ function applyLayout() {
     table.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
 }
 
+// ----------------------------------------------------- lazy format / index
+
+/* Format a row on demand and cache it. Small files are prefilled at load;
+ * large files only ever format what rendering, width-sampling, or the
+ * search index actually touch. */
+function getFormattedRow(r) {
+    let f = state.formatted[r];
+    if (!f) {
+        f = state.cols.map((col, c) => formatCell(state.rows[r][c], col, r));
+        state.formatted[r] = f;
+    }
+    return f;
+}
+
+/* Deterministic stride sample of k indices from 0..n-1 (all of them when
+ * n <= k). Quantiles from the sample stand in for the full distribution —
+ * the equal-risk width allocation is a VaR estimate, and ~2,000 points
+ * pin a quantile curve down fine. */
+function sampleIndices(n, k) {
+    if (n <= k) return Array.from({ length: n }, (_, i) => i);
+    const out = new Array(k);
+    const stride = n / k;
+    for (let i = 0; i < k; i++) out[i] = Math.floor(i * stride);
+    return out;
+}
+
+/* Build the global-search index (formatted + raw text per row) in chunks,
+ * yielding to the UI between chunks; progress shows in the status bar.
+ * The pending query applies automatically on completion. A stale build is
+ * abandoned if a new file loads (loadGen). */
+function buildSearchIndexChunked() {
+    const gen = state.loadGen;
+    const n = state.rows.length;
+    const raw = new Array(n), low = new Array(n);
+    let r = 0;
+    state.indexing = 0;
+    const step = () => {
+        if (gen !== state.loadGen) return;   // a new file arrived; abandon
+        const end = Math.min(n, r + INDEX_CHUNK);
+        for (; r < end; r++) {
+            const s = getFormattedRow(r).join(' ') + ' ' + state.rows[r].join(' ');
+            raw[r] = s;
+            low[r] = s.toLowerCase();
+        }
+        if (r < n) {
+            state.indexing = r / n;
+            renderStatus();
+            setTimeout(step, 0);
+        } else {
+            state.searchRaw = raw;
+            state.searchLow = low;
+            state.searchReady = true;
+            state.indexing = null;
+            refresh();
+        }
+    };
+    step();
+}
+
 // ------------------------------------------------------------------ state
 
 const state = {
@@ -568,9 +660,12 @@ const state = {
     headers: [],
     rows: [],          // raw string cells
     cols: [],          // inference results, parallel to headers
-    formatted: [],     // formatted display strings, parallel to rows
-    searchRaw: [],     // concatenated row text (formatted + raw) per row
-    searchLow: [],     // lower-cased version, for case-insensitive terms
+    formatted: [],     // per-row display-string cache (lazy for large files)
+    searchRaw: null,   // concatenated row text (formatted + raw) per row
+    searchLow: null,   // lower-cased version, for case-insensitive terms
+    searchReady: false,
+    indexing: null,    // build progress 0..1 while chunking, else null
+    loadGen: 0,        // bumped per load; abandons stale index builds
     scores: [],        // fuzzy match score per row (current query)
     layout: null,      // {arrays, floors} from measureLayout, frozen per load
     expandAll: false,  // bypass the squeeze: natural widths + h-scroll (sticky)
@@ -631,7 +726,13 @@ function makeColPredicate(filter, col) {
 
 function rebuildView() {
     const { rows, cols } = state;
-    const terms = parseQuery(state.globalFilter);
+    let terms = parseQuery(state.globalFilter);
+    // global search needs the index; kick off the chunked build and leave
+    // the global term unapplied until it lands (column filters work now)
+    if (terms.length && !state.searchReady) {
+        if (state.indexing === null) buildSearchIndexChunked();
+        terms = [];
+    }
     const hasFuzzy = terms.some(t => t.kind === 'fuzzy' && !t.negate);
     const preds = state.colFilters.map((f, c) => makeColPredicate(f || '', cols[c]));
     const active = preds.some(p => p) || terms.length;
@@ -748,13 +849,14 @@ function renderHead() {
 }
 
 function renderBody() {
-    const { cols, view, formatted } = state;
+    const { cols, view } = state;
     const cap = state.showAll ? view.length : Math.min(view.length, RENDER_CAP);
     const parts = [];
     for (let i = 0; i < cap; i++) {
         const r = view[i];
+        const frow = getFormattedRow(r);
         const cells = cols.map((col, c) => {
-            const text = formatted[r][c];
+            const text = frow[c];
             if (text === '') return `<td class="${cellClass(col)} blank">·</td>`;
             return `<td class="${cellClass(col)}">${escapeHtml(text)}</td>`;
         });
@@ -782,6 +884,7 @@ function renderStatus() {
     s += ` × ${state.cols.length} cols`;
     if (cap < shown) s += ` — showing rows 1–${fmt(cap)}`;
     if (state.guessedHeaders) s += ' (headers guessed)';
+    if (state.indexing !== null) s += ` — indexing search ${Math.round(state.indexing * 100)}%`;
     $('status').textContent = s;
 }
 
@@ -843,16 +946,26 @@ function loadText(text, fileName, headerOverride = null) {
         const cols = inferColumns(headers, rows);
         if (headerless) guessHeaders(cols);
         if (aligns) cols.forEach((c, i) => { if (aligns[i]) c.align = aligns[i]; });
+        state.loadGen++;
         state.rawText = text;             // kept for the header toggle
         state.fileName = fileName || '';
         state.guessedHeaders = headerless;
         state.headers = cols.map(c => c.name);
         state.rows = rows;
         state.cols = cols;
-        state.formatted = rows.map((row, r) => cols.map((col, c) => formatCell(row[c], col, r)));
-        state.searchRaw = state.formatted.map(
-            (frow, r) => frow.join(' ') + ' ' + rows[r].join(' '));
-        state.searchLow = state.searchRaw.map(s => s.toLowerCase());
+        state.formatted = new Array(rows.length);
+        state.searchRaw = null;
+        state.searchLow = null;
+        state.searchReady = false;
+        state.indexing = null;
+        if (rows.length * headers.length <= EAGER_CELLS) {
+            // small file: prefill everything, exactly the pre-2.0 behavior
+            for (let r = 0; r < rows.length; r++) getFormattedRow(r);
+            state.searchRaw = state.formatted.map(
+                (frow, r) => frow.join(' ') + ' ' + rows[r].join(' '));
+            state.searchLow = state.searchRaw.map(s => s.toLowerCase());
+            state.searchReady = true;
+        }
         state.sortCol = null;
         state.sortDir = 1;
         state.globalFilter = '';

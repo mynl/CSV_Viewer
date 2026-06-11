@@ -40,6 +40,24 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-11 — v2.0.0: the speed release
+
+- Steve approved sampling ("beautiful, more actuarial"), deferred search,
+  lazy formatting; worker/Vite pended. Named 2.0.0 for the big internal
+  change.
+- Plot twist: benchmarking exposed that the 250K wall was a CRASH —
+  `Math.max(...250K-element spread)` blows the JS call stack. Plus two
+  hidden taxes: per-call `Intl.NumberFormat` construction (cached now;
+  full format 52s → 1.5s) and double date-parsing (single now; infer
+  4.9s → 2.0s).
+- Net: 250K×6 loads in ~2.5–3s (was: crash), formatting at load 68ms,
+  search index builds in background chunks with status-bar progress.
+  Small files (≤200K cells) byte-identical behavior.
+- Answers to Steve's design questions: yes — below the threshold
+  everything is eager exactly as before; chunking applies to the search
+  index (10K rows/chunk, yields to UI), while display formatting needs no
+  chunks (on-demand touches only rendered rows).
+
 ## 2026-06-11 — v1.5.1: status bar lower left
 
 - File name / row counts / showing-N moved to a fixed lower-left status

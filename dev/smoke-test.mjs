@@ -11,7 +11,7 @@ const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
         solveWidths, classifyNumber, engFormat, looksHeaderless,
         guessHeaders, cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
-        parseMarkdownTable, splitMdRow } = ctx;
+        parseMarkdownTable, splitMdRow, sampleIndices } = ctx;
 
 let failures = 0;
 function check(label, got, want) {
@@ -213,6 +213,14 @@ check('md no outer pipes', parseMarkdownTable('a | b\n--- | ---\n1 | 2').rows, [
 check('md escaped pipe', splitMdRow('| a \\| b | c |'), ['a | b', 'c']);
 check('md bare dashes -> no align override',
       parseMarkdownTable('a|b\n---|---\n1|2').aligns, [null, null]);
+
+// --- stride sampling for width percentiles (2.0)
+check('sample small n = all', sampleIndices(5, 2000), [0, 1, 2, 3, 4]);
+const samp = sampleIndices(250000, 2000);
+check('sample size', samp.length, 2000);
+check('sample starts at 0', samp[0], 0);
+check('sample in range', samp[samp.length - 1] < 250000, true);
+check('sample strictly increasing', samp.every((v, i) => i === 0 || v > samp[i - 1]), true);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

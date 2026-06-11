@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.0.0 (2026-06-11)
+
+Large-file release, executed from `dev/plan-2.0-speedups.md`. Internal
+overhaul — no behavior change for small files (≤ 200,000 cells stay fully
+eager). Benchmarks on a 250K-row × 6-col synthetic file.
+
+- **Crash fix (the actual 250K wall)**: `Math.max(...spread)` over a
+  250K-element array blew the call stack in number classification;
+  replaced with a loop. Any large numeric column crashed before this.
+- **Sampled width measurement**: equal-risk width percentiles now come
+  from a ~2,000-row deterministic stride sample per column instead of
+  every cell (a quantile estimate, statistically equivalent) — eliminates
+  millions of canvas `measureText` calls. Trade-off: the sample max may
+  miss a freak-wide outlier cell (tooltip/drag/dblclick-fit cover it).
+- **Lazy formatting**: display strings are formatted per row on demand;
+  loads format ~4K rows (render cap + width sample) instead of all.
+  68ms vs 54s on the benchmark, helped by caching `Intl.NumberFormat`
+  per decimal count (construction is ~100× a format call).
+- **Deferred, chunked search index**: built on the first global-search
+  keystroke in 10K-row chunks that yield to the UI ("indexing search …%"
+  in the status bar); the pending query applies on completion. Column
+  filters and sorting never wait. Stale builds abandoned on new loads.
+- **Date inference single-parse**: candidacy needs one parse, not two;
+  columns re-parse only when a day-first signal appears (UK-style data).
+  Inference 4.9s → 2.0s on the benchmark.
+- Worker and Vite deliberately pended; remaining load cost (parse +
+  inference ≈ 2.4s at 250K rows) is the future worker's territory.
+- Smoke test extended to 118 checks.
+
 ## 1.5.1 (2026-06-11)
 
 - **Status bar moved to the lower left** (fixed footer): file name,
