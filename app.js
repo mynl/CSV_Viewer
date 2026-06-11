@@ -7,10 +7,17 @@
 
 'use strict';
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
 
 // ---------------------------------------------------------------- parsing
+
+/* Strip a UTF-8 BOM and leading blank/whitespace-only lines — bank
+ * downloads often have both, and a leading blank line otherwise makes the
+ * file look single-column. */
+function cleanCsvText(text) {
+    return (text ?? '').replace(/^\uFEFF/, '').replace(/^(?:[ \t]*(?:\r\n|\n|\r))+/, '');
+}
 
 /* Sniff the delimiter from the first ~20 lines: the candidate with the
  * highest, most consistent per-line field count (> 1) wins. */
@@ -80,7 +87,11 @@ function parseCSV(text, delim) {
 
 const NUM_RE = /^\(?\$?-?[0-9][0-9,]*(\.[0-9]+)?%?\)?$/;
 const ISO_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/;
-const US_RE  = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+const NUMDATE_RE = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/;
+const DMON_RE = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/;   // 5 Jan 2024, 05-Jan-24
+const MOND_RE = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/; // Jan 5, 2024
+const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'];
 
 /* Parse a number: thousands commas, (123) negatives, leading $, trailing %.
  * Returns {v, dec} or null. */
@@ -102,27 +113,66 @@ function parseNumber(s) {
     return { v, dec };
 }
 
-/* Parse a date (ISO or US slash). Returns {t, hasTime} or null. */
-function parseDate(s) {
+function monthNum(word) {
+    const w = word.toLowerCase();
+    const i = MONTH_NAMES.findIndex(n => n.startsWith(w) || (w === 'sept' && n === 'september'));
+    return i < 0 || w.length < 3 ? null : i + 1;
+}
+
+/* Two-digit year pivot: <50 → 20xx, else 19xx. */
+function fixYear(y) { y = +y; return y < 100 ? (y < 50 ? 2000 + y : 1900 + y) : y; }
+
+function makeDate(y, mo, d, h = 0, mi = 0, se = 0, hasTime = false) {
+    const t = new Date(y, mo - 1, d, h, mi, se);
+    if (t.getFullYear() !== y || t.getMonth() !== mo - 1 || t.getDate() !== +d) return null;
+    return { t: t.getTime(), hasTime };
+}
+
+/* Parse a date liberally: ISO (optional time), numeric triples with / - .
+ * separators and 2- or 4-digit years, month-name forms. `dayFirst` resolves
+ * the ambiguous all-numeric case (05/01/2024) — choose it per COLUMN (see
+ * inferColumns), not per value. Returns {t, hasTime} or null. */
+function parseDate(s, dayFirst = false) {
     s = s.trim();
     let m = ISO_RE.exec(s);
     if (m) {
         const [, y, mo, d, h, mi, se] = m;
-        const t = new Date(+y, mo - 1, +d, +(h || 0), +(mi || 0), +(se || 0));
-        if (t.getMonth() !== mo - 1 || t.getDate() !== +d) return null;
-        return { t: t.getTime(), hasTime: h !== undefined };
+        const r = makeDate(+y, +mo, +d, +(h || 0), +(mi || 0), +(se || 0), h !== undefined);
+        return r;
     }
-    m = US_RE.exec(s);
+    m = NUMDATE_RE.exec(s);
     if (m) {
-        const [, mo, d, y] = m;
-        const t = new Date(+y, mo - 1, +d);
-        if (t.getMonth() !== mo - 1 || t.getDate() !== +d) return null;
-        return { t: t.getTime(), hasTime: false };
+        const [, a, , b, c] = m;
+        if (a.length === 4 && c.length <= 2) return makeDate(+a, +b, +c);   // y/m/d
+        if (a.length <= 2 && (c.length === 4 || c.length === 2)) {          // d/m/y or m/d/y
+            const y = fixYear(c);
+            if (+a > 12 && +b <= 12) return makeDate(y, +b, +a);            // forced day-first
+            if (+b > 12 && +a <= 12) return makeDate(y, +a, +b);            // forced month-first
+            return dayFirst ? makeDate(y, +b, +a) : makeDate(y, +a, +b);
+        }
+        return null;
+    }
+    m = DMON_RE.exec(s);
+    if (m) {
+        const mo = monthNum(m[2]);
+        return mo ? makeDate(fixYear(m[3]), mo, +m[1]) : null;
+    }
+    m = MOND_RE.exec(s);
+    if (m) {
+        const mo = monthNum(m[1]);
+        return mo ? makeDate(fixYear(m[3]), mo, +m[2]) : null;
     }
     return null;
 }
 
+/* True if this value pins the ambiguous numeric form to day-first. */
+function dateNeedsDayFirst(s) {
+    const m = NUMDATE_RE.exec(s.trim());
+    return !!m && m[1].length <= 2 && +m[1] > 12 && +m[3] <= 12;
+}
+
 const YEAR_TITLE_RE = /\b(year|yr|vintage|cohort)\b/i;
+const MONEY_TITLE_RE = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i;
 
 /* Choose a numeric column's display format (greater_tables rules):
  *   year  — integers, header says year-ish OR all values in (1800, 2030);
@@ -136,12 +186,18 @@ const YEAR_TITLE_RE = /\b(year|yr|vintage|cohort)\b/i;
 function classifyNumber(name, values, maxDec) {
     const xs = values.filter(v => v !== null);
     const allInt = xs.every(v => Number.isInteger(v));
-    if (allInt) {
+    if (allInt && xs.length) {
         const yearish = YEAR_TITLE_RE.test(name) || xs.every(v => v > 1800 && v < 2030);
-        return xs.length && yearish ? { format: 'year', dec: 0 } : { format: 'int', dec: 0 };
+        if (yearish) return { format: 'year', dec: 0 };
+        // money by title trumps everything below (author: "deffo 2dp")
+        if (MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
+        return { format: 'int', dec: 0 };
     }
+    if (!allInt && MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
     const nz = xs.filter(v => v !== 0).map(Math.abs);
     if (!nz.length) return { format: 'float', dec: Math.min(maxDec, 6) };
+    // money by value: ≤ 2 observed decimals and everything under 100,000
+    if (!allInt && maxDec <= 2 && Math.max(...nz) < 1e5) return { format: 'float', dec: 2 };
     if (Math.max(...nz) / Math.min(...nz) > 1e6) return { format: 'eng', dec: 0 };
     const meanAbs = nz.reduce((a, b) => a + b, 0) / nz.length;
     const dec = Math.max(0, Math.min(maxDec, 3 - Math.floor(Math.log10(meanAbs)), 6));
@@ -164,9 +220,8 @@ function engFormat(v) {
  * numbers, else date if all parse as dates, else text. Strict for v1.0. */
 function inferColumns(headers, rows) {
     return headers.map((name, c) => {
-        let isNum = true, isDate = true, maxDec = 0, hasTime = false, seen = 0;
+        let isNum = true, isDate = true, maxDec = 0, seen = 0;
         const numv = new Array(rows.length).fill(null);
-        const datev = new Array(rows.length).fill(null);
         for (let r = 0; r < rows.length; r++) {
             const raw = (rows[r][c] ?? '').trim();
             if (raw === '') continue;
@@ -176,11 +231,8 @@ function inferColumns(headers, rows) {
                 if (p) { numv[r] = p.v; if (p.dec > maxDec) maxDec = p.dec; }
                 else isNum = false;
             }
-            if (isDate) {
-                const p = parseDate(raw);
-                if (p) { datev[r] = p.t; hasTime = hasTime || p.hasTime; }
-                else isDate = false;
-            }
+            // candidacy only: ambiguous m/d vs d/m is resolved per column below
+            if (isDate && !(parseDate(raw, false) || parseDate(raw, true))) isDate = false;
             if (!isNum && !isDate) break;
         }
         if (seen === 0) return { name, type: 'text', values: null };
@@ -188,7 +240,22 @@ function inferColumns(headers, rows) {
             const cls = classifyNumber(name, numv, maxDec);
             return { name, type: 'number', format: cls.format, dec: cls.dec, values: numv };
         }
-        if (isDate) return { name, type: 'date', hasTime, values: datev };
+        if (isDate) {
+            // second pass with a single per-column day/month convention
+            let dayFirst = false, hasTime = false;
+            for (let r = 0; r < rows.length; r++) {
+                const raw = (rows[r][c] ?? '').trim();
+                if (raw !== '' && dateNeedsDayFirst(raw)) { dayFirst = true; break; }
+            }
+            const datev = new Array(rows.length).fill(null);
+            for (let r = 0; r < rows.length; r++) {
+                const raw = (rows[r][c] ?? '').trim();
+                if (raw === '') continue;
+                const p = parseDate(raw, dayFirst);
+                if (p) { datev[r] = p.t; hasTime = hasTime || p.hasTime; }
+            }
+            return { name, type: 'date', hasTime, values: datev };
+        }
         return { name, type: 'text', values: null };
     });
 }
@@ -414,6 +481,7 @@ const state = {
     layout: null,      // {arrays, floors} from measureLayout, frozen per load
     expandAll: false,  // bypass the squeeze: natural widths + h-scroll (sticky)
     guessedHeaders: false,
+    rawText: '',       // cleaned source text, kept for the header toggle
     view: [],          // row indices after filter + sort
     sortCol: null,
     sortDir: 1,
@@ -632,13 +700,16 @@ function onSort(c) {
     refresh();
 }
 
-function loadText(text, fileName) {
+/* headerOverride: null = auto-detect, true = force row 1 as header,
+ * false = force headerless (guessed names). */
+function loadText(text, fileName, headerOverride = null) {
     try {
-        if (!text || !text.trim()) throw new Error('No data found.');
+        text = cleanCsvText(text);
+        if (!text.trim()) throw new Error('No data found.');
         const delim = sniffDelimiter(text);
         const all = parseCSV(text, delim);
         if (all.length < 2) throw new Error('Need a header row and at least one data row.');
-        const headerless = looksHeaderless(all[0]);
+        const headerless = headerOverride === null ? looksHeaderless(all[0]) : !headerOverride;
         const headers = headerless
             ? all[0].map((_, i) => `col${i + 1}`)
             : all[0].map((h, i) => h.trim() || `col${i + 1}`);
@@ -651,6 +722,7 @@ function loadText(text, fileName) {
         });
         const cols = inferColumns(headers, rows);
         if (headerless) guessHeaders(cols);
+        state.rawText = text;             // kept for the header toggle
         state.fileName = fileName || '';
         state.guessedHeaders = headerless;
         state.headers = cols.map(c => c.name);
@@ -671,6 +743,7 @@ function loadText(text, fileName) {
         $('ingest-view').classList.add('d-none');
         $('table-view').classList.remove('d-none');
         $('toolbar').classList.remove('d-none');
+        $('header-btn').classList.toggle('active', !headerless);
         renderHead();
         state.layout = measureLayout();   // frozen for this load
         applyLayout();
@@ -766,6 +839,10 @@ function initEvents() {
         state.expandAll = !state.expandAll;
         e.currentTarget.classList.toggle('active', state.expandAll);
         applyLayout();
+    });
+    // re-interpret the loaded data with the opposite header assumption
+    $('header-btn').addEventListener('click', () => {
+        if (state.rawText) loadText(state.rawText, state.fileName, state.guessedHeaders);
     });
 
     // re-solve column widths on resize (widths stay frozen w.r.t. filtering)

@@ -1,7 +1,48 @@
 # human-hints
 
 Very high-level running summary of discussions and decisions in this
-project. Newest first.
+project. Newest first. The pinned section below tracks the current
+formatting rules.
+
+## Number & date formatting rules (current as of v1.4)
+
+Per numeric column, first match wins:
+
+1. **Year** — all integers AND (header matches `year|yr|vintage|cohort`
+   OR all values in 1800–2030): plain, no commas (`1995`).
+2. **Money by header** — header matches `amount|amt|balance|price|cost|
+   fee|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|
+   income|expense|revenue` or a currency symbol/code: exactly 2dp with
+   commas, even for all-integer columns.
+3. **Integer** — all integer-valued: commas, 0dp.
+4. **Money by value** — floats with ≤ 2 observed decimals and max |x|
+   < 100,000: exactly 2dp ("probably money").
+5. **Engineering** — floats spanning > 6 orders of magnitude: 3
+   significant digits with SI suffixes n µ m k M G T (`4.5M`).
+6. **Sensible float** (the white-whale rule) — uniform decimals
+   `d = clamp(min(maxObservedDecimals, 3 − floor(log10(mean |x| over
+   nonzero))), 0, 6)`: ~4 significant digits at the column's typical
+   magnitude, never more precision than the raw data carried. Example:
+   mean ~10⁵ → 0dp; mean ~10 → 2dp; mean ~0.02 → up to 5dp (capped by
+   observed precision).
+
+Dates: recognized liberally (ISO, `13/01/2024`, `13-05-24`, `13.05.2024`,
+`5 Jan 2024`, `05-Jan-24`, `Jan 5, 2024`; 2-digit years pivot at 50);
+day-first vs month-first decided **per column** (any day > 12 flips the
+column to day-first, else US month-first); always displayed ISO
+`yyyy-mm-dd`, center-aligned. Numbers right, text left. Number parsing
+accepts `1,234.56`, `(2,500)`, `$99.50`, `12.5%`.
+
+## 2026-06-11 — v1.4.0: header toggle, liberal dates, money 2dp
+
+- v1.3 committed by Steve. v1.4
+  (dev/plan-1.4-header-toggle-dates-money.md): "Row 1 = header" toolbar
+  toggle (re-interprets loaded data either way); liberal date recognition
+  with per-column US/UK disambiguation; money rules (header or value)
+  forcing 2dp ahead of the clever float rule; BOM + leading-blank-line
+  stripping (fixes the bank download that loaded as one column).
+- Formatting rules now pinned at the top of this file — Steve's tracker.
+- Test fixture: dev/sample-bank-uk.csv (BOM, blank lines, day-first).
 
 ## 2026-06-11 — v1.3.0: browse, headerless bank CSVs, expand toggle
 

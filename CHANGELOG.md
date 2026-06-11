@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.0 (2026-06-11)
+
+Executed from `dev/plan-1.4-header-toggle-dates-money.md`.
+
+- **"Row 1 = header" toolbar toggle**: shows the mode in effect
+  (auto-detected on load); clicking re-interprets the loaded data with the
+  opposite assumption.
+- **Liberal date recognition**: numeric triples with `/`, `-`, or `.`
+  separators and 2- or 4-digit years; month-name forms (`5 Jan 2024`,
+  `05-Jan-24`, `Jan 5, 2024`). US/UK ambiguity resolved per column: one
+  value with day > 12 flips the whole column to day-first; otherwise
+  month-first. Display stays ISO.
+- **Money formatting rules** (trump the magnitude rule): a money-ish
+  header (`amount`, `balance`, `price`, `premium`, `loss`, currency
+  symbols, …) forces 2dp even on integer columns; float columns with ≤ 2
+  observed decimals and max |x| < 100,000 get exactly 2dp. Year
+  classification still wins over a money title.
+- **Bank-download hardening**: UTF-8 BOM and leading blank lines stripped
+  before sniffing (a leading blank line previously collapsed the file to
+  one column).
+- Test fixture `dev/sample-bank-uk.csv` (BOM + blank lines + day-first
+  dates); smoke test extended to 97 checks.
+
 ## 1.3.0 (2026-06-11)
 
 Executed from `dev/plan-1.3-browse-headers-expand.md`.

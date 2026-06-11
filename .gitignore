@@ -1,0 +1,9 @@
+tests/**/*.csv
+
+venv/
+.venv/
+
+__pycache__/
+
+.virtual_documents/
+.ipynb_checkpoints/

@@ -10,7 +10,7 @@ vm.runInContext(src, ctx);
 const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
         solveWidths, classifyNumber, engFormat, looksHeaderless,
-        guessHeaders } = ctx;
+        guessHeaders, cleanCsvText, dateNeedsDayFirst } = ctx;
 
 let failures = 0;
 function check(label, got, want) {
@@ -60,10 +60,10 @@ const rows = [
 const cols = inferColumns(headers, rows);
 check('infer types', cols.map(c => c.type), ['text','number','number','date','text']);
 check('infer qty dec', cols[1].dec, 0);
-check('infer price dec', cols[2].dec, 3);
+check('infer price dec (money title)', cols[2].dec, 2);
 check('format thousands', formatCell(rows[0][1], cols[1], 0), '1,200');
-check('format fixed dec', formatCell(rows[0][2], cols[2], 0), '12.500');
-check('format paren neg', formatCell(rows[2][2], cols[2], 2), '-3.000');
+check('format fixed dec', formatCell(rows[0][2], cols[2], 0), '12.50');
+check('format paren neg', formatCell(rows[2][2], cols[2], 2), '-3.00');
 check('format us date to iso', formatCell(rows[1][3], cols[3], 1), '2024-01-06');
 check('format blank', formatCell(rows[2][1], cols[1], 2), '');
 
@@ -114,10 +114,16 @@ check('year by title', classifyNumber('Accident Year', [1492, 2120], 0).format, 
 check('not year out of range', classifyNumber('count', [1990, 2031], 0).format, 'int');
 check('int gets commas format', classifyNumber('pages', [880, 1225], 0), { format: 'int', dec: 0 });
 check('eng for wide range', classifyNumber('x', [0.0000012, 4500000], 7).format, 'eng');
-// sensible float: money-scale (mean ~1e4) drops cents; unit-scale keeps them
-check('float money-scale dec 0', classifyNumber('loss', [12500.25, 9800.5], 2).dec, 0);
-check('float unit-scale dec 2', classifyNumber('price', [12.5, 9.25], 2).dec, 2);
-check('float small-scale capped by observed', classifyNumber('rate', [0.015, 0.025], 3).dec, 3);
+// money rules trump the magnitude rule
+check('money title float 2dp', classifyNumber('loss', [12500.25, 9800.5], 2).dec, 2);
+check('money title int 2dp', classifyNumber('Amount 1', [1200, 7], 0),
+      { format: 'float', dec: 2 });
+check('money by value 2dp', classifyNumber('x', [12500.25, 9800.5], 2).dec, 2);
+check('not money over 100k -> magnitude rule',
+      classifyNumber('factor', [250000.5, 980000.25], 2).dec, 0);
+check('not money 3dp -> magnitude rule', classifyNumber('rate', [0.015, 0.025], 3).dec, 3);
+check('year beats money title', classifyNumber('premium year', [1990, 2024], 0).format, 'year');
+check('float unit-scale dec 2', classifyNumber('q', [12.5, 9.25], 2).dec, 2);
 
 // year column renders plain
 const ycols = inferColumns(['year', 'n'], [['1995', '1,200'], ['2020', '7']]);
@@ -147,6 +153,35 @@ check('guessed names', bcols.map(c => c.name),
 const ycols2 = inferColumns(['col1', 'col2'], [['1995', 'x'], ['2020', 'y']]);
 guessHeaders(ycols2);
 check('guessed year name', ycols2.map(c => c.name), ['Year', 'Description']);
+
+// --- liberal dates (1.4)
+const D = (y, m, d) => ({ t: new Date(y, m - 1, d).getTime(), hasTime: false });
+check('date us default', parseDate('05/01/2024'), D(2024, 5, 1));
+check('date day-first flag', parseDate('05/01/2024', true), D(2024, 1, 5));
+check('date forced day-first', parseDate('13/05/2024'), D(2024, 5, 13));
+check('date forced month-first', parseDate('05/13/2024', true), D(2024, 5, 13));
+check('date dashes', parseDate('13-05-2024'), D(2024, 5, 13));
+check('date dots', parseDate('13.05.2024'), D(2024, 5, 13));
+check('date y/m/d slashes', parseDate('2024/05/01'), D(2024, 5, 1));
+check('date 2-digit year 99', parseDate('5/1/99'), D(1999, 5, 1));
+check('date 2-digit year 24', parseDate('5/1/24'), D(2024, 5, 1));
+check('date d Mon y', parseDate('5 Jan 2024'), D(2024, 1, 5));
+check('date dd-Mon-yy', parseDate('05-Jan-24'), D(2024, 1, 5));
+check('date Mon d, y', parseDate('Jan 5, 2024'), D(2024, 1, 5));
+check('date full month', parseDate('January 5 2024'), D(2024, 1, 5));
+check('date reject bad month word', parseDate('Jam 5, 2024'), null);
+check('needs day-first', dateNeedsDayFirst('13/05/2024'), true);
+check('no day-first signal', dateNeedsDayFirst('05/01/2024'), false);
+// column-level convention: one forcing value flips the whole column
+const ukcols = inferColumns(['when'], [['05/01/2024'], ['13/01/2024']]);
+check('uk column day-first', formatCell('05/01/2024', ukcols[0], 0), '2024-01-05');
+const uscols = inferColumns(['when'], [['05/01/2024'], ['12/01/2024']]);
+check('us column month-first', formatCell('05/01/2024', uscols[0], 0), '2024-05-01');
+
+// --- cleanCsvText (1.4): BOM + leading blank lines
+check('clean bom', cleanCsvText('﻿a,b\n1,2'), 'a,b\n1,2');
+check('clean leading blanks', cleanCsvText('\r\n  \r\na,b\r\n1,2'), 'a,b\r\n1,2');
+check('clean leaves good text alone', cleanCsvText('a,b\n1,2'), 'a,b\n1,2');
 
 // --- expand-all = solver with infinite budget returns natural widths
 check('expand: infinite budget -> natural',

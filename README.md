@@ -26,8 +26,13 @@ over localhost or https it is an installable PWA (offline-capable), and
 - Keyboard: `Ctrl+O` to open a new file; `Esc` clears the filter box you
   are in.
 - Headerless files (bank exports) are detected and get guessed column
-  names (`Date`, `Description 1`, `Amount`, …). The Expand button gives
-  every column its full natural width with horizontal scroll.
+  names (`Date`, `Description 1`, `Amount`, …) — the "Row 1 = header"
+  toggle overrides the guess either way. Leading blank lines and BOMs are
+  stripped. The Expand button gives every column its full natural width
+  with horizontal scroll.
+- Dates in most common forms are recognized (ISO, `13/01/2024`,
+  `05-Jan-24`, `Jan 5, 2024`); day-first vs month-first is decided per
+  column. Money columns (by header or by value) get 2dp.
 - Columns are sized tight (minimum width showing everything) when the table
   fits the window; when it doesn't, width is allocated so every column
   truncates with equal probability — widths are frozen per file load.
