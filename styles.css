@@ -39,6 +39,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+#data-table thead th .col-resizer {
+    /* th has overflow:hidden, so the grip must sit inside the edge */
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 3;
+}
+#data-table thead th .col-resizer:hover { background: rgba(13, 110, 253, 0.3); }
+body.col-resizing { cursor: col-resize; user-select: none; }
+
 #data-table thead th .sort-arrow {
     display: inline-block;
     width: 1em;

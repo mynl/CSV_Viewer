@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.3 (2026-06-11)
+
+- Expand is no longer a toggle: separate **Expand** and **Contract**
+  buttons (no play/pause-style meaning changes). Contract returns to the
+  fitted equal-risk layout and also clears any drag-resized widths.
+
+## 1.4.2 (2026-06-11)
+
+- **Drag-to-resize columns**: grip on each header's right edge. Dragging
+  sets a manual width (min 24px) that survives window resizes and the
+  Expand toggle, and resets on the next file load. **Double-click the grip
+  fits the column to its content** (Excel-style) — the intended answer to
+  "one wide column I want to read without expanding them all".
+
 ## 1.4.1 (2026-06-11)
 
 Bug fix.

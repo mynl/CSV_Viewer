@@ -32,6 +32,8 @@ These rules apply in every project — follow them without being re-asked.
 - Environment is **PowerShell on Windows**. No `awk`/`sed`/`head`/`tail` (even
   via the Bash tool). Use `rg` + the Read/Edit/Write tools.
 - Prefer explicit, documented recipes over magic / auto-install behavior.
+- UI: no buttons that change meaning with state (the infamous play/pause)
+  — use separate, explicitly-labeled actions instead.
 - Keep rendered output tight — no gratuitous blank lines in blocks.
 - US spelling throughout (prose, docstrings, comments, identifiers).
 - **Keep `human-hints.md` current** — a very high-level summary of what we

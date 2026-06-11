@@ -7,7 +7,7 @@
 
 'use strict';
 
-const VERSION = '1.4.1';
+const VERSION = '1.4.3';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
 
 // ---------------------------------------------------------------- parsing
@@ -451,6 +451,45 @@ function solveWidths(arrays, floors, avail) {
     return widthsAt(lo);
 }
 
+/* Drag-resize: a handle on each header's right edge. Drag sets a manual
+ * width override (kept across re-solves until the next file load);
+ * double-click fits the column to its content (Excel-style). */
+function startColResize(e, c) {
+    e.preventDefault();
+    e.stopPropagation();
+    const table = $('data-table');
+    const col = table.querySelectorAll('colgroup col')[c];
+    if (!col) return;
+    const startX = e.clientX;
+    const startW = parseFloat(col.style.width);
+    document.body.classList.add('col-resizing');
+    const setTableWidth = () => {
+        let sum = 0;
+        table.querySelectorAll('colgroup col').forEach(k => { sum += parseFloat(k.style.width); });
+        table.style.width = sum + 'px';
+    };
+    const move = ev => {
+        const w = Math.max(24, Math.round(startW + ev.clientX - startX));
+        state.manualWidths.set(c, w);
+        col.style.width = w + 'px';
+        setTableWidth();
+    };
+    const up = () => {
+        document.body.classList.remove('col-resizing');
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+}
+
+function fitColumn(c) {
+    const { arrays, floors } = state.layout;
+    const natural = Math.max(floors[c], arrays[c].length ? arrays[c][arrays[c].length - 1] : 0);
+    state.manualWidths.set(c, natural);
+    applyLayout();
+}
+
 /* Solve against the current viewport and pin widths via <colgroup> +
  * table-layout: fixed. */
 function applyLayout() {
@@ -459,6 +498,7 @@ function applyLayout() {
     const avail = state.expandAll ? Infinity : table.parentElement.clientWidth;
     if (!avail) return;
     const widths = solveWidths(state.layout.arrays, state.layout.floors, avail);
+    for (const [c, w] of state.manualWidths) if (c < widths.length) widths[c] = w;
     let cg = table.querySelector('colgroup');
     if (cg) cg.remove();
     cg = document.createElement('colgroup');
@@ -485,6 +525,7 @@ const state = {
     scores: [],        // fuzzy match score per row (current query)
     layout: null,      // {arrays, floors} from measureLayout, frozen per load
     expandAll: false,  // bypass the squeeze: natural widths + h-scroll (sticky)
+    manualWidths: new Map(),   // col index -> px, set by drag-resize
     guessedHeaders: false,
     rawText: '',       // cleaned source text, kept for the header toggle
     view: [],          // row indices after filter + sort
@@ -611,6 +652,13 @@ function renderHead() {
         th.innerHTML = `<span class="sort-arrow">${arrow}</span>${escapeHtml(col.name)}`;
         th.title = `${col.name} (${col.type}) — click to sort`;
         th.addEventListener('click', () => onSort(c));
+        const grip = document.createElement('span');
+        grip.className = 'col-resizer';
+        grip.title = 'Drag to resize — double-click to fit content';
+        grip.addEventListener('mousedown', e => startColResize(e, c));
+        grip.addEventListener('dblclick', e => { e.stopPropagation(); fitColumn(c); });
+        grip.addEventListener('click', e => e.stopPropagation());
+        th.appendChild(grip);
         hr.appendChild(th);
     });
     head.appendChild(hr);
@@ -741,6 +789,7 @@ function loadText(text, fileName, headerOverride = null) {
         state.sortDir = 1;
         state.globalFilter = '';
         state.colFilters = new Array(headers.length).fill('');
+        state.manualWidths = new Map();
         state.showAll = false;
 
         $('global-filter').value = '';
@@ -840,9 +889,14 @@ function initEvents() {
     });
     $('open-btn').addEventListener('click', showIngest);
     $('show-all-btn').addEventListener('click', () => { state.showAll = true; renderBody(); });
-    $('expand-btn').addEventListener('click', e => {
-        state.expandAll = !state.expandAll;
-        e.currentTarget.classList.toggle('active', state.expandAll);
+    // separate buttons by design — no mode-flipping play/pause toggles
+    $('expand-btn').addEventListener('click', () => {
+        state.expandAll = true;
+        applyLayout();
+    });
+    $('contract-btn').addEventListener('click', () => {
+        state.expandAll = false;
+        state.manualWidths.clear();
         applyLayout();
     });
     // re-interpret the loaded data with the opposite header assumption

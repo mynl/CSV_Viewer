@@ -34,6 +34,25 @@ column to day-first, else US month-first); always displayed ISO
 accepts `1,234.56`, `(2,500)`, `$99.50`, `12.5%`, `1e-03`, `.5` (v1.4.1:
 scientific notation, with exponent-aware implied decimals).
 
+Search note (by design, confirmed 2026-06-11): the global box matches
+against each row's cells concatenated into one string — formatted values
+first, then raw values. So `^` anchors the start of the first column and
+`$` the end of the last RAW cell (which can differ from the displayed
+value). For per-cell matching use the column filter boxes.
+
+## 2026-06-11 — v1.4.1 / v1.4.2: sci-notation fix, column drag-resize
+
+- 1.4.1 (committed): `1e-03` etc. now parse as numbers (one such value
+  was demoting whole columns to text).
+- 1.4.3: Expand/Contract as two separate buttons — UI principle for this
+  project (and generally): **no buttons that change meaning** (the
+  infamous play/pause). Contract = back to fitted layout, clears dragged
+  widths.
+- 1.4.2: drag-resize grips on header edges + double-click-to-fit-content.
+  Steve's take, agreed: resizing is a crutch — the machine should get
+  widths right — but it's expected in this kind of app, and double-click
+  covers the real use case (one wide column to inspect).
+
 ## 2026-06-11 — v1.4.0: header toggle, liberal dates, money 2dp
 
 - v1.3 committed by Steve. v1.4
