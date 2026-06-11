@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0 (2026-06-11)
+
+Executed from `dev/plan-1.3-browse-headers-expand.md`.
+
+- **Headerless CSV support** (bank-export style): if any first-row cell
+  parses as a number or date, the row is treated as data and column names
+  are guessed from inferred types — `Date`, `Amount`, `Description`
+  (`Year` for year-like integers), numbered when a type repeats. Status
+  bar shows "(headers guessed)".
+- **Expand toggle** in the toolbar: gives every column its natural
+  fully-visible width, bypassing the equal-risk squeeze (table scrolls
+  horizontally). Sticky for the session.
+- Explicit blue **Browse…** button in the open-file card (same as
+  clicking the drop zone).
+- Version number centered under "CSV Viewer" in the header.
+- Smoke test extended to 74 checks.
+
 ## 1.2.0 (2026-06-11)
 
 Formatting, keyboard, and PWA release, executed from

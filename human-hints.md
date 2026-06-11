@@ -3,6 +3,19 @@
 Very high-level running summary of discussions and decisions in this
 project. Newest first.
 
+## 2026-06-11 — v1.3.0: browse, headerless bank CSVs, expand toggle
+
+- v1.2 committed by Steve. v1.3 (dev/plan-1.3-browse-headers-expand.md):
+  explicit Browse button on the ingest card, centered header version,
+  headerless-CSV detection (first row contains a number/date → data) with
+  type-guessed names (Date / Amount / Description / Year, numbered), and
+  a sticky toolbar Expand toggle (natural widths + horizontal scroll,
+  bypassing the equal-risk squeeze).
+- Install-as-app recipe: serve (`python -m http.server 8080`), open
+  http://localhost:8080 in Edge, install icon in the address bar (or
+  … menu → Apps → Install). After first load the service worker keeps the
+  shell working even when the server is down.
+
 ## 2026-06-11 (late night) — v1.2 job lot: ?src=, PWA, plan renames
 
 - Verdict so far: gummage.

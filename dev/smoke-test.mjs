@@ -9,7 +9,8 @@ vm.createContext(ctx);
 vm.runInContext(src, ctx);
 const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
-        solveWidths, classifyNumber, engFormat } = ctx;
+        solveWidths, classifyNumber, engFormat, looksHeaderless,
+        guessHeaders } = ctx;
 
 let failures = 0;
 function check(label, got, want) {
@@ -130,6 +131,26 @@ check('eng milli', engFormat(0.00123), '1.23m');
 check('eng negative', engFormat(-12345), '-12.3k');
 check('eng zero', engFormat(0), '0');
 check('eng unit range', engFormat(123.4), '123');
+
+// --- headerless detection + guessed names (bank-export style)
+check('headerless: bank row', looksHeaderless(['2024-01-05', 'STARBUCKS #123', '-4.50']), true);
+check('headerless: header row', looksHeaderless(['Date', 'Description', 'Amount']), false);
+check('headerless: all-text stays headed', looksHeaderless(['alpha', 'beta']), false);
+const bank = [
+    ['2024-01-05', 'STARBUCKS', 'POS', '-4.50', '1,200.00'],
+    ['2024-01-06', 'PAYROLL',   'ACH', '2,500.00', '3,695.50'],
+];
+const bcols = inferColumns(['col1', 'col2', 'col3', 'col4', 'col5'], bank);
+guessHeaders(bcols);
+check('guessed names', bcols.map(c => c.name),
+      ['Date', 'Description 1', 'Description 2', 'Amount 1', 'Amount 2']);
+const ycols2 = inferColumns(['col1', 'col2'], [['1995', 'x'], ['2020', 'y']]);
+guessHeaders(ycols2);
+check('guessed year name', ycols2.map(c => c.name), ['Year', 'Description']);
+
+// --- expand-all = solver with infinite budget returns natural widths
+check('expand: infinite budget -> natural',
+      solveWidths([constant, spread], [50, 50], Infinity), [100, 990]);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

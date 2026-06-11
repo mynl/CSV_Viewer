@@ -7,7 +7,7 @@
 
 'use strict';
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const RENDER_CAP = 2000;          // rows rendered before "show all"
 
 // ---------------------------------------------------------------- parsing
@@ -193,6 +193,32 @@ function inferColumns(headers, rows) {
     });
 }
 
+/* Headerless detection (bank-export style): the first row is data, not
+ * headers, if any cell parses as a number or a date — real headers are
+ * text. All-text files are ambiguous and keep first-row-as-header. */
+function looksHeaderless(firstRow) {
+    return firstRow.some(c => {
+        const s = (c ?? '').trim();
+        return s !== '' && (parseNumber(s) !== null || parseDate(s) !== null);
+    });
+}
+
+/* Name guessed columns by inferred type: Date / Amount / Description
+ * (Year for year-formatted integers), numbered when a type repeats.
+ * Mutates col.name in place. */
+function guessHeaders(cols) {
+    const baseName = c => c.type === 'date' ? 'Date'
+        : c.type === 'number' ? (c.format === 'year' ? 'Year' : 'Amount')
+        : 'Description';
+    const counts = {}, seen = {};
+    cols.forEach(c => { const b = baseName(c); counts[b] = (counts[b] || 0) + 1; });
+    cols.forEach(c => {
+        const b = baseName(c);
+        seen[b] = (seen[b] || 0) + 1;
+        c.name = counts[b] > 1 ? `${b} ${seen[b]}` : b;
+    });
+}
+
 // ------------------------------------------------------------- formatting
 
 function formatCell(raw, col, r) {
@@ -358,7 +384,7 @@ function solveWidths(arrays, floors, avail) {
 function applyLayout() {
     if (!state.layout) return;
     const table = $('data-table');
-    const avail = table.parentElement.clientWidth;
+    const avail = state.expandAll ? Infinity : table.parentElement.clientWidth;
     if (!avail) return;
     const widths = solveWidths(state.layout.arrays, state.layout.floors, avail);
     let cg = table.querySelector('colgroup');
@@ -386,6 +412,8 @@ const state = {
     searchLow: [],     // lower-cased version, for case-insensitive terms
     scores: [],        // fuzzy match score per row (current query)
     layout: null,      // {arrays, floors} from measureLayout, frozen per load
+    expandAll: false,  // bypass the squeeze: natural widths + h-scroll (sticky)
+    guessedHeaders: false,
     view: [],          // row indices after filter + sort
     sortCol: null,
     sortDir: 1,
@@ -576,7 +604,8 @@ function renderStatus() {
         ? `${total.toLocaleString()} rows`
         : `${shown.toLocaleString()} of ${total.toLocaleString()} rows`;
     $('status').textContent =
-        `${state.fileName ? state.fileName + ' — ' : ''}${counts} × ${state.cols.length} cols`;
+        `${state.fileName ? state.fileName + ' — ' : ''}${counts} × ${state.cols.length} cols`
+        + (state.guessedHeaders ? ' (headers guessed)' : '');
 }
 
 function refresh() {
@@ -609,8 +638,11 @@ function loadText(text, fileName) {
         const delim = sniffDelimiter(text);
         const all = parseCSV(text, delim);
         if (all.length < 2) throw new Error('Need a header row and at least one data row.');
-        const headers = all[0].map((h, i) => h.trim() || `col${i + 1}`);
-        const rows = all.slice(1).map(r => {
+        const headerless = looksHeaderless(all[0]);
+        const headers = headerless
+            ? all[0].map((_, i) => `col${i + 1}`)
+            : all[0].map((h, i) => h.trim() || `col${i + 1}`);
+        const rows = (headerless ? all : all.slice(1)).map(r => {
             // normalize ragged rows to header length
             if (r.length === headers.length) return r;
             const out = r.slice(0, headers.length);
@@ -618,8 +650,10 @@ function loadText(text, fileName) {
             return out;
         });
         const cols = inferColumns(headers, rows);
+        if (headerless) guessHeaders(cols);
         state.fileName = fileName || '';
-        state.headers = headers;
+        state.guessedHeaders = headerless;
+        state.headers = cols.map(c => c.name);
         state.rows = rows;
         state.cols = cols;
         state.formatted = rows.map((row, r) => cols.map((col, c) => formatCell(row[c], col, r)));
@@ -669,6 +703,7 @@ function initEvents() {
     const dz = $('drop-zone'), fi = $('file-input');
 
     dz.addEventListener('click', () => fi.click());
+    $('browse-btn').addEventListener('click', () => fi.click());
     fi.addEventListener('change', () => { if (fi.files.length) loadFile(fi.files[0]); fi.value = ''; });
 
     // drag & drop: highlight the zone, but accept a drop anywhere on the page
@@ -727,6 +762,11 @@ function initEvents() {
     });
     $('open-btn').addEventListener('click', showIngest);
     $('show-all-btn').addEventListener('click', () => { state.showAll = true; renderBody(); });
+    $('expand-btn').addEventListener('click', e => {
+        state.expandAll = !state.expandAll;
+        e.currentTarget.classList.toggle('active', state.expandAll);
+        applyLayout();
+    });
 
     // re-solve column widths on resize (widths stay frozen w.r.t. filtering)
     let resizeTimer = null;
