@@ -1,15 +1,15 @@
-// Smoke test for the pure-logic parts of src/core.js + src/app.js
+// Smoke test for the pure-logic parts of src/grid/core.js + src/grid/grid.js
 // (parser, sniffing, inference, formatting, filtering, layout solver).
 // Run: node dev/smoke-test.mjs
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const core = readFileSync(new URL('../src/core.js', import.meta.url), 'utf8');
-const app = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+const core = readFileSync(new URL('../src/grid/core.js', import.meta.url), 'utf8');
+const grid = readFileSync(new URL('../src/grid/grid.js', import.meta.url), 'utf8');
 const ctx = { document: { addEventListener() {}, getElementById: () => null }, Intl, console };
 vm.createContext(ctx);
 vm.runInContext(core, ctx);
-vm.runInContext(app, ctx);
+vm.runInContext(grid, ctx);
 const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
         solveWidths, classifyNumber, engFormat, looksHeaderless,

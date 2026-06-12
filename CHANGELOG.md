@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.0.0 (2026-06-12)
+
+Stage 1 of `dev/plan-3.0-grid-extraction.md` (instance-ification). NO
+feature or behavior change — the app looks and acts exactly like 2.1.1.
+
+- **`CsvGrid` class** in `src/grid/grid.js`: all grid machinery
+  (formatting, fzf search, filter/sort view, equal-risk widths,
+  drag-resize, lazy formatting, chunked search index, render, status)
+  moved off the module-global `state` onto instance fields. No
+  document-level listeners inside the grid (the transient drag-resize
+  pair excepted); it renders into elements handed to the constructor —
+  own-DOM generation comes in stage 3. Public surface so far:
+  `setData`, `setGlobalFilter`, `clearFilters`, `expand`, `contract`,
+  `applyLayout`.
+- **`src/core.js` → `src/grid/core.js`**, `src/worker.js` →
+  `src/grid/worker.js` (both content-unchanged; the worker's relative
+  `importScripts('core.js')` still resolves).
+- **`src/app.js` → `src/app/app.js`**, now chrome only: ingest cards,
+  drop/paste/Ctrl+O/Ctrl+V, toolbar wiring, parse dispatch (sync vs
+  worker), `?src=`, PWA registration. It instantiates the one grid and
+  feeds it `processData` results.
+- `sw.js` cache → v3.0.0, shell list + scope regex updated for the new
+  `src/grid/`, `src/app/` paths (hard-refresh after deploying).
+- Smoke test harness points at the new paths; all 120 checks pass
+  unchanged. Verified in headless Edge against `?src=dev/sample.csv`.
+
 ## 2.1.1 (2026-06-12)
 
 - **Year range now 1800–2100 inclusive** (was the literal-spec

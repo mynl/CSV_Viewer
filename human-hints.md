@@ -41,6 +41,17 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-12 — 3.0 stage 1 executed (instance-ification, v3.0.0)
+
+- Mechanical split, zero behavior change: `src/grid/{core,grid,worker}.js`
+  + `src/app/app.js` (chrome). `CsvGrid` class owns all grid state;
+  chrome feeds it `processData` results and calls
+  `setGlobalFilter/clearFilters/expand/contract/applyLayout`. `sw.js`
+  cache bumped to v3.0.0 with the new shell paths.
+- Green: 120 smoke checks pass; headless-Edge screenshot of
+  `?src=dev/sample.csv` matches 2.1.1. Awaiting Steve's commit; plan
+  stays in `dev/` (stages 2–6 to go).
+
 ## 2026-06-12 — 3.0 GO: option B approved, plan written
 
 - Steve: "pretty clear I want option B, go straight to 3.0" — the YELL

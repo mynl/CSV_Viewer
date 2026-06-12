@@ -1,9 +1,9 @@
 /* csv-viewer core — pure data logic, no DOM.
  *
  * Loaded twice: as a plain <script> by index.html (page side) and via
- * importScripts by src/worker.js (worker side). Everything here must stay
- * DOM-free and side-effect-free. UI, formatting, search, and layout live
- * in src/app.js.
+ * importScripts by worker.js (worker side). Everything here must stay
+ * DOM-free and side-effect-free. Formatting, search, and layout live in
+ * grid.js (CsvGrid); viewer chrome in src/app/app.js.
  */
 
 'use strict';
