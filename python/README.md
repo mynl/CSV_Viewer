@@ -12,7 +12,11 @@ cells.
 
 ## Install
 
-Local path install from this repo (not on PyPI):
+```
+uv add csv-grid              # or: pip install csv-grid
+```
+
+or local path install from a clone of this repo:
 
 ```
 uv add --editable path/to/csv-viewer/python

@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.0.4';
+const VERSION = '3.0.5';
 
 const $ = id => document.getElementById(id);
 
@@ -173,6 +173,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     initEvents();
     initPWA();
+    // installed-PWA file handling: Windows "Open with" / default app for
+    // .csv etc. (manifest file_handlers); launches queue until consumed
+    if ('launchQueue' in window) {
+        window.launchQueue.setConsumer(params => {
+            if (params.files && params.files.length) {
+                params.files[0].getFile().then(loadFile);
+            }
+        });
+    }
     const src = new URLSearchParams(location.search).get('src');
     if (src) loadFromUrl(src);
 });

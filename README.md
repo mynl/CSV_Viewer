@@ -13,8 +13,10 @@ A no-nonsense CSV (and markdown table) viewer in vanilla JS — and, since
 
 ## The app
 
-Serve the repo root and open it (the source is ES modules, which
-browsers won't load from `file://`):
+**Live at <https://mynl.github.io/CSV_Viewer/>** — installable as a PWA
+from there (address-bar install icon on desktop, "Add to Home Screen"
+on phones). Or serve a clone of the repo root and open it (the source
+is ES modules, which browsers won't load from `file://`):
 
 ```
 python -m http.server 8080      # then http://localhost:8080
@@ -88,8 +90,10 @@ inferred from the data exactly as in the app. As an npm dependency:
 
 ### Python: csv_grid
 
-`python/` is a uv project emitting CsvGrid HTML from pandas DataFrames
-(see `python/README.md`):
+The grid is on PyPI as **[csv-grid](https://pypi.org/project/csv-grid/)**
+(`pip install csv-grid`, `import csv_grid`) — a uv project under
+`python/` emitting CsvGrid HTML from pandas DataFrames (see
+`python/README.md`):
 
 ```python
 from csv_grid import show, to_html

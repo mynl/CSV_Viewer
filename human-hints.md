@@ -41,6 +41,18 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-12 — naming settled + PWA file handling (v3.0.5)
+
+- Steve: no attachment to names, **strong attachment to consistency**.
+  Final scheme: csv-viewer = app/repo/Pages; csv-grid = the component
+  EVERYWHERE (CsvGrid class, npm, dist files, .csvgrid-* css, PyPI
+  dist, csv_grid import). PyPI package renamed csv-viewer → csv-grid
+  pre-publication (both free; checked). READMEs cross-link both ways.
+- PWA file handling: manifest file_handlers (.csv .tsv .tab .txt .md)
+  + launchQueue consumer → installed app shows in Windows "Open with"
+  and can be the default .csv app. Steve deploying to Pages + will
+  publish to PyPI himself (uv publish).
+
 ## 2026-06-12 — stages 5+6 executed: python emitter + docs (v3.0.4)
 
 - **python/csv_grid** (uv project): show(df)/to_html(df)/payload(df);
@@ -55,7 +67,17 @@ value). For per-cell matching use the column filter boxes.
   CLAUDE.md (overview/commands/architecture: serve required, rebuild
   dist after src/grid changes, version in three places), python README.
   Post-3.0 deferrals (app bundling + Pages Action) noted in plan doc.
-- Steve is enabling GitHub Pages (main/root) — installable PWA URL.
+- Steve is enabling GitHub Pages (main/root) — installable PWA URL
+  https://mynl.github.io/CSV_Viewer/ (now in README).
+- Same session: **MIT LICENSE** (root + python/ copy); pyproject made
+  PyPI-ready — distribution name **csv-viewer** (free on PyPI, checked;
+  import stays csv_grid), Python ≥ 3.11, full metadata; `uv build`
+  wheel verified (module + assets + license). Publishing itself still
+  Steve's trigger (`uv publish` + token).
+- **Icon bug found & fixed**: 192 + apple-touch had the glyph slid off
+  canvas since 2.1.1 — Windows clamps headless-Edge window width at
+  ~340px, so small --window-size crops a wider centered layout. Now:
+  render 512, downscale via System.Drawing (dev/icon-build/README.md).
 - **3.0 arc code-complete**; plan stays in dev/ until Steve says done.
 
 ## 2026-06-12 — stage 4 redone with REAL Vite (v3.0.3)

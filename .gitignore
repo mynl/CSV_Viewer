@@ -2,6 +2,7 @@ tests/**/*.csv
 
 node_modules/
 dev/tmp-big.csv
+python/dist/
 
 venv/
 .venv/

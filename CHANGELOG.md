@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.0.5 (2026-06-12)
+
+Naming consistency + PWA file handling.
+
+- **PyPI distribution renamed `csv-viewer` → `csv-grid`** (decided for
+  consistency before anything was published; both names were free).
+  Final scheme: **csv-viewer** = the app/repo/Pages site; **csv-grid**
+  = the component everywhere (JS class `CsvGrid`, npm name, dist
+  files, `.csvgrid-*` CSS, PyPI distribution, Python import
+  `csv_grid`). PyPI metadata points Homepage/Repository at the GitHub
+  repo plus a "Live viewer" link to Pages; the main README links the
+  PyPI package.
+- **PWA file handling**: the manifest registers `file_handlers` for
+  `.csv .tsv .tab .txt .md .markdown` and the app consumes
+  `window.launchQueue` — once installed, "CSV Viewer" appears in the
+  Windows "Open with" menu for those extensions and can be set as the
+  default `.csv` app (Chromium desktop; one-time permission prompt on
+  first use).
+
 ## 3.0.4 (2026-06-12)
 
 Stages 5 + 6 of `dev/plan-3.0-grid-extraction.md` (python emitter +
@@ -25,11 +44,22 @@ docs) — the 3.0 arc is code-complete.
   round-trip the smoke test completes through `normalizeRecords` +
   formatting (158 checks).
 - **Docs (stage 6)**: README rewritten around the two halves (app +
-  library, with the CsvGrid quick start and csv_grid usage);
-  CLAUDE.md overview/commands/architecture rewritten to the 3.0 layout
-  (serve-required, rebuild-dist-after-grid-changes, version in three
-  places); `python/README.md`; post-3.0 deferred items (app bundling,
-  Pages Action) recorded in the plan doc.
+  library, with the CsvGrid quick start, csv_grid usage, and the live
+  GitHub Pages URL); CLAUDE.md overview/commands/architecture rewritten
+  to the 3.0 layout (serve-required, rebuild-dist-after-grid-changes,
+  version in three places); `python/README.md`; post-3.0 deferred items
+  (app bundling, Pages Action) recorded in the plan doc.
+- **MIT LICENSE** added (root + copy in `python/` for the wheel);
+  pyproject made PyPI-publishable: distribution name **csv-viewer**
+  (verified free on PyPI; import name stays `csv_grid`), Python ≥ 3.11,
+  authors/urls/classifiers/keywords. `uv build` verified: wheel carries
+  the module, both embedded assets, and the license.
+- **PWA icon fix**: `icon-192.png` and `apple-touch-icon.png` had
+  shipped with the glyph slid half off the canvas since 2.1.1 — new
+  headless Edge renders in a real window and Windows clamps the minimum
+  window width (~340 px), so sub-340 `--window-size` captures crop a
+  wider, centered layout. Icons are now rendered at 512 and downscaled
+  (System.Drawing bicubic); recipe in `dev/icon-build/README.md`.
 
 ## 3.0.3 (2026-06-12)
 
