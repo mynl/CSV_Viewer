@@ -1,5 +1,5 @@
 /* csv-grid styles — self-contained, no framework. Namespaced .csvgrid-*
- * (structural) with table-internal classes scoped under .csvgrid-table.
+ * (structural) with table-internal classes scoped under .csvgrid .csvgrid-table.
  * Replicates the viewer's Bootstrap-era look so embed pages match. */
 
 .csvgrid {
@@ -47,7 +47,7 @@
 
 /* Widths are pinned per load via <colgroup> + table-layout: fixed (set from
  * JS); tight when everything fits, equal-risk truncation when it doesn't. */
-.csvgrid-table {
+.csvgrid .csvgrid-table {
     border-collapse: collapse;
     width: auto;
     font-size: 0.8rem;
@@ -55,15 +55,15 @@
     font-variant-numeric: tabular-nums;
     background: #fff;
 }
-.csvgrid-table th,
-.csvgrid-table td {
+.csvgrid .csvgrid-table th,
+.csvgrid .csvgrid-table td {
     padding: 0.25rem;
     border-bottom: 1px solid #dee2e6;
     text-align: left;
 }
-.csvgrid-table tbody tr:hover td { background: rgba(0, 0, 0, 0.075); }
+.csvgrid .csvgrid-table tbody tr:hover td { background: rgba(0, 0, 0, 0.075); }
 
-.csvgrid-table thead th {
+.csvgrid .csvgrid-table thead th {
     position: sticky;
     top: 0;
     z-index: 2;
@@ -75,8 +75,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.csvgrid-table thead th.csvgrid-nosort { cursor: default; }
-.csvgrid-table thead th .col-resizer {
+.csvgrid .csvgrid-table thead th.csvgrid-nosort { cursor: default; }
+.csvgrid .csvgrid-table thead th .col-resizer {
     /* th has overflow:hidden, so the grip must sit inside the edge */
     position: absolute;
     top: 0;
@@ -86,16 +86,16 @@
     cursor: col-resize;
     z-index: 3;
 }
-.csvgrid-table thead th .col-resizer:hover { background: rgba(13, 110, 253, 0.3); }
+.csvgrid .csvgrid-table thead th .col-resizer:hover { background: rgba(13, 110, 253, 0.3); }
 body.csvgrid-resizing { cursor: col-resize; user-select: none; }
 
-.csvgrid-table thead th .sort-arrow {
+.csvgrid .csvgrid-table thead th .sort-arrow {
     display: inline-block;
     width: 1em;
     color: #0d6efd;
 }
 
-.csvgrid-table thead tr.filter-row th {
+.csvgrid .csvgrid-table thead tr.filter-row th {
     cursor: default;
     box-shadow: inset 0 -2px 0 #dee2e6;
     top: 28px;              /* sits below the (0.8rem) header row */
@@ -120,20 +120,20 @@ body.csvgrid-resizing { cursor: col-resize; user-select: none; }
     border-color: #0d6efd;
 }
 
-.csvgrid-table td {
+.csvgrid .csvgrid-table td {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.csvgrid-table .col-number { text-align: right; }
-.csvgrid-table .col-date { text-align: center; }   /* greater_tables convention */
-.csvgrid-table .col-text { text-align: left; }
+.csvgrid .csvgrid-table .col-number { text-align: right; }
+.csvgrid .csvgrid-table .col-date { text-align: center; }   /* greater_tables convention */
+.csvgrid .csvgrid-table .col-text { text-align: left; }
 /* explicit alignment (align option / markdown spec) overrides type alignment */
-.csvgrid-table .align-left { text-align: left; }
-.csvgrid-table .align-center { text-align: center; }
-.csvgrid-table .align-right { text-align: right; }
-.csvgrid-table td.blank { color: #adb5bd; }
+.csvgrid .csvgrid-table .align-left { text-align: left; }
+.csvgrid .csvgrid-table .align-center { text-align: center; }
+.csvgrid .csvgrid-table .align-right { text-align: right; }
+.csvgrid .csvgrid-table td.blank { color: #adb5bd; }
 
 /* "Showing first N — show all" note below the table */
 .csvgrid-capnote {

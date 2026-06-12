@@ -10,12 +10,7 @@
     "file_handlers": [
         {
             "action": "./",
-            "accept": {
-                "text/csv": [".csv"],
-                "text/tab-separated-values": [".tsv", ".tab"],
-                "text/plain": [".txt"],
-                "text/markdown": [".md", ".markdown"]
-            }
+            "accept": { "text/csv": [".csv"] }
         }
     ],
     "icons": [

@@ -41,6 +41,24 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-13 — blog/JLab embedding bugs fixed (v3.0.7)
+
+- Steve's hacks/index-from-blog-copy.qmd rendered an EMPTY grid; same
+  code fine in Jupyter; JLab text right-aligned (his "big bugaboo").
+  Diagnosed by reproduction (quarto render + injected onerror trap):
+  1. Quarto pages carry RequireJS → define.amd hijacks the umd wrapper
+     → window.CsvGrid never set. Fix: dist/csv-grid.iife.js (plain
+     global), now THE script-tag artifact; python emitter uses it.
+  2. JLab css `:not(.jp-RenderedMarkdown).jp-RenderedHTMLCommon td
+     {text-align:right}` beats `.csvgrid-table .col-text` by one point
+     (:not counts as a class). Fix: cell rules scoped
+     `.csvgrid .csvgrid-table …`. Canary: dev/jlab-align-test.html.
+- Both verified: re-rendered qmd shows the full 1081-book grid; JLab
+  rule simulated verbatim → alignment correct. v3.0.7 everywhere;
+  Steve to commit, deploy, twine-publish 3.0.7.
+- (3.0.6 same day: file handler narrowed to .csv only; PyPI changelog
+  link fixed — repo default branch is master, not main.)
+
 ## 2026-06-12 — naming settled + PWA file handling (v3.0.5)
 
 - Steve: no attachment to names, **strong attachment to consistency**.
@@ -51,7 +69,9 @@ value). For per-cell matching use the column filter boxes.
 - PWA file handling: manifest file_handlers (.csv .tsv .tab .txt .md)
   + launchQueue consumer → installed app shows in Windows "Open with"
   and can be the default .csv app. Steve deploying to Pages + will
-  publish to PyPI himself (uv publish).
+  publish to PyPI himself — **via twine + ~/.pypirc** (his standing
+  workflow; a [csv-grid] section alongside agg/gter), not uv publish:
+  `cd python; uv build; twine upload -r csv-grid dist/*`.
 
 ## 2026-06-12 — stages 5+6 executed: python emitter + docs (v3.0.4)
 

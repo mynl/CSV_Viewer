@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.0.5"
+__version__ = "3.0.7"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
@@ -111,14 +111,17 @@ def _asset_text(fname: str) -> str:
 
 def _assets_fragment(assets) -> str:
     """'inline' -> embed css+js; a string -> <link>/<script src> against
-    that base URL; False/None -> '' (already on the page)."""
+    that base URL; False/None -> '' (already on the page). The iife build
+    is used (not umd): pages rendered by Quarto/Jupyter can carry
+    RequireJS, which hijacks a umd wrapper via define.amd and the global
+    CsvGrid never appears."""
     if assets == "inline":
         return (f"<style>\n{_asset_text('csv-grid.css')}\n</style>\n"
-                f"<script>\n{_asset_text('csv-grid.umd.js')}\n</script>")
+                f"<script>\n{_asset_text('csv-grid.iife.js')}\n</script>")
     if assets:
         base = str(assets).rstrip("/")
         return (f'<link rel="stylesheet" href="{base}/csv-grid.css">\n'
-                f'<script src="{base}/csv-grid.umd.js"></script>')
+                f'<script src="{base}/csv-grid.iife.js"></script>')
     return ""
 
 

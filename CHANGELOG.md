@@ -1,5 +1,39 @@
 # Changelog
 
+## 3.0.7 (2026-06-13)
+
+Two embedding bugs found via the blog page (the Reading-Since-1990 qmd)
+and JupyterLab — both verified fixed by reproduction.
+
+- **Quarto pages showed an empty grid**: Quarto's Jupyter-engine HTML
+  carries RequireJS, whose `define.amd` hijacks a umd wrapper — the
+  bundle registered as an anonymous AMD module and `window.CsvGrid`
+  never appeared (`ReferenceError`, blank div). Fix: new
+  **`dist/csv-grid.iife.js`** (unconditional global, no module
+  sniffing) — now the right file for ALL `<script src>` consumers; the
+  python emitter inlines/links it instead of umd. umd remains for
+  CommonJS `require()`.
+- **JupyterLab right-aligned the text columns**: JLab's rendermime rule
+  `:not(.jp-RenderedMarkdown).jp-RenderedHTMLCommon td {text-align:
+  right}` outweighs `.csvgrid-table .col-text` by one specificity point
+  (the `:not()` counts as a class). Fix: grid.css cell rules are now
+  scoped `.csvgrid .csvgrid-table …`, which beats it decisively — no
+  `!important`. New fixture `dev/jlab-align-test.html` replicates the
+  JLab rule verbatim as the regression canary.
+
+## 3.0.6 (2026-06-12)
+
+Post-publication touch-ups.
+
+- **File handler narrowed to `.csv` only** — registering for
+  .tsv/.txt/.md too put "CSV Viewer" in the Open-with menu of files the
+  author doesn't want associated. (Drag/drop and browse still accept
+  all the formats; this only affects the OS association.) Redeploy +
+  reinstall the PWA to pick up the manifest change.
+- **PyPI Changelog link fixed** — pointed at `blob/main/`, but the
+  repo's default branch is `master` (404 on the 3.0.5 PyPI page; live
+  with the next upload).
+
 ## 3.0.5 (2026-06-12)
 
 Naming consistency + PWA file handling.

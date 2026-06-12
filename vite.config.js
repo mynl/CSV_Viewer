@@ -48,7 +48,12 @@ export default defineConfig(({ mode }) => {
             lib: {
                 entry: 'src/grid/grid.js',
                 name: 'CsvGrid',
-                formats: umd ? ['umd'] : ['es'],
+                /* iife = unconditional window.CsvGrid — immune to pages
+                 * that carry RequireJS (Quarto/Jupyter outputs), where the
+                 * umd wrapper would register as an AMD module instead of
+                 * setting the global. Script-tag consumers and the python
+                 * emitter use the iife; umd stays for CommonJS. */
+                formats: umd ? ['umd', 'iife'] : ['es'],
                 fileName: format => `csv-grid.${format}.js`,
             },
             outDir: 'dist',
@@ -85,9 +90,9 @@ export default defineConfig(({ mode }) => {
                 copyFileSync(here('./src/grid/grid.css'), here('./dist/csv-grid.css'));
                 const py = './python/src/csv_grid/assets/';
                 copyFileSync(here('./dist/csv-grid.css'), here(py + 'csv-grid.css'));
-                // only present after the second (umd) pass
-                if (existsSync(here('./dist/csv-grid.umd.js'))) {
-                    copyFileSync(here('./dist/csv-grid.umd.js'), here(py + 'csv-grid.umd.js'));
+                // only present after the second (umd + iife) pass
+                if (existsSync(here('./dist/csv-grid.iife.js'))) {
+                    copyFileSync(here('./dist/csv-grid.iife.js'), here(py + 'csv-grid.iife.js'));
                 }
             },
         }],

@@ -118,7 +118,7 @@ generate `dev/tmp-big.csv` first, recipe in the file),
 | `src/grid/grid.css` | the grid's self-contained styles, `.csvgrid-*` namespaced |
 | `src/app/app.js` | viewer chrome: ingest, toolbar wiring, Ctrl+O/Ctrl+V, `?src=`, PWA registration |
 | `src/app/app.css` | chrome-only styles (Bootstrap supplies the rest) |
-| `dist/` | COMMITTED Vite output: `csv-grid.{es,umd}.js` + maps, `csv-grid.worker.js`, `csv-grid.css` |
+| `dist/` | COMMITTED Vite output: `csv-grid.{es,umd,iife}.js` + maps, `csv-grid.worker.js`, `csv-grid.css` — iife for script tags (RequireJS pages hijack umd via define.amd) |
 | `vite.config.js` | library build, two passes (es / umd) — the UMD import.meta polyfill is explained inside |
 | `python/` | uv project `csv_grid`: `show(df)` / `to_html(df)` emitters; carries copies of the umd bundle + css (refreshed by `npm run build`) |
 | `favicon.svg`, `icons/`, `manifest.webmanifest` | PWA icons + manifest (root, served as-is) |

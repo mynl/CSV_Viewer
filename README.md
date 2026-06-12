@@ -61,14 +61,15 @@ automatically and honor their `|:--|--:|` alignment spec.
 
 | file | use |
 |---|---|
-| `csv-grid.umd.js` | classic `<script>` tag → global `CsvGrid`; works from `file://` |
+| `csv-grid.iife.js` | classic `<script>` tag → global `CsvGrid`; works from `file://` and on pages carrying RequireJS (Quarto/Jupyter outputs), which hijacks umd |
 | `csv-grid.es.js` | `import CsvGrid from …` (bundlers, module pages) |
+| `csv-grid.umd.js` | CommonJS `require()` consumers |
 | `csv-grid.css` | the grid's styles (self-contained, no framework) |
 | `csv-grid.worker.js` | parse worker — host next to the bundle, or pass `worker:false` |
 
 ```html
 <link rel="stylesheet" href="csv-grid.css">
-<script src="csv-grid.umd.js"></script>
+<script src="csv-grid.iife.js"></script>
 <div id="grid"></div>
 <script>
 new CsvGrid('#grid',

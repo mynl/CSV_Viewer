@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JupyterLab CSS clash test</title>
+    <link rel="stylesheet" href="../dist/csv-grid.css">
+    <style>
+        /* JupyterLab rendermime's table rule, verbatim — specificity
+           (0,2,1) via the :not() class. The grid's cell rules must beat
+           it or text/date columns go right-aligned in JLab (the 3.0.7
+           bugaboo fix; grid.css scopes cell rules under .csvgrid). */
+        :not(.jp-RenderedMarkdown).jp-RenderedHTMLCommon td,
+        :not(.jp-RenderedMarkdown).jp-RenderedHTMLCommon th,
+        :not(.jp-RenderedMarkdown).jp-RenderedHTMLCommon tr {
+            text-align: right;
+            vertical-align: middle;
+            padding: 0.5em;
+        }
+        body { margin: 2rem; font-family: system-ui, sans-serif; }
+        .pane { max-width: 700px; }
+    </style>
+</head>
+<body>
+<h1 style="font-size:1.1rem">Grid inside a .jp-RenderedHTMLCommon wrapper —
+text/author must be LEFT, date centered, numbers right</h1>
+<div class="jp-RenderedHTMLCommon pane">
+    <div id="g"></div>
+</div>
+<script src="../dist/csv-grid.iife.js"></script>
+<script>
+'use strict';
+new CsvGrid('#g', {
+    csv: `book,author,pages,started
+War and Peace,"Tolstoy, Leo",1225,2024-01-05
+Middlemarch,"Eliot, George",880,2024-02-01
+The Big Short,"Lewis, Michael",264,2024-04-10`,
+}, { globalSearch: false, expandButtons: false, statusBar: false });
+</script>
+</body>
+</html>

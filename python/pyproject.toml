@@ -1,6 +1,6 @@
 [project]
 name = "csv-grid"
-version = "3.0.5"
+version = "3.0.7"
 description = "Emit csv-viewer's CsvGrid interactive tables from pandas DataFrames (Jupyter / Quarto / static HTML)."
 readme = "README.md"
 license = "MIT"
@@ -28,7 +28,7 @@ classifiers = [
 Homepage = "https://github.com/mynl/CSV_Viewer"
 "Live viewer" = "https://mynl.github.io/CSV_Viewer/"
 Repository = "https://github.com/mynl/CSV_Viewer"
-Changelog = "https://github.com/mynl/CSV_Viewer/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/mynl/CSV_Viewer/blob/master/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
