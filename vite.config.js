@@ -15,7 +15,7 @@
 // the output — that is fine.
 
 import { defineConfig } from 'vite';
-import { readFileSync, copyFileSync } from 'node:fs';
+import { readFileSync, copyFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const here = f => fileURLToPath(new URL(f, import.meta.url));
@@ -76,10 +76,19 @@ export default defineConfig(({ mode }) => {
         },
         plugins: [{
             // grid.css is plain CSS (not imported from JS — the source runs
-            // natively in dev, where JS-importing CSS would fail); ship it
-            name: 'copy-grid-css',
+            // natively in dev, where JS-importing CSS would fail); ship it.
+            // The python emitter package carries its own copy of the umd
+            // bundle + css (inlined into notebooks/qmd) — refresh it here
+            // so `npm run build` keeps python/csv_grid in sync.
+            name: 'copy-assets',
             closeBundle() {
                 copyFileSync(here('./src/grid/grid.css'), here('./dist/csv-grid.css'));
+                const py = './python/src/csv_grid/assets/';
+                copyFileSync(here('./dist/csv-grid.css'), here(py + 'csv-grid.css'));
+                // only present after the second (umd) pass
+                if (existsSync(here('./dist/csv-grid.umd.js'))) {
+                    copyFileSync(here('./dist/csv-grid.umd.js'), here(py + 'csv-grid.umd.js'));
+                }
             },
         }],
     };

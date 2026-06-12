@@ -1,4 +1,4 @@
-/* csv-grid v3.0.3 — built by Vite from src/grid/ of the
+/* csv-grid v3.0.4 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {

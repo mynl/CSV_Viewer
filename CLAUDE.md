@@ -5,14 +5,26 @@ code in this repository.
 
 ## Project Overview
 
-`csv-viewer` is a zero-build, single-page CSV viewer in vanilla JS/HTML —
-born of the author finding no existing CSV viewer in any way acceptable.
-Open `index.html` in a browser: drag/drop, browse, or paste CSV data and get
-a sortable, filterable, properly formatted table. Type-aware columns
-(number / date / text), thousands separators, dates normalized to ISO,
-numbers right-aligned, autosized columns. No framework, no build step, no
-server; Bootstrap 5 via CDN for styling only. Look and feel follows the
-author's archivum apps.
+`csv-viewer` is a CSV viewer + embeddable grid in vanilla JS — born of
+the author finding no existing CSV viewer in any way acceptable. Two
+halves, one repo (since 3.0):
+
+- **App** (`index.html` + `src/app/`): single-page viewer — drag/drop,
+  browse, or paste CSV and get a sortable, filterable, properly
+  formatted table. Bootstrap 5 via CDN for the chrome only.
+- **Library** (`src/grid/` → committed `dist/`): `CsvGrid`, the same
+  grid as a self-contained component — no framework, namespaced
+  `.csvgrid-*` CSS, no element ids or document-level listeners,
+  multiple instances per page. Consumers: aggregate_api, blog qmd pages
+  (via `dist/` and the `python/csv_grid` emitter).
+
+Type-aware columns (number / date / text), thousands separators, dates
+ISO, numbers right-aligned, equal-risk autosized columns. The source is
+ES modules run natively: **no build step in development, but a server is
+required** — `file://` will not load module scripts. Vite bundles the
+library only; the app itself is never bundled (source = where we live,
+dist = what we hand to consumers). Look and feel follows the author's
+archivum apps.
 
 A private side project, iterated at a relaxed pace.
 
@@ -57,52 +69,80 @@ These rules apply in every project — follow them without being re-asked.
 
 ## Commands
 
-No build step, no dependencies, no package manager. (No Python here; if `uv`
-is ever needed, this repo is on C: so default hardlink mode is fine —
-`UV_LINK_MODE=copy` is only for the T: drive.)
+Runtime has zero dependencies; Vite is the only devDependency (library
+build). `python/` is a uv project (this repo is on C: so default
+hardlink mode is fine — `UV_LINK_MODE=copy` is only for the T: drive).
 
-**Run the app:** open `index.html` in a browser, or serve locally:
+**Run the app** (a server is required — ES modules don't load from
+`file://`):
 ```
 python -m http.server 8080
 ```
 
 **Run the logic smoke test** (parser, sniffing, inference, formatting,
-filters — needs Node):
+filters, format/align specs, python payload round-trip, dist
+loadability — needs Node):
 ```
-node dev/smoke-test.mjs
+node dev/smoke-test.mjs        # = npm test
 ```
 
-**Sample data** for manual testing: `dev/sample.csv` (quoted fields, commas
-in values, currency, paren negatives, ISO + US dates, blanks).
+**Rebuild the library** after ANY `src/grid/` change (dist/ and the
+python package's embedded assets are committed and do NOT auto-update;
+the smoke test will NOT catch a stale dist):
+```
+npm run build
+```
+
+**Regenerate the python fixtures** after emitter changes:
+```
+uv run --project python dev/make-embed-test-python.py
+```
+
+**Test data**: `dev/sample.csv` (quoted fields, commas in values,
+currency, paren negatives, ISO + US dates, blanks) for manual testing.
+Fixtures: `dev/embed-test.html` (dist UMD, two grids, works from
+file://), `dev/embed-test-es.html` (dist ES import, serve),
+`dev/worker-test.html` / `dev/worker-test-dist.html` (worker pathing —
+generate `dev/tmp-big.csv` first, recipe in the file),
+`dev/embed-test-python.html` (generated, self-contained).
 
 ## Architecture
 
 | File | Role |
 |---|---|
-| `index.html` | page shell: ingest view (drop zone + paste box) and table view |
-| `src/core.js` | pure data logic, DOM-free: parse, inference, `processData` — loaded by page AND worker |
-| `src/app.js` | UI: state, formatting, fzf search, width layout, rendering, events, worker mgmt |
-| `src/worker.js` | parse + inference off the main thread (texts ≥ 1 MB); `importScripts('core.js')` |
-| `src/styles.css` | drop zone, sticky header, alignment classes, status bar |
-| `favicon.svg` | Bootstrap `table` glyph, primary blue — also the PWA icon (root: served as-is) |
-| `manifest.webmanifest` | PWA manifest (root) |
+| `index.html` | app shell: ingest view, navbar toolbar, `#grid-root`; one `<script type="module">` |
+| `src/grid/core.js` | pure data logic, DOM-free: parse, sniffing, inference, `processData` |
+| `src/grid/util.js` | pure display logic: format specs, `formatCell`, fzf scoring, filters, width solver, `normalizeRecords` |
+| `src/grid/grid.js` | LIBRARY ENTRY — the `CsvGrid` class (DOM, state, worker mgmt); default-exports `CsvGrid` ONLY (keeps the UMD global a class) |
+| `src/grid/worker.js` | module worker: parse + inference off the main thread (texts ≥ 1 MB) |
+| `src/grid/grid.css` | the grid's self-contained styles, `.csvgrid-*` namespaced |
+| `src/app/app.js` | viewer chrome: ingest, toolbar wiring, Ctrl+O/Ctrl+V, `?src=`, PWA registration |
+| `src/app/app.css` | chrome-only styles (Bootstrap supplies the rest) |
+| `dist/` | COMMITTED Vite output: `csv-grid.{es,umd}.js` + maps, `csv-grid.worker.js`, `csv-grid.css` |
+| `vite.config.js` | library build, two passes (es / umd) — the UMD import.meta polyfill is explained inside |
+| `python/` | uv project `csv_grid`: `show(df)` / `to_html(df)` emitters; carries copies of the umd bundle + css (refreshed by `npm run build`) |
+| `favicon.svg`, `icons/`, `manifest.webmanifest` | PWA icons + manifest (root, served as-is) |
 | `sw.js` | service worker — offline app shell; MUST stay at root (scope); never caches `?src=` data |
-| `dev/smoke-test.mjs` | Node smoke test over `src/core.js` + pure parts of `src/app.js` |
+| `dev/` | plans, smoke test, fixtures, `make-embed-test-python.py` |
 
-Layout is Vite-shaped (index.html at root, source under `src/`) but there
-is NO build step — plain scripts, worker via `importScripts`. When Vite
-ever lands: favicon/manifest/sw move to `public/`, scripts become module
-imports.
+App pipeline: ingest (drop / browse / paste / `?src=<url>`) →
+`grid.setData({csv, name, headerMode})` → grid parses (synchronous
+< 1 MB, module worker above) → promise resolves → chrome switches views.
+The grid owns everything from data to pixels: fzf global search +
+per-column filters, type-aware sort, lazy formatting, deferred chunked
+search index, sampled width measurement (see
+`dev/plan-2.0-speedups.md`). Column widths solved once per load
+(equal-risk VaR allocation), frozen w.r.t. filtering. The viewer passes
+`{globalSearch:false, expandButtons:false, statusBar: <footer element>}`
+and drives its navbar via `setGlobalFilter` / `clearFilters` / `expand`
+/ `contract` / `applyLayout`; embedders get the documented surface
+(`setData`, `destroy`, options) — see the header comment in
+`src/grid/grid.js`.
 
-Pipeline: ingest (drop / browse / paste / `?src=<url>`) → `processData`
-in `core.js` (synchronous < 1 MB, Web Worker above; `file://` falls back
-to synchronous) → `installData` → `rebuildView` (fzf global search +
-per-column filters, type-aware sort) → render. Large files: lazy
-formatting, deferred chunked search index, sampled width measurement
-(see `dev/plan-2.0-speedups.md`). Column widths solved once per load
-(equal-risk VaR allocation), frozen w.r.t. filtering. Version lives in
-`const VERSION` in `src/app.js` and in the `sw.js` cache name — bump
-both.
+**Version lives in three places** — `VERSION` in `src/app/app.js`, the
+`sw.js` cache name, and `package.json` (stamped into the es bundle's
+banner) — bump all three; `python/pyproject.toml` + `__version__`
+additionally when the python package changes.
 
 ## Formatting spec
 
@@ -118,9 +158,11 @@ formatting behavior.
 ## Documentation and code style
 
 Vanilla JS, no framework idioms. Comment the *why* on non-obvious logic
-(parsing edge cases, inference rules). Keep `app.js` self-contained and
-dependency-free — no Papa Parse, no DataTables; full control over formats
-and alignment is the point of the project.
+(parsing edge cases, inference rules). The runtime stays dependency-free
+— no Papa Parse, no DataTables; full control over formats and alignment
+is the point of the project. The grid must keep working multi-instance:
+no module-global state, no element ids, no document-level listeners
+inside `src/grid/`.
 
 ## Release & housekeeping workflow
 
@@ -130,8 +172,13 @@ These are standing rules — follow them without being re-asked.
   (e.g. `plan-1.2-formatting-keyboard-pwa.md` — version then short
   description). Move a plan to `dev/done/` **only when the author says it
   is done** — not when the code lands.
-- **Every plan-based code change bumps the version** (`VERSION` in `app.js`).
-  Pure tidying does not.
+- **Every plan-based code change bumps the version** (`VERSION` in
+  `src/app/app.js` + `sw.js` cache + `package.json`). Pure tidying does
+  not.
+- **Rebuild `dist/` (`npm run build`) after any `src/grid/` change** and
+  commit it with the source — dist and the python package's embedded
+  assets are committed artifacts, and nothing fails automatically when
+  they go stale.
 - **Keep `CHANGELOG.md` current** — each version bump adds a `## <version>`
   section at the close of the iteration.
 - **`README.md`** is the stable front page; touch it only when that material

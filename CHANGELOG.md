@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.0.4 (2026-06-12)
+
+Stages 5 + 6 of `dev/plan-3.0-grid-extraction.md` (python emitter +
+docs) — the 3.0 arc is code-complete.
+
+- **`python/csv_grid`** (uv project, local path install; pandas the
+  only dependency): `show(df, **opts)` for Jupyter/Quarto (IPython
+  display, assets emitted once per kernel/page), `to_html(df, **opts)`
+  fragment for static generation, `payload(df)` for the raw
+  {records, columns} dict. `assets='inline'` embeds the umd bundle +
+  css (copies live inside the package, refreshed by `npm run build`);
+  a base-URL string links them instead; False omits (dedupe). Options
+  mirror the JS API in snake_case; `fmt` aliases `formats`; `worker`
+  defaults False (data is inlined). Serialization: dates → ISO strings
+  (hh:mm only for non-midnight columns), NaN/None/NaT → blank cells,
+  integral float columns → ints (so the year/integer rules apply);
+  types are re-inferred grid-side, per the plan — no automatic
+  dtype→format hints, the inference is deliberately authoritative.
+- Fixtures: `dev/embed-test-python.html` (generated, self-contained,
+  two fragments exercising inline assets + dedupe + align/formats) via
+  `uv run --project python dev/make-embed-test-python.py`, which also
+  writes `dev/python-payload.json` — the pandas→JSON half of a
+  round-trip the smoke test completes through `normalizeRecords` +
+  formatting (158 checks).
+- **Docs (stage 6)**: README rewritten around the two halves (app +
+  library, with the CsvGrid quick start and csv_grid usage);
+  CLAUDE.md overview/commands/architecture rewritten to the 3.0 layout
+  (serve-required, rebuild-dist-after-grid-changes, version in three
+  places); `python/README.md`; post-3.0 deferred items (app bundling,
+  Pages Action) recorded in the plan doc.
+
 ## 3.0.3 (2026-06-12)
 
 Stage 4 revisited at the author's call: real Vite, which required the

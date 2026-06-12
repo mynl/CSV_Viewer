@@ -167,4 +167,15 @@ final; `sw.js` cache bump (shell paths change in stage 1!).
    aggregate_api consumes it and the API has been stable a few weeks),
    npm/PyPI publishing.
 
+## Post-3.0 deferred (noted 2026-06-12, not scheduled)
+
+- **App bundling ("full app migration")**: the viewer still ships its
+  module source (dev mode in production — fine at this size). If a real
+  load-time itch develops: Vite app build, statics to `public/`, hashed
+  filenames (retires the manual sw.js cache bump), and a GitHub Action
+  so Pages serves the build output. Revisit only on demand.
+- file:// support was dropped with the ES-module migration (3.0.3,
+  author's call): always serve. GitHub Pages (repo Settings → Pages →
+  main / root) serves the app directly — no build needed.
+
 *Stays in `dev/` until the author says it is done.*

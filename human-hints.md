@@ -41,6 +41,23 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-12 — stages 5+6 executed: python emitter + docs (v3.0.4)
+
+- **python/csv_grid** (uv project): show(df)/to_html(df)/payload(df);
+  assets inlined once per page (copies live in the package, refreshed
+  by npm run build); snake_case options, fmt aliases formats; dates →
+  ISO, NaN → blank, integral floats → ints; NO dtype→format hints —
+  grid inference stays authoritative (small deviation from plan
+  wording, flagged). Round-trip: dev/python-payload.json → smoke test
+  normalizeRecords (158 checks); fixture dev/embed-test-python.html
+  (generated, self-contained) verified by screenshot.
+- Docs rewritten: README (two-halves framing, CsvGrid quick start),
+  CLAUDE.md (overview/commands/architecture: serve required, rebuild
+  dist after src/grid changes, version in three places), python README.
+  Post-3.0 deferrals (app bundling + Pages Action) noted in plan doc.
+- Steve is enabling GitHub Pages (main/root) — installable PWA URL.
+- **3.0 arc code-complete**; plan stays in dev/ until Steve says done.
+
 ## 2026-06-12 — stage 4 redone with REAL Vite (v3.0.3)
 
 - Steve: "I do want this bundled" — concat build replaced. Decisions
