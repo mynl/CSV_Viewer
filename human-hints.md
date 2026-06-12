@@ -41,6 +41,26 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-12 — 3.0 stages 2+3 executed (options + own CSS, v3.0.1)
+
+- Full v1 API: `new CsvGrid(elementOrSelector, data, options)`; data
+  {csv}/{records, columns}/{url}; options toggles + align + formats
+  (`[,][.N](f|d|%|e|s)`, 'year', 'eng') + renderCap/eagerCells/worker/
+  headerMode; setData returns a promise (superseded loads never settle);
+  destroy(). Worker mgmt moved INTO the grid (currentScript-relative
+  worker URL). Grid generates its own `.csvgrid-*` DOM styled by
+  grid.css — no Bootstrap inside; styles.css split into grid.css +
+  app.css. Viewer = thin chrome passing
+  {globalSearch:false, expandButtons:false, statusBar: footer element}.
+- Two deliberate notes for review: (1) `headerMode` also accepted
+  per-load in the data object — the header toggle re-parses without
+  destroy/recreate jank; (2) grid keeps the small control-method surface
+  (setGlobalFilter/clearFilters/expand/contract/applyLayout) for the
+  viewer's navbar, beyond the plan's "setData, destroy" minimum.
+- Green: 148 smoke checks; screenshots — viewer pixel-faithful,
+  dev/embed-test.html (two grids, bare page), dev/worker-test.html
+  ({url} + 2 MB worker parse). Awaiting Steve's review + commit.
+
 ## 2026-06-12 — 3.0 stage 1 executed (instance-ification, v3.0.0)
 
 - Mechanical split, zero behavior change: `src/grid/{core,grid,worker}.js`

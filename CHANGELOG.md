@@ -1,5 +1,45 @@
 # Changelog
 
+## 3.0.1 (2026-06-12)
+
+Stages 2 + 3 of `dev/plan-3.0-grid-extraction.md` (options surface +
+style self-containment). The viewer passes defaults — nothing visible
+changes there.
+
+- **Full v1 constructor**: `new CsvGrid(elementOrSelector, data, options)`.
+  Data forms: `{csv}`, `{records, columns}` (objects or arrays;
+  null/undefined/NaN → ''; types re-inferred), `{url}` (fetched). All
+  take optional `name` (status line) and `headerMode` override.
+  `setData` returns a promise — superseded loads never settle, failures
+  reject AND show in the grid (pre-handled, so embedders may ignore it).
+- **Options**: `globalSearch`, `columnFilters`, `sortable`, `statusBar`
+  (true / false / host element), `expandButtons`, `align` ('llrcr…',
+  rides the markdown `col.align` plumbing), `formats` (per-column
+  `[,][.N](f|d|%|e|s)` + named 'year'/'eng'; null = auto rules),
+  `renderCap`, `eagerCells`, `worker` (true/false/url),
+  `headerMode` ('auto'/'first-row'/'headerless'). Plus `destroy()`.
+- **Worker management moved into the grid** (was viewer chrome): csv
+  ≥ ~1 MB parses off-thread, worker.js found relative to grid.js via
+  `document.currentScript`; `file://` and `worker:false` stay
+  synchronous. Parse progress shows in the grid's status line.
+- **Grid generates its own DOM** (toolbar / table / filter row /
+  render-cap note / error line / status) with namespaced `.csvgrid-*`
+  classes styled by `src/grid/grid.css` — no Bootstrap inside the grid.
+  `src/styles.css` split into `grid.css` + chrome-only
+  `src/app/app.css` (drop zone, footer, card look on the scroll area).
+  index.html's table view collapses to one `#grid-root` div.
+- **Viewer** drives its navbar controls via `setGlobalFilter` /
+  `clearFilters` / `expand` / `contract`; the grid renders row counts
+  into the footer's `#status` element (`statusBar: element`); loads go
+  through `grid.setData({csv})` promises (view switch on resolve, back
+  to ingest with the message on reject).
+- New fixtures: `dev/embed-test.html` (two grids on a bare page, no
+  Bootstrap — stage 3 exit) and `dev/worker-test.html` (worker + {url}
+  path, the stage-4 canary). Smoke test grows to 148 checks (format
+  spec parser, align spec, records normalization, override precedence).
+- `sw.js` cache → v3.0.1; shell list swaps styles.css for the two new
+  css files.
+
 ## 3.0.0 (2026-06-12)
 
 Stage 1 of `dev/plan-3.0-grid-extraction.md` (instance-ification). NO

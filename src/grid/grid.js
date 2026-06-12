@@ -1,22 +1,56 @@
 /* csv-grid — the embeddable grid half of csv-viewer.
  *
- * CsvGrid renders one table from a processData result: type-aware
- * formatting, fzf global search, per-column filters, sort, equal-risk
- * column widths, lazy formatting and a chunked search index for large
- * files. Pure data logic (parse, inference, processData) lives in
- * core.js; viewer chrome (ingest, drop/paste, toolbar, PWA) in
- * src/app/app.js. Stage 1 of plan-3.0: the grid still renders into the
- * viewer's existing markup, handed in via the constructor — it generates
- * its own DOM in stage 3. No module-global state: multiple instances per
- * page must stay possible.
+ *     const grid = new CsvGrid(elementOrSelector, data, options);
+ *
+ * data (any one of, all with optional `name` for the status line and
+ * optional `headerMode` overriding the construction option):
+ *   { csv: string }                  parsed + inferred (worker if large)
+ *   { records: [...], columns: [..] } array of objects (columns optional)
+ *                                    or array of arrays (columns required);
+ *                                    null/undefined/NaN cells become ''
+ *   { url: string }                  fetched, then treated as csv
+ *
+ * options (defaults shown):
+ *   globalSearch: true      fzf search box in a grid-generated toolbar
+ *   columnFilters: true     per-column filter row
+ *   sortable: true          click headers to sort
+ *   statusBar: true         row-counts line (true = grid-generated,
+ *                           an element = render into the host's element,
+ *                           false = none)
+ *   expandButtons: true     Expand / Contract pair in the toolbar
+ *   align: null             'llrcr…' one of l/r/c per column, overrides
+ *                           type defaults (rides the markdown col.align
+ *                           plumbing); other characters = keep default
+ *   formats: null           per-column format specs, null entry = auto
+ *                           rules; subset of Python/d3: [,][.N](f|d|%|e|s)
+ *                           plus the named 'year' and 'eng'
+ *   renderCap: 2000         rows rendered before "show all"
+ *   eagerCells: 200000      below this, format + index everything at load
+ *   worker: true            parse worker for csv >= ~1 MB; false = always
+ *                           synchronous; or an explicit worker URL
+ *   headerMode: 'auto'      'auto' | 'first-row' | 'headerless'
+ *
+ * methods: setData(data) -> Promise (a superseded load never settles;
+ * failures reject AND show in the grid), destroy(). The viewer app also
+ * drives its navbar controls through setGlobalFilter / clearFilters /
+ * expand / contract / applyLayout.
+ *
+ * Multiple instances per page work: no module-global state, no element
+ * ids, no document-level listeners (the transient drag-resize
+ * mousemove/mouseup pair excepted). Pure data logic lives in core.js;
+ * viewer chrome in src/app/app.js.
  */
 
 'use strict';
 
-const RENDER_CAP = 2000;          // rows rendered before "show all"
-const EAGER_CELLS = 200000;       // below this, format + index everything at load
+const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
 const WIDTH_SAMPLE = 2000;        // rows sampled per column for width percentiles
 const INDEX_CHUNK = 10000;        // rows per chunk when building the search index
+
+/* Captured at load so the grid can find worker.js next to itself when a
+ * page loads these as plain script tags (no bundler). */
+const GRID_BASE = (typeof document !== 'undefined' && document.currentScript && document.currentScript.src)
+    ? new URL('.', document.currentScript.src).href : '';
 
 // ------------------------------------------------------------- formatting
 
@@ -33,12 +67,66 @@ function numberFormatter(dec) {
     return nf;
 }
 
+/* Parse a format spec into {kind, comma, dec}. Subset of the Python/d3
+ * mini-language: optional ',' (thousands), optional '.N' (decimals), one
+ * of f (fixed) d (integer) % (x100, percent) e (scientific) s (SI
+ * suffix), plus the named specs 'year' and 'eng'. null/'' = auto rules.
+ * Date format specs are explicitly out of scope (display stays ISO). */
+function parseFormatSpec(spec) {
+    if (spec === null || spec === undefined || spec === '') return null;
+    if (spec === 'year' || spec === 'eng') return { kind: spec };
+    const m = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(spec);
+    if (!m) throw new Error(`CsvGrid: unrecognized format spec '${spec}'`);
+    return { kind: m[3], comma: !!m[1], dec: m[2] === undefined ? null : +m[2] };
+}
+
+const SI_TIERS = [[1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'k'],
+                  [1, ''], [1e-3, 'm'], [1e-6, 'µ'], [1e-9, 'n']];
+
+/* Apply a parsed spec to a numeric value. Defaults when .N is omitted:
+ * f -> 2, % -> 0, e -> 2, s -> engFormat's 3 significant digits. */
+function formatWithSpec(v, f) {
+    switch (f.kind) {
+        case 'year': return String(v);
+        case 'eng':  return engFormat(v);
+        case 'd': {
+            const r = Math.round(v);
+            return f.comma ? numberFormatter(0).format(r) : String(r);
+        }
+        case 'f': {
+            const dec = f.dec ?? 2;
+            return f.comma ? numberFormatter(dec).format(v) : v.toFixed(dec);
+        }
+        case '%': {
+            const dec = f.dec ?? 0, x = v * 100;
+            return (f.comma ? numberFormatter(dec).format(x) : x.toFixed(dec)) + '%';
+        }
+        case 'e': return v.toExponential(f.dec ?? 2);
+        case 's': {
+            if (f.dec === null || f.dec === undefined) return engFormat(v);
+            if (v === 0) return (0).toFixed(f.dec);
+            const a = Math.abs(v);
+            for (const [m, suf] of SI_TIERS) {
+                if (a >= m) return (v / m).toFixed(f.dec) + suf;
+            }
+            return (v / 1e-9).toFixed(f.dec) + 'n';
+        }
+    }
+}
+
+/* 'llrcr' -> ['left','left','right','center','right']; any other
+ * character keeps the column's type-default alignment. */
+function parseAlignSpec(s) {
+    return [...s].map(ch => ({ l: 'left', r: 'right', c: 'center' }[ch] ?? null));
+}
+
 function formatCell(raw, col, r) {
     raw = (raw ?? '').trim();
     if (raw === '') return '';
     if (col.type === 'number') {
         const v = col.values[r];
         if (v === null) return raw;
+        if (col.fmt) return formatWithSpec(v, col.fmt);   // explicit spec wins
         if (col.format === 'year') return String(v);
         if (col.format === 'eng') return engFormat(v);
         return numberFormatter(col.dec).format(v);
@@ -53,6 +141,30 @@ function formatCell(raw, col, r) {
         return s;
     }
     return raw;
+}
+
+// ------------------------------------------------------------ records data
+
+/* Normalize {records, columns} data to a processData-shaped result:
+ * array-of-objects (columns = key subset/order, default first record's
+ * keys) or array-of-arrays (columns required). Cells stringify;
+ * null/undefined/NaN -> ''. Types are re-inferred from the strings, same
+ * as a CSV load. */
+function normalizeRecords(records, columns) {
+    if (!Array.isArray(records)) throw new Error('CsvGrid: records must be an array.');
+    const toStr = v => (v === null || v === undefined
+        || (typeof v === 'number' && Number.isNaN(v))) ? '' : String(v);
+    let headers, rows;
+    if (records.length && Array.isArray(records[0])) {
+        if (!columns) throw new Error('CsvGrid: columns are required with array-of-arrays records.');
+        headers = columns.map(String);
+        rows = records.map(rec => headers.map((_, c) => toStr(rec[c])));
+    } else {
+        headers = (columns ?? Object.keys(records[0] ?? {})).map(String);
+        rows = records.map(rec => headers.map(h => toStr(rec[h])));
+    }
+    const cols = inferColumns(headers, rows);
+    return { headers, rows, cols, headerless: false };
 }
 
 // ----------------------------------------------------------- fuzzy search
@@ -137,7 +249,7 @@ function termScore(t, rowLow, rowRaw) {
 
 /* Widths are measured once per load from the FULL table and frozen — they
  * deliberately do not respond to filtering (distracting), only to window
- * resize. */
+ * resize (the host's job: call applyLayout()). */
 
 const CELL_PAD = 18;     // padding + border + safety, px
 const MIN_COL = 50;      // absolute floor, px
@@ -222,7 +334,8 @@ function makeColPredicate(filter, col) {
 
 // ------------------------------------------------------ rendering helpers
 
-/* Type-based alignment class, overridden by a markdown alignment spec. */
+/* Type-based alignment class, overridden by an align spec or a markdown
+ * alignment row. Scoped by .csvgrid-table in grid.css. */
 function cellClass(col) {
     return col.align ? `col-${col.type} align-${col.align}` : `col-${col.type}`;
 }
@@ -232,15 +345,25 @@ function escapeHtml(s) {
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function el(tag, cls) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    return e;
+}
+
 // ----------------------------------------------------------------- CsvGrid
 
 class CsvGrid {
-    /* els: {table, head, body, status, capNote, showAllBtn} — existing
-     * viewer markup (stage 1). All listeners bind to these elements, never
-     * to document; the drag-resize mousemove/mouseup pair is the one
-     * transient exception. */
-    constructor(els) {
-        this.els = els;
+    constructor(target, data, options = {}) {
+        const root = typeof target === 'string' ? document.querySelector(target) : target;
+        if (!root) throw new Error('CsvGrid: target element not found.');
+        this.root = root;
+        this.opts = {
+            globalSearch: true, columnFilters: true, sortable: true,
+            statusBar: true, expandButtons: true, align: null, formats: null,
+            renderCap: 2000, eagerCells: 200000, worker: true,
+            headerMode: 'auto', ...options,
+        };
 
         this.fileName = '';
         this.headers = [];
@@ -251,7 +374,7 @@ class CsvGrid {
         this.searchLow = null;   // lower-cased version, for case-insensitive terms
         this.searchReady = false;
         this.indexing = null;    // build progress 0..1 while chunking, else null
-        this.loadGen = 0;        // bumped per load; abandons stale index builds
+        this.loadGen = 0;        // bumped per load; abandons stale parses + index builds
         this.scores = [];        // fuzzy match score per row (current query)
         this.layout = null;      // {arrays, floors} from measureLayout, frozen per load
         this.expandAll = false;  // bypass the squeeze: natural widths + h-scroll (sticky)
@@ -264,13 +387,85 @@ class CsvGrid {
         this.colFilters = [];
         this.showAll = false;
 
-        this.els.showAllBtn.addEventListener('click', () => {
+        this._worker = undefined;   // lazy; null = unavailable -> synchronous
+        this._pending = new Map();  // load gen -> {resolve, reject} awaiting the worker
+
+        this._buildScaffold();
+        if (data) this.setData(data);
+    }
+
+    /* Generate the grid's own DOM inside the root (stage 3): optional
+     * toolbar, scrollable table, render-cap note, error line, status. */
+    _buildScaffold() {
+        const o = this.opts, root = this.root;
+        root.classList.add('csvgrid');
+        root.replaceChildren();
+        this.els = {};
+        if (o.globalSearch || o.expandButtons) {
+            const tb = el('div', 'csvgrid-toolbar');
+            if (o.globalSearch) {
+                const inp = el('input', 'csvgrid-search');
+                inp.type = 'text';
+                inp.placeholder = "fzf search: term 'exact !not ^pre fix$";
+                inp.title = "Space-separated terms AND together. Fuzzy by default; "
+                    + "'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.";
+                inp.addEventListener('input', () => this.setGlobalFilter(inp.value));
+                inp.addEventListener('keydown', e => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        inp.value = '';
+                        inp.blur();
+                        this.setGlobalFilter('');
+                    }
+                });
+                tb.appendChild(inp);
+                this.els.search = inp;
+            }
+            if (o.expandButtons) {
+                // separate buttons by design — no mode-flipping toggles
+                const ex = el('button', 'csvgrid-btn');
+                ex.type = 'button';
+                ex.textContent = 'Expand';
+                ex.title = 'Expand all columns to their full natural width (table scrolls horizontally)';
+                ex.addEventListener('click', () => this.expand());
+                const ct = el('button', 'csvgrid-btn');
+                ct.type = 'button';
+                ct.textContent = 'Contract';
+                ct.title = 'Back to fitted widths (equal-risk squeeze); also clears any dragged widths';
+                ct.addEventListener('click', () => this.contract());
+                tb.append(ex, ct);
+            }
+            root.appendChild(tb);
+        }
+        const wrap = el('div', 'csvgrid-scroll');
+        const table = el('table', 'csvgrid-table');
+        const head = el('thead'), body = el('tbody');
+        table.append(head, body);
+        wrap.appendChild(table);
+        root.appendChild(wrap);
+        const capNote = el('div', 'csvgrid-capnote csvgrid-hidden');
+        const showAllBtn = el('button', 'csvgrid-btn');
+        showAllBtn.type = 'button';
+        showAllBtn.addEventListener('click', () => {
             this.showAll = true;
             this.renderBody();
             this.renderStatus();
         });
+        capNote.appendChild(showAllBtn);
+        root.appendChild(capNote);
+        const error = el('div', 'csvgrid-error csvgrid-hidden');
+        root.appendChild(error);
+        let status = null;
+        if (o.statusBar === true) {
+            status = el('div', 'csvgrid-status');
+            root.appendChild(status);
+        } else if (o.statusBar) {
+            status = o.statusBar;       // host-supplied element
+        }
+        Object.assign(this.els, { table, head, body, scroll: wrap, capNote, showAllBtn, error, status });
+
         // tooltip with the full text, only for cells actually truncated
-        this.els.table.addEventListener('mouseover', e => {
+        table.addEventListener('mouseover', e => {
             const cell = e.target.closest('td, th');
             if (cell && !cell.title && cell.scrollWidth > cell.clientWidth) {
                 cell.title = cell.textContent;
@@ -280,12 +475,111 @@ class CsvGrid {
 
     // ------------------------------------------------------------ data in
 
-    /* Install a processData result and (re)render. The host must make the
-     * table visible first — width measurement reads the live DOM. */
-    setData(d, fileName) {
+    /* Resolve any data form, then install. Returns a promise; a load
+     * superseded by a newer setData never settles (matches the old
+     * stale-reply discard); a failed load rejects AND shows the error in
+     * the grid. The rejection is pre-handled so embedders may ignore the
+     * promise without unhandled-rejection noise. */
+    setData(data) {
+        const gen = ++this.loadGen;
+        const ret = new Promise((resolve, reject) => {
+            this._resolveData(data, gen).then(({ d, name }) => {
+                if (gen !== this.loadGen) return;   // superseded
+                this._install(d, name);
+                resolve();
+            }, err => {
+                if (gen !== this.loadGen) return;
+                this._showError(err.message || String(err));
+                reject(err);
+            });
+        });
+        ret.catch(() => {});
+        return ret;
+    }
+
+    async _resolveData(data, gen) {
+        if (!data || typeof data !== 'object') {
+            throw new Error('CsvGrid: data must be {csv}, {records[, columns]}, or {url}.');
+        }
+        this._headerMode = data.headerMode ?? this.opts.headerMode;
+        if (data.url !== undefined) {
+            const url = String(data.url);
+            const name = data.name ?? decodeURIComponent(url.split('/').pop() || url);
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            return { d: await this._parse(await resp.text(), gen, name), name };
+        }
+        if (data.csv !== undefined) {
+            const name = data.name ?? '';
+            return { d: await this._parse(data.csv, gen, name), name };
+        }
+        if (data.records !== undefined) {
+            return { d: normalizeRecords(data.records, data.columns), name: data.name ?? '' };
+        }
+        throw new Error('CsvGrid: data must be {csv}, {records[, columns]}, or {url}.');
+    }
+
+    /* Synchronous processData below ~1 MB (or with worker:false); the
+     * parse worker above, with progress in the status line. */
+    _parse(text, gen, name) {
+        text = cleanCsvText(text);
+        if (!text.trim()) throw new Error('No data found.');
+        const headerOverride = this._headerMode === 'first-row' ? true
+            : this._headerMode === 'headerless' ? false : null;
+        const w = (this.opts.worker !== false && text.length >= WORKER_MIN_CHARS)
+            ? this._getWorker() : null;
+        if (!w) return processData(text, headerOverride);
+        this._setStatus(`parsing ${name || 'data'} (${(text.length / 1e6).toFixed(1)} MB)…`);
+        return new Promise((resolve, reject) => {
+            this._pending.set(gen, { resolve, reject });
+            w.postMessage({ gen, text, headerOverride });
+        });
+    }
+
+    /* Parse worker, created lazily. null = unavailable (file://, no base
+     * URL) -> fall back to synchronous processData. */
+    _getWorker() {
+        if (this._worker === undefined) {
+            const url = this.opts.worker === true
+                ? (GRID_BASE ? GRID_BASE + 'worker.js' : null)
+                : (typeof this.opts.worker === 'string' ? this.opts.worker : null);
+            this._worker = null;
+            if (url) {
+                try {
+                    const w = new Worker(url);
+                    w.onmessage = e => {
+                        const { gen, result, error } = e.data;
+                        const pend = this._pending.get(gen);
+                        if (!pend) return;          // stale reply
+                        this._pending.delete(gen);
+                        if (error) pend.reject(new Error(error));
+                        else pend.resolve(result);
+                    };
+                    w.onerror = () => {
+                        const all = [...this._pending.values()];
+                        this._pending.clear();
+                        for (const p of all) p.reject(new Error('Background parse failed.'));
+                    };
+                    this._worker = w;
+                } catch { /* fall through to synchronous */ }
+            }
+        }
+        return this._worker;
+    }
+
+    /* Install a processData-shaped result and (re)render. Width
+     * application no-ops while the root is hidden (clientWidth 0) — hosts
+     * that reveal the grid afterwards call applyLayout() then. */
+    _install(d, name) {
         const { rows, cols } = d;
-        this.loadGen++;
-        this.fileName = fileName || '';
+        if (this.opts.align) {
+            const spec = parseAlignSpec(this.opts.align);
+            cols.forEach((col, c) => { if (spec[c]) col.align = spec[c]; });
+        }
+        if (this.opts.formats) {
+            cols.forEach((col, c) => { col.fmt = parseFormatSpec(this.opts.formats[c]); });
+        }
+        this.fileName = name || '';
         this.guessedHeaders = d.headerless;
         this.headers = d.headers;
         this.rows = rows;
@@ -295,7 +589,7 @@ class CsvGrid {
         this.searchLow = null;
         this.searchReady = false;
         this.indexing = null;
-        if (rows.length * cols.length <= EAGER_CELLS) {
+        if (rows.length * cols.length <= this.opts.eagerCells) {
             // small file: prefill everything, exactly the pre-2.0 behavior
             for (let r = 0; r < rows.length; r++) this.getFormattedRow(r);
             this.searchRaw = this.formatted.map(
@@ -309,10 +603,29 @@ class CsvGrid {
         this.colFilters = new Array(cols.length).fill('');
         this.manualWidths = new Map();
         this.showAll = false;
+        if (this.els.search) this.els.search.value = '';
+        this.els.error.classList.add('csvgrid-hidden');
         this.renderHead();
         this.layout = this.measureLayout();   // frozen for this load
         this.applyLayout();
         this.refresh();
+    }
+
+    _showError(msg) {
+        this.els.error.textContent = msg;
+        this.els.error.classList.remove('csvgrid-hidden');
+    }
+
+    _setStatus(text) {
+        if (this.els.status) this.els.status.textContent = text;
+    }
+
+    destroy() {
+        this.loadGen++;             // abandon pending parses and index builds
+        this._pending.clear();
+        if (this._worker) { this._worker.terminate(); this._worker = null; }
+        this.root.classList.remove('csvgrid');
+        this.root.replaceChildren();
     }
 
     // ----------------------------------------------------- public controls
@@ -325,12 +638,11 @@ class CsvGrid {
     clearFilters() {
         this.globalFilter = '';
         this.colFilters = this.colFilters.map(() => '');
+        if (this.els.search) this.els.search.value = '';
         this.renderHead();
         this.refresh();
     }
 
-    /* Expand/contract are separate explicit actions by design — no
-     * mode-flipping toggles. */
     expand() {
         this.expandAll = true;
         this.applyLayout();
@@ -384,7 +696,7 @@ class CsvGrid {
         if (!col) return;
         const startX = e.clientX;
         const startW = parseFloat(col.style.width);
-        document.body.classList.add('col-resizing');
+        document.body.classList.add('csvgrid-resizing');
         const setTableWidth = () => {
             let sum = 0;
             table.querySelectorAll('colgroup col').forEach(k => { sum += parseFloat(k.style.width); });
@@ -397,7 +709,7 @@ class CsvGrid {
             setTableWidth();
         };
         const up = () => {
-            document.body.classList.remove('col-resizing');
+            document.body.classList.remove('csvgrid-resizing');
             document.removeEventListener('mousemove', move);
             document.removeEventListener('mouseup', up);
         };
@@ -450,7 +762,7 @@ class CsvGrid {
 
     /* Build the global-search index (formatted + raw text per row) in
      * chunks, yielding to the UI between chunks; progress shows in the
-     * status bar. The pending query applies automatically on completion. A
+     * status line. The pending query applies automatically on completion. A
      * stale build is abandoned if a new file loads (loadGen). */
     buildSearchIndexChunked() {
         const gen = this.loadGen;
@@ -555,10 +867,16 @@ class CsvGrid {
         cols.forEach((col, c) => {
             const th = document.createElement('th');
             th.className = cellClass(col);
-            const arrow = this.sortCol === c ? (this.sortDir === 1 ? '▲' : '▼') : '';
-            th.innerHTML = `<span class="sort-arrow">${arrow}</span>${escapeHtml(col.name)}`;
-            th.title = `${col.name} (${col.type}) — click to sort`;
-            th.addEventListener('click', () => this.onSort(c));
+            if (this.opts.sortable) {
+                const arrow = this.sortCol === c ? (this.sortDir === 1 ? '▲' : '▼') : '';
+                th.innerHTML = `<span class="sort-arrow">${arrow}</span>${escapeHtml(col.name)}`;
+                th.title = `${col.name} (${col.type}) — click to sort`;
+                th.addEventListener('click', () => this.onSort(c));
+            } else {
+                th.innerHTML = `<span class="sort-arrow"></span>${escapeHtml(col.name)}`;
+                th.title = `${col.name} (${col.type})`;
+                th.classList.add('csvgrid-nosort');
+            }
             const grip = document.createElement('span');
             grip.className = 'col-resizer';
             grip.title = 'Drag to resize — double-click to fit content';
@@ -570,13 +888,14 @@ class CsvGrid {
         });
         head.appendChild(hr);
 
+        if (!this.opts.columnFilters) return;
         const fr = document.createElement('tr');
         fr.className = 'filter-row';
         cols.forEach((col, c) => {
             const th = document.createElement('th');
             const inp = document.createElement('input');
             inp.type = 'text';
-            inp.className = 'form-control form-control-sm';
+            inp.className = 'csvgrid-filter';
             inp.placeholder = col.type === 'text' ? 'filter' : 'filter, >, .. ';
             inp.value = this.colFilters[c] || '';
             inp.addEventListener('input', () => {
@@ -602,7 +921,7 @@ class CsvGrid {
 
     renderBody() {
         const { cols, view } = this;
-        const cap = this.showAll ? view.length : Math.min(view.length, RENDER_CAP);
+        const cap = this.showAll ? view.length : Math.min(view.length, this.opts.renderCap);
         const parts = [];
         for (let i = 0; i < cap; i++) {
             const r = view[i];
@@ -618,19 +937,20 @@ class CsvGrid {
 
         const note = this.els.capNote;
         if (view.length > cap) {
-            note.classList.remove('d-none');
+            note.classList.remove('csvgrid-hidden');
             this.els.showAllBtn.textContent =
                 `Showing first ${cap.toLocaleString()} of ${view.length.toLocaleString()} rows — show all`;
         } else {
-            note.classList.add('d-none');
+            note.classList.add('csvgrid-hidden');
         }
     }
 
     renderStatus() {
+        if (!this.els.status) return;
         const fmt = n => n.toLocaleString();
         const total = this.rows.length;
         const shown = this.view.length;
-        const cap = this.showAll ? shown : Math.min(shown, RENDER_CAP);
+        const cap = this.showAll ? shown : Math.min(shown, this.opts.renderCap);
         let s = this.fileName ? this.fileName + ' — ' : '';
         s += shown === total ? `${fmt(total)} rows` : `${fmt(shown)} of ${fmt(total)} rows`;
         s += ` × ${this.cols.length} cols`;

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CsvGrid worker test</title>
+    <link rel="stylesheet" href="../src/grid/grid.css">
+    <style>body { margin: 1rem; } #g { max-width: 1100px; }</style>
+</head>
+<body>
+<!-- Fixture for the grid-owned worker path (and the stage-4 worker-under-
+     bundling risk). Generate the data first (not committed):
+       node -e "const f=require('fs');let s='id,name,amount,when\n';for(let i=0;i<60000;i++)s+=i+',item '+(i%97)+','+(1000+i%5000)+'.25,2024-'+String(1+i%12).padStart(2,'0')+'-'+String(1+i%28).padStart(2,'0')+'\n';f.writeFileSync('dev/tmp-big.csv',s)"
+     then serve the repo root and open this page. The hidden image below is
+     for headless screenshots: if the server delays /slow.png a few seconds,
+     the window load event (and so the screenshot) waits until the worker
+     parse has finished. On a plain server it 404s instantly — harmless. -->
+<img src="slow.png" style="display:none" alt="">
+<h1 style="font-size:1.1rem">worker + {url} test (~2 MB CSV, parsed off-thread)</h1>
+<div id="g"></div>
+<script src="../src/grid/core.js"></script>
+<script src="../src/grid/grid.js"></script>
+<script>
+'use strict';
+new CsvGrid('#g', { url: 'tmp-big.csv' });
+</script>
+</body>
+</html>

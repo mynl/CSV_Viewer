@@ -14,7 +14,8 @@ const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
         formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
         solveWidths, classifyNumber, engFormat, looksHeaderless,
         guessHeaders, cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
-        parseMarkdownTable, splitMdRow, sampleIndices } = ctx;
+        parseMarkdownTable, splitMdRow, sampleIndices, parseFormatSpec,
+        formatWithSpec, parseAlignSpec, normalizeRecords } = ctx;
 
 let failures = 0;
 function check(label, got, want) {
@@ -226,6 +227,48 @@ check('sample size', samp.length, 2000);
 check('sample starts at 0', samp[0], 0);
 check('sample in range', samp[samp.length - 1] < 250000, true);
 check('sample strictly increasing', samp.every((v, i) => i === 0 || v > samp[i - 1]), true);
+
+// --- format spec parser + formatter (3.0 stage 2)
+check('spec ,.0f', formatWithSpec(1234.56, parseFormatSpec(',.0f')), '1,235');
+check('spec .1%', formatWithSpec(0.125, parseFormatSpec('.1%')), '12.5%');
+check('spec % default 0dp', formatWithSpec(0.125, parseFormatSpec('%')), '13%');
+check('spec ,d rounds + groups', formatWithSpec(1234.4, parseFormatSpec(',d')), '1,234');
+check('spec d plain', formatWithSpec(1234.4, parseFormatSpec('d')), '1234');
+check('spec f default 2dp', formatWithSpec(3.14159, parseFormatSpec('f')), '3.14');
+check('spec ,.3f', formatWithSpec(12345.6789, parseFormatSpec(',.3f')), '12,345.679');
+check('spec .2e', formatWithSpec(12345, parseFormatSpec('.2e')), '1.23e+4');
+check('spec year', formatWithSpec(1995, parseFormatSpec('year')), '1995');
+check('spec eng', formatWithSpec(4500000, parseFormatSpec('eng')), '4.5M');
+check('spec s default = eng', formatWithSpec(4500000, parseFormatSpec('s')), '4.5M');
+check('spec .1s fixed dec', formatWithSpec(12345, parseFormatSpec('.1s')), '12.3k');
+check('spec .1s negative', formatWithSpec(-12345, parseFormatSpec('.1s')), '-12.3k');
+check('spec .0s milli', formatWithSpec(0.0021, parseFormatSpec('.0s')), '2m');
+check('spec null = auto', parseFormatSpec(null), null);
+check('spec empty = auto', parseFormatSpec(''), null);
+check('spec invalid throws',
+      (() => { try { parseFormatSpec('zz'); return false; } catch { return true; } })(), true);
+// fmt on a column overrides the auto rules; null entries keep them
+const fcols = inferColumns(['rate', 'n'], [['0.125', '1,200'], ['0.5', '7']]);
+fcols[0].fmt = parseFormatSpec('.1%');
+fcols[1].fmt = parseFormatSpec(null);
+check('fmt overrides auto', formatCell('0.125', fcols[0], 0), '12.5%');
+check('fmt null keeps auto', formatCell('1,200', fcols[1], 0), '1,200');
+
+// --- align spec (3.0 stage 2)
+check('align spec lrc', parseAlignSpec('lrc'), ['left', 'right', 'center']);
+check('align spec other chars = default', parseAlignSpec('l-r'), ['left', null, 'right']);
+
+// --- records normalization (3.0 stage 2)
+const nr = normalizeRecords([{ a: 1200, b: 'x' }, { a: NaN, b: null }]);
+check('records headers from keys', nr.headers, ['a', 'b']);
+check('records nan/null blank', nr.rows[1], ['', '']);
+check('records re-infer types', nr.cols.map(c => c.type), ['number', 'text']);
+check('records format', formatCell(nr.rows[0][0], nr.cols[0], 0), '1,200');
+const nr2 = normalizeRecords([[1, 'x'], [2, 'y']], ['a', 'b']);
+check('records array-of-arrays', nr2.rows, [['1', 'x'], ['2', 'y']]);
+check('records columns subset', normalizeRecords([{ a: 1, b: 2 }], ['b']).rows, [['2']]);
+check('records arrays need columns',
+      (() => { try { normalizeRecords([[1]]); return false; } catch { return true; } })(), true);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

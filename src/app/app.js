@@ -1,17 +1,18 @@
 /* csv-viewer — viewer app chrome.
  *
  * Ingest (drag/drop, browse, paste, ?src=<url>), the toolbar, keyboard
- * shortcuts, PWA registration, and parse dispatch (synchronous for small
- * inputs, Web Worker for large). The grid itself — render, sort, filter,
- * widths — is the CsvGrid class in src/grid/grid.js; pure data logic is
- * src/grid/core.js. The chrome feeds the grid processData results via
- * grid.setData. All data stays in the browser.
+ * shortcuts, and PWA registration. The grid itself — parse dispatch
+ * (sync / worker), render, sort, filter, widths — is the CsvGrid class in
+ * src/grid/grid.js; pure data logic is src/grid/core.js. The chrome loads
+ * via grid.setData({csv}) and switches views when the promise settles.
+ * The navbar owns the search box and Expand/Contract (globalSearch:false,
+ * expandButtons:false); the grid renders row counts into the footer's
+ * #status element. All data stays in the browser.
  */
 
 'use strict';
 
-const VERSION = '3.0.0';
-const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
+const VERSION = '3.0.1';
 
 const $ = id => document.getElementById(id);
 
@@ -20,69 +21,30 @@ let rawText = '';         // cleaned source text, kept for the header toggle
 let loadedFileName = '';
 let guessedHeaders = false;
 
-/* Parse worker, created lazily. false = unavailable (file://) -> fall
- * back to synchronous processData. */
-let parseWorker = null;
-let loadRequest = null;       // {gen, fileName, text} awaiting the worker
-let loadRequestGen = 0;
-
-function getParseWorker() {
-    if (parseWorker === null) {
-        try {
-            parseWorker = new Worker('src/grid/worker.js');
-            parseWorker.onmessage = e => {
-                const { gen, result, error } = e.data;
-                if (!loadRequest || gen !== loadRequest.gen) return;   // stale reply
-                const req = loadRequest;
-                loadRequest = null;
-                if (error) showError(error);
-                else installData(result, req.fileName, req.text);
-            };
-            parseWorker.onerror = () => {
-                if (loadRequest) { loadRequest = null; showError('Background parse failed.'); }
-            };
-        } catch {
-            parseWorker = false;
-        }
-    }
-    return parseWorker;
-}
-
 /* headerOverride: null = auto-detect, true = force row 1 as header,
- * false = force headerless (guessed names). Large texts parse in the
- * worker (UI stays live, status bar shows progress); small ones inline. */
+ * false = force headerless (guessed names). The grid parses (worker for
+ * large texts — UI stays live, footer shows progress); on success switch
+ * to the table view, on failure back to ingest with the message. A
+ * superseded load (rapid re-drop) never settles — no view flicker. */
 function loadText(text, fileName, headerOverride = null) {
-    try {
-        text = cleanCsvText(text);
-        if (!text.trim()) throw new Error('No data found.');
-        const w = text.length >= WORKER_MIN_CHARS ? getParseWorker() : null;
-        if (w) {
-            loadRequest = { gen: ++loadRequestGen, fileName, text };
+    const headerMode = headerOverride === null ? 'auto'
+        : headerOverride ? 'first-row' : 'headerless';
+    $('status-bar').classList.remove('d-none');   // shows parse progress
+    grid.setData({ csv: text, name: fileName, headerMode })
+        .then(() => {
+            rawText = cleanCsvText(text);         // kept for the header toggle
+            loadedFileName = fileName || '';
+            guessedHeaders = grid.guessedHeaders;
+            $('global-filter').value = '';
+            $('ingest-error').classList.add('d-none');
+            $('ingest-view').classList.add('d-none');
+            $('table-view').classList.remove('d-none');
+            $('toolbar').classList.remove('d-none');
             $('status-bar').classList.remove('d-none');
-            $('status').textContent = `parsing ${fileName || 'data'} (${(text.length / 1e6).toFixed(1)} MB)…`;
-            w.postMessage({ gen: loadRequest.gen, text, headerOverride });
-        } else {
-            installData(processData(text, headerOverride), fileName, text);
-        }
-    } catch (err) {
-        showError(err.message || String(err));
-    }
-}
-
-/* Show the table view and hand a processData result to the grid. The view
- * switch comes first: width measurement needs the table visible. */
-function installData(d, fileName, text) {
-    rawText = text;                   // kept for the header toggle
-    loadedFileName = fileName || '';
-    guessedHeaders = d.headerless;
-    $('global-filter').value = '';
-    $('ingest-error').classList.add('d-none');
-    $('ingest-view').classList.add('d-none');
-    $('table-view').classList.remove('d-none');
-    $('toolbar').classList.remove('d-none');
-    $('status-bar').classList.remove('d-none');
-    $('header-btn').classList.toggle('active', !d.headerless);
-    grid.setData(d, loadedFileName);
+            $('header-btn').classList.toggle('active', !grid.guessedHeaders);
+            grid.applyLayout();   // width solve needs the table visible
+        })
+        .catch(err => showError(err.message || String(err)));
 }
 
 function loadFile(file) {
@@ -200,13 +162,10 @@ function initPWA() {
 
 document.addEventListener('DOMContentLoaded', () => {
     $('header-version').textContent = 'v' + VERSION;
-    grid = new CsvGrid({
-        table: $('data-table'),
-        head: $('table-head'),
-        body: $('table-body'),
-        status: $('status'),
-        capNote: $('render-cap-note'),
-        showAllBtn: $('show-all-btn'),
+    grid = new CsvGrid('#grid-root', null, {
+        globalSearch: false,      // the navbar owns the search box
+        expandButtons: false,     // the navbar owns Expand / Contract
+        statusBar: $('status'),   // row counts render into the footer
     });
     initEvents();
     initPWA();

@@ -4,7 +4,7 @@
 
 'use strict';
 
-const CACHE = 'csv-viewer-v3.0.0';   // bump with VERSION to invalidate
+const CACHE = 'csv-viewer-v3.0.1';   // bump with VERSION to invalidate
 
 const SHELL = [
     './',
@@ -12,8 +12,9 @@ const SHELL = [
     'src/grid/core.js',
     'src/grid/grid.js',
     'src/grid/worker.js',
+    'src/grid/grid.css',
     'src/app/app.js',
-    'src/styles.css',
+    'src/app/app.css',
     'favicon.svg',
     'manifest.webmanifest',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
