@@ -41,6 +41,49 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-12 — 3.0 GO: option B approved, plan written
+
+- Steve: "pretty clear I want option B, go straight to 3.0" — the YELL
+  was right; this is transformation, not whim. Plan at
+  **dev/plan-3.0-grid-extraction.md**, written to survive a /clear
+  (context snapshot inside). Six stages: instance-ify → options
+  (align/formats) → self-contained CSS → Vite lib build (dist/
+  committed) → python/csv_grid emitter → docs. Feature freeze on the
+  viewer during the arc. Consumer playbooks included but NO code outside
+  this repo.
+- FYI from Steve: greater_tables' differentiator = twin static HTML +
+  LaTeX (custom tikz), multiindex/rules control; all static, a bit of a
+  cluster, ripe for refactor. Complementary to the grid (interactive),
+  not competing. A someday-idea: GT's HTML flavor could emit the grid.
+
+## 2026-06-12 — reusable grid: option space (discussed, NOT executed)
+
+- Goal: use the grid in Steve's other pages (qmd/Python-served) for
+  CSV/DataFrame display, with control over global search / column
+  filters, per-column alignment ("llrrclrr"), per-column number formats
+  (f-string-like specs).
+- Options: (A) iframe of the app + config query params + tiny Python
+  emitter — days, zero app risk, recommended as 2.2; (B) extract real
+  CsvGrid component, app becomes first consumer — the 3.0 arc, 2–4
+  sessions, natural Vite/lib-build moment; (C) progressive enhancement
+  of static greater_tables HTML — complementary someday, not main road;
+  (D) <csv-grid> web component — cheap sugar after B.
+- Format spec: accept Python/d3-style strings (,.2f .1% d) — ~40-line
+  JS subset parser; overrides auto rules per column. Alignment spec maps
+  onto existing col.align plumbing.
+- Repo: grid extracted INSIDE this repo (src/grid/) until API stabilizes
+  + second consumer exists, then split to own repo with semver; viewer
+  consumes grid. Python emitter via uv path sources (aggregate_api
+  co-dev pattern).
+- Consumer ranking (Steve, 2026-06-12): #1 aggregate_api (interactive
+  SPA — effectively REQUIRES option B, the real component; promotes
+  extraction to the actual goal); #2 blog qmd pages (Reading-Since-1990
+  at C:/s/TELOS/Blog/quarto/ConvexConsiderations/...). Vite library mode
+  = the extraction milestone (emits es + umd + css; consumers need no
+  build). Grid is fully self-contained JS (no DataTables/AG-Grid etc.);
+  Bootstrap is app-chrome cosmetics only and stays out of the embedded
+  grid.
+
 ## 2026-06-12 — v2.1.1: year bounds + phone icons
 
 - Year auto-detect was literal-spec `1800 < x < 2030` (so 1801–2029);
