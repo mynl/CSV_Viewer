@@ -1,0 +1,44 @@
+---
+author: Stephen J. Mildenhall
+categories:
+- about
+- reading
+date: 2024-02-18
+date-modified: 2024-04-08
+description: 'A searchable table of all the books I have read since 1990.'
+draft: false
+title: Reading Since 1990
+image: C:/s/TELOS/Blog/quarto/ConvexConsiderations/posts/about/2024-02-18-Reading-Since-1990/static/img/banner-pages.png
+---
+
+<!--
+
+update with
+
+quarto render posts\about\2024-02-18-Reading-Since-1990 --no-cache
+-->
+
+![](C:/s/TELOS/Blog/quarto/ConvexConsiderations/posts/about/2024-02-18-Reading-Since-1990/static/img/banner-pages.png){width=33% .mb-3}
+
+# ORIGINAL
+
+```python
+#| echo: false
+
+import pandas as pd
+from itables import show
+
+# Read the CSV data
+books_df = pd.read_csv("c:/s/telos/blog/quarto/convexconsiderations/static/reading/ReadingList.csv")
+books_df = books_df.sort_values('Number', ascending=False).drop(columns='Reread').set_index('Number', drop=True)
+books_df.index.name = 'Ordinal'
+
+show(books_df,
+    classes="display nowrap compact",
+    lengthMenu=[25, 50, 100, -1])
+```
+
+::: {.mt-5}
+:::
+
+# REVISED

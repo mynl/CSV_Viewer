@@ -1,5 +1,67 @@
 # Changelog
 
+## 3.0.3 (2026-06-12)
+
+Stage 4 revisited at the author's call: real Vite, which required the
+ES-module migration the 3.0.2 concat build had avoided.
+
+- **Source is now ES modules**, run natively in development — still no
+  build step for the viewer, but a server is now required:
+  `python -m http.server 8080` (module scripts do not load from
+  `file://`; double-clicking index.html no longer works — accepted
+  trade-off, decided 2026-06-12). `src/grid/core.js` exports its public
+  functions; new **`src/grid/util.js`** holds the pure display logic
+  (format specs, fzf, width solver, records normalization) as named
+  exports; `src/grid/grid.js` is the library entry whose ONLY export is
+  `CsvGrid` (default — keeps the UMD global a class, not a namespace);
+  the worker is a module worker (`importScripts` gone); `app.js`
+  imports CsvGrid; index.html has one `<script type="module">` tag.
+- **`npm run build` = `vite build && vite build --mode umd`** (Vite 8 /
+  Rolldown devDependency; node_modules gitignored). Same four committed
+  `dist/` artifacts, now minified with sourcemaps (es 29.6 KB,
+  umd 23.4 KB, worker 6.2 KB). Two passes because Rolldown replaces
+  `import.meta` with `{}` in UMD output: the UMD pass rewrites
+  `import.meta.url` to a `document.currentScript` polyfill captured at
+  script-evaluation time (`define` + `intro`), and `renderBuiltUrl`
+  points the worker asset at that variable — Vite's default helper
+  reads `currentScript` lazily (null by worker-creation time) and would
+  resolve the worker against the page instead of the bundle. Verified
+  with the cross-directory fixture (page in `dev/`, bundle in `dist/`).
+  `base: './'` keeps the worker reference relative, not root-absolute.
+- Smoke test uses real imports (the `vm` concatenation harness is
+  gone); dist check now asserts the default export. 151 checks.
+- `dev/build.mjs` deleted; `sw.js` shell adds `util.js`, cache v3.0.3.
+
+## 3.0.2 (2026-06-12)
+
+Stage 4 of `dev/plan-3.0-grid-extraction.md` (library build). Viewer
+unchanged (still plain script tags, no build in development).
+
+- **`dist/` artifacts, committed** so consumers copy without building:
+  `csv-grid.es.js` (ES module, `import CsvGrid from …`),
+  `csv-grid.umd.js` (classic `<script>` → `window.CsvGrid`, or
+  CommonJS), `csv-grid.worker.js` (self-contained parse worker — host
+  next to the bundle, or pass `worker:false`), `csv-grid.css`.
+- **Zero-dependency build** — `node dev/build.mjs` (`npm run build`),
+  NOT Vite: the sources are deliberately plain scripts sharing globals,
+  which a real module bundler would scope apart. The script
+  concatenates core + grid, wraps (ESM export / UMD factory), and
+  rewrites two marked lines in grid.js — worker discovery becomes
+  `import.meta.url` (ES) and the worker filename becomes
+  `csv-grid.worker.js`; it fails loudly if the marked lines drift.
+  No node_modules, no devDependencies.
+- **`package.json`** (`csv-grid`, private): `main`/`module`/`exports`
+  map to dist (ready for aggregate_api's `file:` dependency),
+  `npm run build` / `npm test`. Version now lives in THREE places:
+  `VERSION` in app.js, the `sw.js` cache name, and `package.json`
+  (stamped into the dist banners) — bump all three.
+- Fixtures: `dev/embed-test.html` now runs against the dist UMD bundle
+  (verified over http AND file://); new `dev/embed-test-es.html` (ES
+  import) and `dev/worker-test-dist.html` (UMD bundle finds
+  `csv-grid.worker.js` next to itself — the worker-pathing sharp edge,
+  verified with a 2 MB parse). Smoke test grows to 151: the dist ES
+  bundle must import in Node and export CsvGrid.
+
 ## 3.0.1 (2026-06-12)
 
 Stages 2 + 3 of `dev/plan-3.0-grid-extraction.md` (options surface +

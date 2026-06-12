@@ -1,5 +1,8 @@
 tests/**/*.csv
 
+node_modules/
+dev/tmp-big.csv
+
 venv/
 .venv/
 

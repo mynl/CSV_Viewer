@@ -1,21 +1,13 @@
-// Smoke test for the pure-logic parts of src/grid/core.js + src/grid/grid.js
+// Smoke test for the pure-logic parts of src/grid/core.js + src/grid/util.js
 // (parser, sniffing, inference, formatting, filtering, layout solver).
 // Run: node dev/smoke-test.mjs
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
-
-const core = readFileSync(new URL('../src/grid/core.js', import.meta.url), 'utf8');
-const grid = readFileSync(new URL('../src/grid/grid.js', import.meta.url), 'utf8');
-const ctx = { document: { addEventListener() {}, getElementById: () => null }, Intl, console };
-vm.createContext(ctx);
-vm.runInContext(core, ctx);
-vm.runInContext(grid, ctx);
-const { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
-        formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
-        solveWidths, classifyNumber, engFormat, looksHeaderless,
-        guessHeaders, cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
-        parseMarkdownTable, splitMdRow, sampleIndices, parseFormatSpec,
-        formatWithSpec, parseAlignSpec, normalizeRecords } = ctx;
+import { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
+         classifyNumber, engFormat, looksHeaderless, guessHeaders,
+         cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
+         parseMarkdownTable, splitMdRow } from '../src/grid/core.js';
+import { formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
+         solveWidths, sampleIndices, parseFormatSpec, formatWithSpec,
+         parseAlignSpec, normalizeRecords } from '../src/grid/util.js';
 
 let failures = 0;
 function check(label, got, want) {
@@ -269,6 +261,15 @@ check('records array-of-arrays', nr2.rows, [['1', 'x'], ['2', 'y']]);
 check('records columns subset', normalizeRecords([{ a: 1, b: 2 }], ['b']).rows, [['2']]);
 check('records arrays need columns',
       (() => { try { normalizeRecords([[1]]); return false; } catch { return true; } })(), true);
+
+// --- dist ES bundle loads as a real module with CsvGrid as its default
+// export (3.0 stage 4; loadability only — instantiation needs a DOM;
+// rebuild with `npm run build` after source changes)
+const dist = await import(new URL('../dist/csv-grid.es.js', import.meta.url))
+    .catch(e => ({ error: e.message }));
+check('dist es bundle imports', dist.error ?? null, null);
+check('dist default export is CsvGrid', typeof dist.default, 'function');
+check('dist export is a class', /^class/.test(String(dist.default)), true);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

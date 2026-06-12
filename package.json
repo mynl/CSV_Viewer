@@ -1,0 +1,27 @@
+{
+    "name": "csv-grid",
+    "version": "3.0.3",
+    "description": "Embeddable, type-aware CSV / records grid — the library half of csv-viewer. Runtime has zero dependencies; dist/ is committed, no install needed to consume.",
+    "private": true,
+    "type": "module",
+    "main": "dist/csv-grid.umd.js",
+    "module": "dist/csv-grid.es.js",
+    "exports": {
+        ".": {
+            "import": "./dist/csv-grid.es.js",
+            "require": "./dist/csv-grid.umd.js"
+        },
+        "./csv-grid.css": "./dist/csv-grid.css",
+        "./worker": "./dist/csv-grid.worker.js"
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "vite build && vite build --mode umd",
+        "test": "node dev/smoke-test.mjs"
+    },
+    "devDependencies": {
+        "vite": "^8.0.16"
+    }
+}

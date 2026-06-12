@@ -5,9 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CsvGrid embed test</title>
     <!-- Deliberately bare: no Bootstrap, no viewer chrome. The grid must
-         look right with grid.css alone (stage 3 exit criterion), and two
-         instances must coexist (no shared state, no ids). -->
-    <link rel="stylesheet" href="../src/grid/grid.css">
+         look right with csv-grid.css alone (stage 3 exit criterion), and
+         two instances must coexist (no shared state, no ids). Runs against
+         the BUILT dist/ artifacts (stage 4 exit criterion; UMD global,
+         works from file://); embed-test-es.html is the ES-module twin.
+         Rebuild after source changes: node dev/build.mjs -->
+    <link rel="stylesheet" href="../dist/csv-grid.css">
     <style>
         body { margin: 2rem; background: #f4f4f4; font-family: system-ui, sans-serif; }
         h2 { font-size: 1rem; }
@@ -29,8 +32,7 @@
     <div id="grid-b"></div>
 </div>
 
-<script src="../src/grid/core.js"></script>
-<script src="../src/grid/grid.js"></script>
+<script src="../dist/csv-grid.umd.js"></script>
 <script>
 'use strict';
 

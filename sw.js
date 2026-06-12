@@ -4,12 +4,13 @@
 
 'use strict';
 
-const CACHE = 'csv-viewer-v3.0.1';   // bump with VERSION to invalidate
+const CACHE = 'csv-viewer-v3.0.3';   // bump with VERSION to invalidate
 
 const SHELL = [
     './',
     'index.html',
     'src/grid/core.js',
+    'src/grid/util.js',
     'src/grid/grid.js',
     'src/grid/worker.js',
     'src/grid/grid.css',

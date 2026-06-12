@@ -17,10 +17,8 @@
 <img src="slow.png" style="display:none" alt="">
 <h1 style="font-size:1.1rem">worker + {url} test (~2 MB CSV, parsed off-thread)</h1>
 <div id="g"></div>
-<script src="../src/grid/core.js"></script>
-<script src="../src/grid/grid.js"></script>
-<script>
-'use strict';
+<script type="module">
+import CsvGrid from '../src/grid/grid.js';
 new CsvGrid('#g', { url: 'tmp-big.csv' });
 </script>
 </body>

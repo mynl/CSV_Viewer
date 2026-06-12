@@ -1,0 +1,868 @@
+/* csv-grid v3.0.3 — built by Vite from src/grid/ of the
+* csv-viewer project. Generated file: do not edit. */
+//#region src/grid/core.js
+function e(e) {
+	return (e ?? "").replace(/^\uFEFF/, "").replace(/^(?:[ \t]*(?:\r\n|\n|\r))+/, "");
+}
+function t(e) {
+	let t = [
+		",",
+		"	",
+		";",
+		"|"
+	], r = e.split(/\r\n|\n|\r/, 20).filter((e) => e.length), i = ",", a = 0;
+	for (let e of t) {
+		let t = r.map((t) => n(t, e).length), o = t[0];
+		if (o < 2) continue;
+		let s = o * (t.every((e) => e === o) ? 10 : 1);
+		s > a && (a = s, i = e);
+	}
+	return i;
+}
+function n(e, t) {
+	let n = [], r = "", i = !1;
+	for (let a = 0; a < e.length; a++) {
+		let o = e[a];
+		i ? o === "\"" ? i = !1 : r += o : o === "\"" ? i = !0 : o === t ? (n.push(r), r = "") : r += o;
+	}
+	return n.push(r), n;
+}
+function r(e, t) {
+	let n = [], r = [], i = "", a = !1, o = 0, s = e.length;
+	for (; o < s;) {
+		let s = e[o];
+		if (a) {
+			if (s === "\"") {
+				if (e[o + 1] === "\"") {
+					i += "\"", o += 2;
+					continue;
+				}
+				a = !1, o++;
+				continue;
+			}
+			i += s, o++;
+			continue;
+		}
+		if (s === "\"") {
+			a = !0, o++;
+			continue;
+		}
+		if (s === t) {
+			r.push(i), i = "", o++;
+			continue;
+		}
+		if (s === "\r" || s === "\n") {
+			r.push(i), i = "", n.push(r), r = [], s === "\r" && e[o + 1] === "\n" && o++, o++;
+			continue;
+		}
+		i += s, o++;
+	}
+	for ((i.length || r.length) && (r.push(i), n.push(r)); n.length && n[n.length - 1].every((e) => e.trim() === "");) n.pop();
+	return n;
+}
+function i(e) {
+	e = e.trim(), e.startsWith("|") && (e = e.slice(1)), e.endsWith("|") && !e.endsWith("\\|") && (e = e.slice(0, -1));
+	let t = [], n = "";
+	for (let r = 0; r < e.length; r++) {
+		let i = e[r];
+		i === "\\" && e[r + 1] === "|" ? (n += "|", r++) : i === "|" ? (t.push(n), n = "") : n += i;
+	}
+	return t.push(n), t.map((e) => e.trim());
+}
+var a = /^:?-+:?$/;
+function o(e) {
+	let t = e.split(/\r\n|\n|\r/).filter((e) => e.trim() !== "");
+	if (t.length < 2 || !t[0].includes("|")) return !1;
+	let n = i(t[1]);
+	return n.length > 0 && n.every((e) => a.test(e));
+}
+function s(e) {
+	let t = e.split(/\r\n|\n|\r/).filter((e) => e.trim() !== ""), n = i(t[0]).map((e, t) => e || `col${t + 1}`), r = i(t[1]).map((e) => {
+		let t = e.startsWith(":"), n = e.endsWith(":");
+		return t && n ? "center" : n ? "right" : t ? "left" : null;
+	});
+	for (; r.length < n.length;) r.push(null);
+	return {
+		headers: n,
+		rows: t.slice(2).filter((e) => e.includes("|")).map((e) => {
+			let t = i(e).slice(0, n.length);
+			for (; t.length < n.length;) t.push("");
+			return t;
+		}),
+		aligns: r
+	};
+}
+var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, l = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/, u = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, d = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, f = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, p = [
+	"january",
+	"february",
+	"march",
+	"april",
+	"may",
+	"june",
+	"july",
+	"august",
+	"september",
+	"october",
+	"november",
+	"december"
+];
+function m(e) {
+	if (e = e.trim(), !c.test(e)) return null;
+	let t = !1;
+	e.startsWith("(") && e.endsWith(")") && (t = !0, e = e.slice(1, -1));
+	let n = !1;
+	e.endsWith("%") && (n = !0, e = e.slice(0, -1)), e = e.replace(/[$,]/g, "");
+	let r = parseFloat(e);
+	if (!isFinite(r)) return null;
+	t && (r = -r), n && (r /= 100);
+	let i = /^([^eE]*)[eE]([+-]?\d+)$/.exec(e), a = i ? i[1] : e, o = i ? +i[2] : 0, s = a.indexOf("."), l = Math.max(0, (s < 0 ? 0 : a.length - s - 1) - o);
+	return n && (l += 2), {
+		v: r,
+		dec: l
+	};
+}
+function h(e) {
+	let t = e.toLowerCase(), n = p.findIndex((e) => e.startsWith(t) || t === "sept" && e === "september");
+	return n < 0 || t.length < 3 ? null : n + 1;
+}
+function g(e) {
+	return e = +e, e < 100 ? e < 50 ? 2e3 + e : 1900 + e : e;
+}
+function _(e, t, n, r = 0, i = 0, a = 0, o = !1) {
+	let s = new Date(e, t - 1, n, r, i, a);
+	return s.getFullYear() !== e || s.getMonth() !== t - 1 || s.getDate() !== +n ? null : {
+		t: s.getTime(),
+		hasTime: o
+	};
+}
+function v(e, t = !1) {
+	e = e.trim();
+	let n = l.exec(e);
+	if (n) {
+		let [, e, t, r, i, a, o] = n;
+		return _(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), i !== void 0);
+	}
+	if (n = u.exec(e), n) {
+		let [, e, , r, i] = n;
+		if (e.length === 4 && i.length <= 2) return _(+e, +r, +i);
+		if (e.length <= 2 && (i.length === 4 || i.length === 2)) {
+			let n = g(i);
+			return +e > 12 && +r <= 12 ? _(n, +r, +e) : +r > 12 && +e <= 12 ? _(n, +e, +r) : t ? _(n, +r, +e) : _(n, +e, +r);
+		}
+		return null;
+	}
+	if (n = d.exec(e), n) {
+		let e = h(n[2]);
+		return e ? _(g(n[3]), e, +n[1]) : null;
+	}
+	if (n = f.exec(e), n) {
+		let e = h(n[1]);
+		return e ? _(g(n[3]), e, +n[2]) : null;
+	}
+	return null;
+}
+function y(e) {
+	let t = u.exec(e.trim());
+	return !!t && t[1].length <= 2 && +t[1] > 12 && +t[3] <= 12;
+}
+function b(e) {
+	return e.some((e) => {
+		let t = (e ?? "").trim();
+		return t !== "" && (m(t) !== null || v(t) !== null);
+	});
+}
+function x(e) {
+	let t = (e) => e.type === "date" ? "Date" : e.type === "number" ? e.format === "year" ? "Year" : "Amount" : "Description", n = {}, r = {};
+	e.forEach((e) => {
+		let r = t(e);
+		n[r] = (n[r] || 0) + 1;
+	}), e.forEach((e) => {
+		let i = t(e);
+		r[i] = (r[i] || 0) + 1, e.name = n[i] > 1 ? `${i} ${r[i]}` : i;
+	});
+}
+var S = /\b(year|yr|vintage|cohort)\b/i, C = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i;
+function w(e, t, n) {
+	let r = t.filter((e) => e !== null), i = r.every((e) => Number.isInteger(e));
+	if (i && r.length) return S.test(e) || r.every((e) => e >= 1800 && e <= 2100) ? {
+		format: "year",
+		dec: 0
+	} : C.test(e) ? {
+		format: "float",
+		dec: 2
+	} : {
+		format: "int",
+		dec: 0
+	};
+	if (!i && C.test(e)) return {
+		format: "float",
+		dec: 2
+	};
+	let a = 0, o = 0, s = Infinity, c = 0;
+	for (let e of r) {
+		if (e === 0) continue;
+		let t = Math.abs(e);
+		a++, t > o && (o = t), t < s && (s = t), c += t;
+	}
+	if (!a) return {
+		format: "float",
+		dec: Math.min(n, 6)
+	};
+	if (!i && n <= 2 && o < 1e5) return {
+		format: "float",
+		dec: 2
+	};
+	if (o / s > 1e6) return {
+		format: "eng",
+		dec: 0
+	};
+	let l = c / a;
+	return {
+		format: "float",
+		dec: Math.max(0, Math.min(n, 3 - Math.floor(Math.log10(l)), 6))
+	};
+}
+var T = {
+	"-9": "n",
+	"-6": "µ",
+	"-3": "m",
+	0: "",
+	3: "k",
+	6: "M",
+	9: "G",
+	12: "T"
+};
+function E(e) {
+	if (e === 0) return "0";
+	let t = Math.abs(e), n = Math.floor(Math.log10(t) / 3) * 3;
+	n = Math.max(-9, Math.min(12, n));
+	let r = t / 10 ** n;
+	return (e < 0 ? "-" : "") + Number(r.toPrecision(3)) + T[n];
+}
+function D(e, t) {
+	return e.map((e, n) => {
+		let r = !0, i = !0, a = 0, o = 0, s = !1, c = !1, l = Array(t.length).fill(null), u = Array(t.length).fill(null);
+		for (let e = 0; e < t.length; e++) {
+			let d = (t[e][n] ?? "").trim();
+			if (d !== "") {
+				if (o++, r) {
+					let t = m(d);
+					t ? (l[e] = t.v, t.dec > a && (a = t.dec)) : r = !1;
+				}
+				if (i) {
+					let t = v(d, !1);
+					t ? (u[e] = t.t, c ||= t.hasTime, !s && y(d) && (s = !0)) : i = !1;
+				}
+				if (!r && !i) break;
+			}
+		}
+		if (o === 0) return {
+			name: e,
+			type: "text",
+			values: null
+		};
+		if (r) {
+			let t = w(e, l, a);
+			return {
+				name: e,
+				type: "number",
+				format: t.format,
+				dec: t.dec,
+				values: l
+			};
+		}
+		if (i) {
+			if (s) {
+				u = Array(t.length).fill(null);
+				for (let e = 0; e < t.length; e++) {
+					let r = (t[e][n] ?? "").trim();
+					if (r === "") continue;
+					let i = v(r, !0);
+					i && (u[e] = i.t);
+				}
+			}
+			return {
+				name: e,
+				type: "date",
+				hasTime: c,
+				values: u
+			};
+		}
+		return {
+			name: e,
+			type: "text",
+			values: null
+		};
+	});
+}
+function O(e, n = null) {
+	let i, a, c = null, l;
+	if (o(e)) {
+		if ({headers: i, rows: a, aligns: c} = s(e), l = n === !1, l && (a = [i, ...a], i = i.map((e, t) => `col${t + 1}`)), !a.length) throw Error("Markdown table has no data rows.");
+	} else {
+		let o = r(e, t(e));
+		if (o.length < 2) throw Error("Need a header row and at least one data row.");
+		l = n === null ? b(o[0]) : !n, i = l ? o[0].map((e, t) => `col${t + 1}`) : o[0].map((e, t) => e.trim() || `col${t + 1}`), a = (l ? o : o.slice(1)).map((e) => {
+			if (e.length === i.length) return e;
+			let t = e.slice(0, i.length);
+			for (; t.length < i.length;) t.push("");
+			return t;
+		});
+	}
+	let u = D(i, a);
+	return l && x(u), c && u.forEach((e, t) => {
+		c[t] && (e.align = c[t]);
+	}), {
+		headers: u.map((e) => e.name),
+		rows: a,
+		cols: u,
+		headerless: l
+	};
+}
+//#endregion
+//#region src/grid/util.js
+var k = /* @__PURE__ */ new Map();
+function A(e) {
+	let t = k.get(e);
+	return t || (t = new Intl.NumberFormat("en-US", {
+		minimumFractionDigits: e,
+		maximumFractionDigits: e
+	}), k.set(e, t)), t;
+}
+function j(e) {
+	if (e == null || e === "") return null;
+	if (e === "year" || e === "eng") return { kind: e };
+	let t = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(e);
+	if (!t) throw Error(`CsvGrid: unrecognized format spec '${e}'`);
+	return {
+		kind: t[3],
+		comma: !!t[1],
+		dec: t[2] === void 0 ? null : +t[2]
+	};
+}
+var M = [
+	[0xe8d4a51000, "T"],
+	[1e9, "G"],
+	[1e6, "M"],
+	[1e3, "k"],
+	[1, ""],
+	[.001, "m"],
+	[1e-6, "µ"],
+	[1e-9, "n"]
+];
+function N(e, t) {
+	switch (t.kind) {
+		case "year": return String(e);
+		case "eng": return E(e);
+		case "d": {
+			let n = Math.round(e);
+			return t.comma ? A(0).format(n) : String(n);
+		}
+		case "f": {
+			let n = t.dec ?? 2;
+			return t.comma ? A(n).format(e) : e.toFixed(n);
+		}
+		case "%": {
+			let n = t.dec ?? 0, r = e * 100;
+			return (t.comma ? A(n).format(r) : r.toFixed(n)) + "%";
+		}
+		case "e": return e.toExponential(t.dec ?? 2);
+		case "s": {
+			if (t.dec === null || t.dec === void 0) return E(e);
+			if (e === 0) return 0 .toFixed(t.dec);
+			let n = Math.abs(e);
+			for (let [r, i] of M) if (n >= r) return (e / r).toFixed(t.dec) + i;
+			return (e / 1e-9).toFixed(t.dec) + "n";
+		}
+	}
+}
+function P(e) {
+	return [...e].map((e) => ({
+		l: "left",
+		r: "right",
+		c: "center"
+	})[e] ?? null);
+}
+function F(e, t, n) {
+	if (e = (e ?? "").trim(), e === "") return "";
+	if (t.type === "number") {
+		let r = t.values[n];
+		return r === null ? e : t.fmt ? N(r, t.fmt) : t.format === "year" ? String(r) : t.format === "eng" ? E(r) : A(t.dec).format(r);
+	}
+	if (t.type === "date") {
+		let r = t.values[n];
+		if (r === null) return e;
+		let i = new Date(r), a = (e) => String(e).padStart(2, "0"), o = `${i.getFullYear()}-${a(i.getMonth() + 1)}-${a(i.getDate())}`;
+		return t.hasTime && (o += ` ${a(i.getHours())}:${a(i.getMinutes())}`), o;
+	}
+	return e;
+}
+function I(e, t) {
+	if (!Array.isArray(e)) throw Error("CsvGrid: records must be an array.");
+	let n = (e) => e == null || typeof e == "number" && Number.isNaN(e) ? "" : String(e), r, i;
+	if (e.length && Array.isArray(e[0])) {
+		if (!t) throw Error("CsvGrid: columns are required with array-of-arrays records.");
+		r = t.map(String), i = e.map((e) => r.map((t, r) => n(e[r])));
+	} else r = (t ?? Object.keys(e[0] ?? {})).map(String), i = e.map((e) => r.map((t) => n(e[t])));
+	let a = D(r, i);
+	return {
+		headers: r,
+		rows: i,
+		cols: a,
+		headerless: !1
+	};
+}
+function L(e) {
+	let t = [];
+	for (let n of e.trim().split(/\s+/)) {
+		if (!n) continue;
+		let e = {
+			kind: "fuzzy",
+			negate: !1
+		};
+		n.startsWith("!") && (e.negate = !0, e.kind = "exact", n = n.slice(1)), n.startsWith("'") && (e.kind = "exact", n = n.slice(1)), n.startsWith("^") && (e.kind = "prefix", n = n.slice(1)), n.endsWith("$") && (e.kind = e.kind === "prefix" ? "exact" : "suffix", n = n.slice(0, -1)), n && (e.cs = /[A-Z]/.test(n), e.str = e.cs ? n : n.toLowerCase(), t.push(e));
+	}
+	return t;
+}
+var R = /[\s_\-\/\\.,:;()[\]{}"']/;
+function z(e, t) {
+	let n = t.length, r = e.length;
+	if (r === 0) return 0;
+	if (r > n) return -1;
+	let i = 0, a = -1;
+	for (let o = 0; o < n; o++) if (t[o] === e[i] && (i++, i === r)) {
+		a = o;
+		break;
+	}
+	if (a < 0) return -1;
+	i = r - 1;
+	let o = a;
+	for (let n = a; n >= 0 && !(t[n] === e[i] && (o = n, i--, i < 0)); n--);
+	let s = 100 - 3 * (a - o + 1 - r) - Math.min(o, 20);
+	i = 0;
+	let c = !1;
+	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || R.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
+	return s;
+}
+function B(e, t, n) {
+	let r = e.cs ? n : t, i, a = 0;
+	switch (e.kind) {
+		case "exact":
+			i = r.includes(e.str);
+			break;
+		case "prefix":
+			i = r.startsWith(e.str);
+			break;
+		case "suffix":
+			i = r.endsWith(e.str);
+			break;
+		default: {
+			let t = z(e.str, r);
+			i = t >= 0, a = t;
+		}
+	}
+	return e.negate && (i = !i), i ? a : -1;
+}
+function V(e, t, n) {
+	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
+	if (a(o) <= n) return o;
+	if (a(i(0)) >= n) return i(0);
+	let s = 0, c = 1;
+	for (let e = 0; e < 32; e++) {
+		let e = (s + c) / 2;
+		a(i(e)) <= n ? s = e : c = e;
+	}
+	return i(s);
+}
+function H(e, t) {
+	if (e <= t) return Array.from({ length: e }, (e, t) => t);
+	let n = Array(t), r = e / t;
+	for (let e = 0; e < t; e++) n[e] = Math.floor(e * r);
+	return n;
+}
+function U(e, t) {
+	let n = e.trim();
+	if (!n) return null;
+	if (t.type === "number" || t.type === "date") {
+		let e = t.type === "number" ? (e) => {
+			let t = m(e);
+			return t ? t.v : NaN;
+		} : (e) => {
+			let t = v(e);
+			return t ? t.t : NaN;
+		}, r = /^(>=|<=|>|<|=)\s*(.+)$/.exec(n);
+		if (r) {
+			let n = e(r[2]);
+			if (!isNaN(n)) {
+				let e = r[1];
+				return (r, i) => {
+					let a = t.values[i];
+					if (a === null) return !1;
+					switch (e) {
+						case ">": return a > n;
+						case ">=": return a >= n;
+						case "<": return a < n;
+						case "<=": return a <= n;
+						default: return a === n;
+					}
+				};
+			}
+		}
+		if (r = /^(.+?)\.\.(.+)$/.exec(n), r) {
+			let n = e(r[1]), i = e(r[2]);
+			if (!isNaN(n) && !isNaN(i)) return (e, r) => {
+				let a = t.values[r];
+				return a !== null && a >= n && a <= i;
+			};
+		}
+	}
+	let r = n.toLowerCase();
+	return (e, t) => e.toLowerCase().includes(r);
+}
+function W(e) {
+	return e.align ? `col-${e.type} align-${e.align}` : `col-${e.type}`;
+}
+function G(e) {
+	return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+//#endregion
+//#region src/grid/grid.js
+var K = 1e6, q = 2e3, J = 1e4;
+function Y(e, t) {
+	let n = document.createElement(e);
+	return t && (n.className = t), n;
+}
+var X = class t {
+	constructor(e, t, n = {}) {
+		let r = typeof e == "string" ? document.querySelector(e) : e;
+		if (!r) throw Error("CsvGrid: target element not found.");
+		this.root = r, this.opts = {
+			globalSearch: !0,
+			columnFilters: !0,
+			sortable: !0,
+			statusBar: !0,
+			expandButtons: !0,
+			align: null,
+			formats: null,
+			renderCap: 2e3,
+			eagerCells: 2e5,
+			worker: !0,
+			headerMode: "auto",
+			...n
+		}, this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
+	}
+	_buildScaffold() {
+		let e = this.opts, t = this.root;
+		if (t.classList.add("csvgrid"), t.replaceChildren(), this.els = {}, e.globalSearch || e.expandButtons) {
+			let n = Y("div", "csvgrid-toolbar");
+			if (e.globalSearch) {
+				let e = Y("input", "csvgrid-search");
+				e.type = "text", e.placeholder = "fzf search: term 'exact !not ^pre fix$", e.title = "Space-separated terms AND together. Fuzzy by default; 'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.", e.addEventListener("input", () => this.setGlobalFilter(e.value)), e.addEventListener("keydown", (t) => {
+					t.key === "Escape" && (t.preventDefault(), e.value = "", e.blur(), this.setGlobalFilter(""));
+				}), n.appendChild(e), this.els.search = e;
+			}
+			if (e.expandButtons) {
+				let e = Y("button", "csvgrid-btn");
+				e.type = "button", e.textContent = "Expand", e.title = "Expand all columns to their full natural width (table scrolls horizontally)", e.addEventListener("click", () => this.expand());
+				let t = Y("button", "csvgrid-btn");
+				t.type = "button", t.textContent = "Contract", t.title = "Back to fitted widths (equal-risk squeeze); also clears any dragged widths", t.addEventListener("click", () => this.contract()), n.append(e, t);
+			}
+			t.appendChild(n);
+		}
+		let n = Y("div", "csvgrid-scroll"), r = Y("table", "csvgrid-table"), i = Y("thead"), a = Y("tbody");
+		r.append(i, a), n.appendChild(r), t.appendChild(n);
+		let o = Y("div", "csvgrid-capnote csvgrid-hidden"), s = Y("button", "csvgrid-btn");
+		s.type = "button", s.addEventListener("click", () => {
+			this.showAll = !0, this.renderBody(), this.renderStatus();
+		}), o.appendChild(s), t.appendChild(o);
+		let c = Y("div", "csvgrid-error csvgrid-hidden");
+		t.appendChild(c);
+		let l = null;
+		e.statusBar === !0 ? (l = Y("div", "csvgrid-status"), t.appendChild(l)) : e.statusBar && (l = e.statusBar), Object.assign(this.els, {
+			table: r,
+			head: i,
+			body: a,
+			scroll: n,
+			capNote: o,
+			showAllBtn: s,
+			error: c,
+			status: l
+		}), r.addEventListener("mouseover", (e) => {
+			let t = e.target.closest("td, th");
+			t && !t.title && t.scrollWidth > t.clientWidth && (t.title = t.textContent);
+		});
+	}
+	setData(e) {
+		let t = ++this.loadGen, n = new Promise((n, r) => {
+			this._resolveData(e, t).then(({ d: e, name: r }) => {
+				t === this.loadGen && (this._install(e, r), n());
+			}, (e) => {
+				t === this.loadGen && (this._showError(e.message || String(e)), r(e));
+			});
+		});
+		return n.catch(() => {}), n;
+	}
+	async _resolveData(e, t) {
+		if (!e || typeof e != "object") throw Error("CsvGrid: data must be {csv}, {records[, columns]}, or {url}.");
+		if (this._headerMode = e.headerMode ?? this.opts.headerMode, e.url !== void 0) {
+			let n = String(e.url), r = e.name ?? decodeURIComponent(n.split("/").pop() || n), i = await fetch(n);
+			if (!i.ok) throw Error(`HTTP ${i.status}`);
+			return {
+				d: await this._parse(await i.text(), t, r),
+				name: r
+			};
+		}
+		if (e.csv !== void 0) {
+			let n = e.name ?? "";
+			return {
+				d: await this._parse(e.csv, t, n),
+				name: n
+			};
+		}
+		if (e.records !== void 0) return {
+			d: I(e.records, e.columns),
+			name: e.name ?? ""
+		};
+		throw Error("CsvGrid: data must be {csv}, {records[, columns]}, or {url}.");
+	}
+	_parse(t, n, r) {
+		if (t = e(t), !t.trim()) throw Error("No data found.");
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= K ? this._getWorker() : null;
+		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
+			this._pending.set(n, {
+				resolve: e,
+				reject: r
+			}), a.postMessage({
+				gen: n,
+				text: t,
+				headerOverride: i
+			});
+		})) : O(t, i);
+	}
+	_getWorker() {
+		if (this._worker === void 0) {
+			this._worker = null;
+			try {
+				let e = typeof this.opts.worker == "string" ? new Worker(this.opts.worker) : new Worker(new URL(
+					/* @vite-ignore */
+					"" + new URL("csv-grid.worker.js", import.meta.url).href,
+					"" + import.meta.url
+				), { type: "module" });
+				e.onmessage = (e) => {
+					let { gen: t, result: n, error: r } = e.data, i = this._pending.get(t);
+					i && (this._pending.delete(t), r ? i.reject(Error(r)) : i.resolve(n));
+				}, e.onerror = () => {
+					let e = [...this._pending.values()];
+					this._pending.clear();
+					for (let t of e) t.reject(/* @__PURE__ */ Error("Background parse failed."));
+				}, this._worker = e;
+			} catch {}
+		}
+		return this._worker;
+	}
+	_install(e, t) {
+		let { rows: n, cols: r } = e;
+		if (this.opts.align) {
+			let e = P(this.opts.align);
+			r.forEach((t, n) => {
+				e[n] && (t.align = e[n]);
+			});
+		}
+		if (this.opts.formats && r.forEach((e, t) => {
+			e.fmt = j(this.opts.formats[t]);
+		}), this.fileName = t || "", this.guessedHeaders = e.headerless, this.headers = e.headers, this.rows = n, this.cols = r, this.formatted = Array(n.length), this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, n.length * r.length <= this.opts.eagerCells) {
+			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
+			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
+		}
+		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
+	}
+	_showError(e) {
+		this.els.error.textContent = e, this.els.error.classList.remove("csvgrid-hidden");
+	}
+	_setStatus(e) {
+		this.els.status && (this.els.status.textContent = e);
+	}
+	destroy() {
+		this.loadGen++, this._pending.clear(), this._worker &&= (this._worker.terminate(), null), this.root.classList.remove("csvgrid"), this.root.replaceChildren();
+	}
+	setGlobalFilter(e) {
+		this.globalFilter = e, this.refresh();
+	}
+	clearFilters() {
+		this.globalFilter = "", this.colFilters = this.colFilters.map(() => ""), this.els.search && (this.els.search.value = ""), this.renderHead(), this.refresh();
+	}
+	expand() {
+		this.expandAll = !0, this.applyLayout();
+	}
+	contract() {
+		this.expandAll = !1, this.manualWidths.clear(), this.applyLayout();
+	}
+	measureLayout() {
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = H(this.rows.length, q), a = [], o = [];
+		for (let t = 0; t < this.cols.length; t++) {
+			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
+			let n = [];
+			for (let r of i) {
+				let i = this.getFormattedRow(r)[t];
+				i !== "" && n.push(Math.ceil(e.measureText(i).width) + 18);
+			}
+			n.sort((e, t) => e - t), a.push(n);
+		}
+		return {
+			arrays: a,
+			floors: o
+		};
+	}
+	startColResize(e, t) {
+		e.preventDefault(), e.stopPropagation();
+		let n = this.els.table, r = n.querySelectorAll("colgroup col")[t];
+		if (!r) return;
+		let i = e.clientX, a = parseFloat(r.style.width);
+		document.body.classList.add("csvgrid-resizing");
+		let o = () => {
+			let e = 0;
+			n.querySelectorAll("colgroup col").forEach((t) => {
+				e += parseFloat(t.style.width);
+			}), n.style.width = e + "px";
+		}, s = (e) => {
+			let n = Math.max(24, Math.round(a + e.clientX - i));
+			this.manualWidths.set(t, n), r.style.width = n + "px", o();
+		}, c = () => {
+			document.body.classList.remove("csvgrid-resizing"), document.removeEventListener("mousemove", s), document.removeEventListener("mouseup", c);
+		};
+		document.addEventListener("mousemove", s), document.addEventListener("mouseup", c);
+	}
+	fitColumn(e) {
+		let { arrays: t, floors: n } = this.layout, r = Math.max(n[e], t[e].length ? t[e][t[e].length - 1] : 0);
+		this.manualWidths.set(e, r), this.applyLayout();
+	}
+	applyLayout() {
+		if (!this.layout) return;
+		let e = this.els.table, t = this.expandAll ? Infinity : e.parentElement.clientWidth;
+		if (!t) return;
+		let n = V(this.layout.arrays, this.layout.floors, t);
+		for (let [e, t] of this.manualWidths) e < n.length && (n[e] = t);
+		let r = e.querySelector("colgroup");
+		r && r.remove(), r = document.createElement("colgroup");
+		for (let e of n) {
+			let t = document.createElement("col");
+			t.style.width = e + "px", r.appendChild(t);
+		}
+		e.prepend(r), e.style.tableLayout = "fixed", e.style.width = n.reduce((e, t) => e + t, 0) + "px";
+	}
+	getFormattedRow(e) {
+		let t = this.formatted[e];
+		return t || (t = this.cols.map((t, n) => F(this.rows[e][n], t, e)), this.formatted[e] = t), t;
+	}
+	buildSearchIndexChunked() {
+		let e = this.loadGen, t = this.rows.length, n = Array(t), r = Array(t), i = 0;
+		this.indexing = 0;
+		let a = () => {
+			if (e !== this.loadGen) return;
+			let o = Math.min(t, i + J);
+			for (; i < o; i++) {
+				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
+				n[i] = e, r[i] = e.toLowerCase();
+			}
+			i < t ? (this.indexing = i / t, this.renderStatus(), setTimeout(a, 0)) : (this.searchRaw = n, this.searchLow = r, this.searchReady = !0, this.indexing = null, this.refresh());
+		};
+		a();
+	}
+	rebuildView() {
+		let { rows: e, cols: t } = this, n = L(this.globalFilter);
+		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => U(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
+		this.scores = [];
+		for (let t = 0; t < e.length; t++) {
+			let r = 0;
+			if (a) {
+				let a = !0;
+				for (let e of n) {
+					let n = B(e, this.searchLow[t], this.searchRaw[t]);
+					if (n < 0) {
+						a = !1;
+						break;
+					}
+					r += n;
+				}
+				if (a) {
+					for (let n = 0; n < i.length; n++) if (i[n] && !i[n](e[t][n] ?? "", t)) {
+						a = !1;
+						break;
+					}
+				}
+				if (!a) continue;
+			}
+			this.scores[t] = r, o.push(t);
+		}
+		let s = this.sortCol;
+		if (s === null && r) o.sort((e, t) => this.scores[t] - this.scores[e] || e - t);
+		else if (s !== null) {
+			let e = this.cols[s], t = this.sortDir;
+			if (e.type === "text") {
+				let e = new Intl.Collator("en", {
+					sensitivity: "base",
+					numeric: !0
+				});
+				o.sort((n, r) => {
+					let i = (this.rows[n][s] ?? "").trim(), a = (this.rows[r][s] ?? "").trim();
+					return i === "" || a === "" ? i === a ? 0 : i === "" ? 1 : -1 : t * e.compare(i, a);
+				});
+			} else o.sort((n, r) => {
+				let i = e.values[n], a = e.values[r];
+				return i === null || a === null ? i === a ? 0 : i === null ? 1 : -1 : t * (i - a);
+			});
+		}
+		this.view = o;
+	}
+	renderHead() {
+		let { cols: e } = this, t = this.els.head;
+		t.innerHTML = "";
+		let n = document.createElement("tr");
+		if (e.forEach((e, t) => {
+			let r = document.createElement("th");
+			r.className = W(e), this.opts.sortable ? (r.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${G(e.name)}`, r.title = `${e.name} (${e.type}) — click to sort`, r.addEventListener("click", () => this.onSort(t))) : (r.innerHTML = `<span class="sort-arrow"></span>${G(e.name)}`, r.title = `${e.name} (${e.type})`, r.classList.add("csvgrid-nosort"));
+			let i = document.createElement("span");
+			i.className = "col-resizer", i.title = "Drag to resize — double-click to fit content", i.addEventListener("mousedown", (e) => this.startColResize(e, t)), i.addEventListener("dblclick", (e) => {
+				e.stopPropagation(), this.fitColumn(t);
+			}), i.addEventListener("click", (e) => e.stopPropagation()), r.appendChild(i), n.appendChild(r);
+		}), t.appendChild(n), !this.opts.columnFilters) return;
+		let r = document.createElement("tr");
+		r.className = "filter-row", e.forEach((e, t) => {
+			let n = document.createElement("th"), i = document.createElement("input");
+			i.type = "text", i.className = "csvgrid-filter", i.placeholder = e.type === "text" ? "filter" : "filter, >, .. ", i.value = this.colFilters[t] || "", i.addEventListener("input", () => {
+				this.colFilters[t] = i.value, i.classList.toggle("active-filter", i.value.trim() !== ""), this.refresh();
+			}), i.addEventListener("keydown", (e) => {
+				e.key === "Escape" && (e.preventDefault(), i.value = "", this.colFilters[t] = "", i.classList.remove("active-filter"), i.blur(), this.refresh());
+			}), n.appendChild(i), r.appendChild(n);
+		}), t.appendChild(r);
+	}
+	renderBody() {
+		let { cols: e, view: t } = this, n = this.showAll ? t.length : Math.min(t.length, this.opts.renderCap), r = [];
+		for (let i = 0; i < n; i++) {
+			let n = t[i], a = this.getFormattedRow(n), o = e.map((e, t) => {
+				let n = a[t];
+				return n === "" ? `<td class="${W(e)} blank">·</td>` : `<td class="${W(e)}">${G(n)}</td>`;
+			});
+			r.push(`<tr>${o.join("")}</tr>`);
+		}
+		this.els.body.innerHTML = r.join("");
+		let i = this.els.capNote;
+		t.length > n ? (i.classList.remove("csvgrid-hidden"), this.els.showAllBtn.textContent = `Showing first ${n.toLocaleString()} of ${t.length.toLocaleString()} rows — show all`) : i.classList.add("csvgrid-hidden");
+	}
+	renderStatus() {
+		if (!this.els.status) return;
+		let e = (e) => e.toLocaleString(), t = this.rows.length, n = this.view.length, r = this.showAll ? n : Math.min(n, this.opts.renderCap), i = this.fileName ? this.fileName + " — " : "";
+		i += n === t ? `${e(t)} rows` : `${e(n)} of ${e(t)} rows`, i += ` × ${this.cols.length} cols`, r < n && (i += ` — showing rows 1–${e(r)}`), this.guessedHeaders && (i += " (headers guessed)"), this.indexing !== null && (i += ` — indexing search ${Math.round(this.indexing * 100)}%`), this.els.status.textContent = i;
+	}
+	refresh() {
+		this.rebuildView(), this.renderBody(), this.renderStatus();
+	}
+	onSort(e) {
+		this.sortCol === e ? this.sortDir === 1 ? this.sortDir = -1 : (this.sortCol = null, this.sortDir = 1) : (this.sortCol = e, this.sortDir = 1), this.renderHead(), this.refresh();
+	}
+};
+//#endregion
+export { X as default };
+
+//# sourceMappingURL=csv-grid.es.js.map

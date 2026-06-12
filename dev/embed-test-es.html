@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CsvGrid embed test — ES module</title>
+    <!-- ES-module twin of embed-test.html: import from dist/csv-grid.es.js.
+         Needs a server (module scripts do not load from file://):
+         serve the repo root and open /dev/embed-test-es.html. -->
+    <link rel="stylesheet" href="../dist/csv-grid.css">
+    <style>
+        body { margin: 2rem; background: #f4f4f4; font-family: system-ui, sans-serif; }
+        .pane { max-width: 900px; }
+    </style>
+</head>
+<body>
+
+<h1 style="font-size:1.3rem">CsvGrid embed test — ES module import</h1>
+
+<div class="pane">
+    <div id="grid-a"></div>
+</div>
+
+<script type="module">
+import CsvGrid from '../dist/csv-grid.es.js';
+
+new CsvGrid('#grid-a', {
+    csv: `book,author,pages,price,started,rating
+War and Peace,"Tolstoy, Leo",1225,24.99,2024-01-05,4.5
+Middlemarch,"Eliot, George",880,18.50,2024-02-01,5
+The Big Short,"Lewis, Michael",264,15.00,2024-04-10,4`,
+    name: 'books.csv',
+});
+</script>
+</body>
+</html>

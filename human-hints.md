@@ -41,6 +41,43 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-12 — stage 4 redone with REAL Vite (v3.0.3)
+
+- Steve: "I do want this bundled" — concat build replaced. Decisions
+  (his): drop file:// (always serve; `python -m http.server 8080`),
+  Vite = library build only (viewer stays no-build, native ES modules).
+- Source is ES modules now: core.js (exports), NEW util.js (pure
+  display logic, the tested surface), grid.js (entry, default-exports
+  CsvGrid only — keeps the UMD global a class), module worker, one
+  `<script type="module">` in index.html. Smoke test imports directly
+  (vm harness gone), 151 checks.
+- Build: `npm run build` = two Vite passes (es, then `--mode umd`).
+  Rolldown can't express import.meta.url in UMD → define+intro
+  currentScript polyfill + renderBuiltUrl for the worker asset (Vite's
+  own helper reads currentScript lazily = null → would resolve the
+  worker against the page; caught via the dev/-vs-dist/ fixture).
+- Verified: viewer (native ESM), embed UMD, embed ESM, both worker
+  fixtures (source + dist cross-directory). Awaiting review + commit;
+  stage 5 (python emitter) then 6 (docs — incl. the new serve-required
+  reality and three version spots) remain.
+
+## 2026-06-12 — 3.0 stage 4 executed (library build, v3.0.2)
+
+- `dist/` committed: csv-grid.{es,umd}.js, csv-grid.worker.js (self-
+  contained), csv-grid.css. **Deviation flagged: NOT Vite** — sources
+  are plain scripts sharing globals (that's what keeps dev build-free),
+  so a module bundler would break them; instead `node dev/build.mjs`
+  (zero deps, no node_modules): concatenate + wrap + rewrite two marked
+  lines in grid.js (worker discovery: currentScript → import.meta.url
+  for ESM; worker filename → csv-grid.worker.js). package.json maps
+  main/module/exports to dist for aggregate_api's `file:` dependency.
+- Version now in three places: app.js VERSION, sw.js cache name,
+  package.json. Rebuild dist after grid/core source changes.
+- Green: 151 smoke checks (incl. Node-importing the dist ES bundle);
+  screenshots — embed-test (UMD, http + file://), embed-test-es (ESM),
+  worker-test-dist (bundle finds its worker, 2 MB off-thread parse),
+  viewer unchanged at v3.0.2. Awaiting review + commit; stages 5–6 next.
+
 ## 2026-06-12 — 3.0 stages 2+3 executed (options + own CSS, v3.0.1)
 
 - Full v1 API: `new CsvGrid(elementOrSelector, data, options)`; data

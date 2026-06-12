@@ -3,16 +3,20 @@
  * Ingest (drag/drop, browse, paste, ?src=<url>), the toolbar, keyboard
  * shortcuts, and PWA registration. The grid itself — parse dispatch
  * (sync / worker), render, sort, filter, widths — is the CsvGrid class in
- * src/grid/grid.js; pure data logic is src/grid/core.js. The chrome loads
- * via grid.setData({csv}) and switches views when the promise settles.
- * The navbar owns the search box and Expand/Contract (globalSearch:false,
- * expandButtons:false); the grid renders row counts into the footer's
- * #status element. All data stays in the browser.
+ * src/grid/grid.js. The chrome loads via grid.setData({csv}) and switches
+ * views when the promise settles. The navbar owns the search box and
+ * Expand/Contract (globalSearch:false, expandButtons:false); the grid
+ * renders row counts into the footer's #status element. All data stays
+ * in the browser.
+ *
+ * ES module (as is the whole source tree, run natively — no build step;
+ * serve the repo root, e.g. python -m http.server 8080).
  */
 
-'use strict';
+import CsvGrid from '../grid/grid.js';
+import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.0.1';
+const VERSION = '3.0.3';
 
 const $ = id => document.getElementById(id);
 

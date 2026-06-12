@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CsvGrid worker test — dist bundle</title>
+    <link rel="stylesheet" href="../dist/csv-grid.css">
+    <style>body { margin: 1rem; } #g { max-width: 1100px; }</style>
+</head>
+<body>
+<!-- The stage-4 sharp edge: the UMD bundle must find csv-grid.worker.js
+     next to itself (document.currentScript). Generate the data as for
+     worker-test.html (dev/tmp-big.csv, not committed); same /slow.png
+     screenshot trick. -->
+<img src="slow.png" style="display:none" alt="">
+<h1 style="font-size:1.1rem">dist UMD + csv-grid.worker.js test (~2 MB CSV, parsed off-thread)</h1>
+<div id="g"></div>
+<script src="../dist/csv-grid.umd.js"></script>
+<script>
+'use strict';
+new CsvGrid('#g', { url: 'tmp-big.csv' });
+</script>
+</body>
+</html>

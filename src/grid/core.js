@@ -1,25 +1,23 @@
-/* csv-viewer core — pure data logic, no DOM.
+/* csv-grid core — pure data logic, no DOM.
  *
- * Loaded twice: as a plain <script> by index.html (page side) and via
- * importScripts by worker.js (worker side). Everything here must stay
- * DOM-free and side-effect-free. Formatting, search, and layout live in
- * grid.js (CsvGrid); viewer chrome in src/app/app.js.
+ * ES module, imported by util.js / grid.js (page side) and worker.js
+ * (worker side). Everything here must stay DOM-free and side-effect-free.
+ * Pure display logic (formatting, search, widths) lives in util.js, the
+ * CsvGrid component in grid.js, viewer chrome in src/app/app.js.
  */
-
-'use strict';
 
 // ---------------------------------------------------------------- parsing
 
 /* Strip a UTF-8 BOM and leading blank/whitespace-only lines — bank
  * downloads often have both, and a leading blank line otherwise makes the
  * file look single-column. */
-function cleanCsvText(text) {
+export function cleanCsvText(text) {
     return (text ?? '').replace(/^\uFEFF/, '').replace(/^(?:[ \t]*(?:\r\n|\n|\r))+/, '');
 }
 
 /* Sniff the delimiter from the first ~20 lines: the candidate with the
  * highest, most consistent per-line field count (> 1) wins. */
-function sniffDelimiter(text) {
+export function sniffDelimiter(text) {
     const candidates = [',', '\t', ';', '|'];
     const lines = text.split(/\r\n|\n|\r/, 20).filter(l => l.length);
     let best = ',', bestScore = 0;
@@ -52,7 +50,7 @@ function splitLine(line, delim) {
 
 /* RFC 4180 parser: quoted fields, doubled quotes, embedded delimiters and
  * newlines. Returns array of rows (arrays of strings). */
-function parseCSV(text, delim) {
+export function parseCSV(text, delim) {
     const rows = [];
     let row = [], cur = '', inQ = false, i = 0;
     const n = text.length;
@@ -85,7 +83,7 @@ function parseCSV(text, delim) {
 
 /* Split a markdown table row: optional outer pipes, cells split on |,
  * honoring escaped \| inside a cell. */
-function splitMdRow(line) {
+export function splitMdRow(line) {
     line = line.trim();
     if (line.startsWith('|')) line = line.slice(1);
     if (line.endsWith('|') && !line.endsWith('\\|')) line = line.slice(0, -1);
@@ -105,7 +103,7 @@ const MD_ALIGN_CELL_RE = /^:?-+:?$/;
 
 /* A markdown table = first non-blank line has a pipe, second is an
  * alignment separator row (every cell like ---, :--, :-:, --:). */
-function isMarkdownTable(text) {
+export function isMarkdownTable(text) {
     const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim() !== '');
     if (lines.length < 2 || !lines[0].includes('|')) return false;
     const sep = splitMdRow(lines[1]);
@@ -114,7 +112,7 @@ function isMarkdownTable(text) {
 
 /* Returns {headers, rows, aligns}; aligns[i] is 'left' | 'center' |
  * 'right' | null (null = keep the viewer's type-based alignment). */
-function parseMarkdownTable(text) {
+export function parseMarkdownTable(text) {
     const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim() !== '');
     const headers = splitMdRow(lines[0]).map((h, i) => h || `col${i + 1}`);
     const aligns = splitMdRow(lines[1]).map(c => {
@@ -143,7 +141,7 @@ const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
 /* Parse a number: thousands commas, (123) negatives, leading $, trailing %,
  * scientific notation (1e-03), bare leading-dot floats (.5).
  * Returns {v, dec} or null. */
-function parseNumber(s) {
+export function parseNumber(s) {
     s = s.trim();
     if (!NUM_RE.test(s)) return null;
     let neg = false;
@@ -184,7 +182,7 @@ function makeDate(y, mo, d, h = 0, mi = 0, se = 0, hasTime = false) {
  * separators and 2- or 4-digit years, month-name forms. `dayFirst` resolves
  * the ambiguous all-numeric case (05/01/2024) — choose it per COLUMN (see
  * inferColumns), not per value. Returns {t, hasTime} or null. */
-function parseDate(s, dayFirst = false) {
+export function parseDate(s, dayFirst = false) {
     s = s.trim();
     let m = ISO_RE.exec(s);
     if (m) {
@@ -218,7 +216,7 @@ function parseDate(s, dayFirst = false) {
 }
 
 /* True if this value pins the ambiguous numeric form to day-first. */
-function dateNeedsDayFirst(s) {
+export function dateNeedsDayFirst(s) {
     const m = NUMDATE_RE.exec(s.trim());
     return !!m && m[1].length <= 2 && +m[1] > 12 && +m[3] <= 12;
 }
@@ -226,7 +224,7 @@ function dateNeedsDayFirst(s) {
 /* Headerless detection (bank-export style): the first row is data, not
  * headers, if any cell parses as a number or a date — real headers are
  * text. All-text files are ambiguous and keep first-row-as-header. */
-function looksHeaderless(firstRow) {
+export function looksHeaderless(firstRow) {
     return firstRow.some(c => {
         const s = (c ?? '').trim();
         return s !== '' && (parseNumber(s) !== null || parseDate(s) !== null);
@@ -236,7 +234,7 @@ function looksHeaderless(firstRow) {
 /* Name guessed columns by inferred type: Date / Amount / Description
  * (Year for year-formatted integers), numbered when a type repeats.
  * Mutates col.name in place. */
-function guessHeaders(cols) {
+export function guessHeaders(cols) {
     const baseName = c => c.type === 'date' ? 'Date'
         : c.type === 'number' ? (c.format === 'year' ? 'Year' : 'Amount')
         : 'Description';
@@ -262,7 +260,7 @@ const MONEY_TITLE_RE = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|pai
  *           digits at the column's typical magnitude, never more precision
  *           than the raw data carried. Money (by header, or by value when
  *           <= 2dp observed and max < 100,000) trumps with exactly 2dp. */
-function classifyNumber(name, values, maxDec) {
+export function classifyNumber(name, values, maxDec) {
     const xs = values.filter(v => v !== null);
     const allInt = xs.every(v => Number.isInteger(v));
     if (allInt && xs.length) {
@@ -296,7 +294,7 @@ function classifyNumber(name, values, maxDec) {
 /* Engineering format, 3 significant digits, SI suffixes n..T. */
 const ENG_SUFFIX = { '-9': 'n', '-6': 'µ', '-3': 'm', 0: '', 3: 'k', 6: 'M', 9: 'G', 12: 'T' };
 
-function engFormat(v) {
+export function engFormat(v) {
     if (v === 0) return '0';
     const a = Math.abs(v);
     let e = Math.floor(Math.log10(a) / 3) * 3;
@@ -309,7 +307,7 @@ function engFormat(v) {
  * numbers, else date if all parse as dates, else text. Strict
  * all-or-nothing — needs every cell, which is why this runs in the worker
  * for large files. */
-function inferColumns(headers, rows) {
+export function inferColumns(headers, rows) {
     return headers.map((name, c) => {
         let isNum = true, isDate = true, maxDec = 0, seen = 0;
         let dayFirst = false, hasTime = false;
@@ -365,7 +363,7 @@ function inferColumns(headers, rows) {
  * false = headerless), inference, guessed names, md alignment overrides.
  * Pure and DOM-free — runs synchronously on the page for small inputs and
  * inside the worker for large ones. Throws on unusable input. */
-function processData(text, headerOverride = null) {
+export function processData(text, headerOverride = null) {
     let headers, rows, aligns = null, headerless;
     if (isMarkdownTable(text)) {
         ({ headers, rows, aligns } = parseMarkdownTable(text));
