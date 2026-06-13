@@ -41,6 +41,29 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-13 — 3.1 drafting started (meta-planning)
+
+- Draft at dev/plan-3.1-options-responsive-fileassoc.md. Decisions
+  locked: option names UNCHANGED (the fuzzy-box + col-filter toggles
+  Steve wanted ALREADY exist as global_search/column_filters);
+  rows/max_height (compact bounded-height scroll, NOT pagination); dark
+  mode IN (auto via prefers-color-scheme — fixes the JLab white-island
+  header bug); responsive both toolbars (principle: "not embarrassing on
+  a phone" — currently bad); granular per-extension file handlers (text
+  only). **parquet/feather DROPPED — Steve said yell again if raised.**
+  export-view + column-stats parked (§7). The headline item: a width-
+  allocation upgrade (§1). NOT a replace — BOTH methods kept, selectable
+  via `width_mode` (default equal-risk, no regression); new `coverage`
+  option = greedy water-fill over each column's concave envelope
+  (complete cheap thin-tail cols, truncate thick-tail outliers). Wired
+  through JS option / python show() / viewer `?widths=` URL; same
+  measureLayout output so mode-switch is re-solve-only. DECIDED: default
+  equal-risk; viewer gets BOTH the ?widths= URL and a labeled navbar
+  segmented control ("Fit: balanced | maximize"), which must be
+  width-sensitive (collapses on phone, part of §4 responsive work).
+  Staging proposed, width-upgrade first. Plan fully specified; NOTHING
+  started — awaiting Steve's go to execute.
+
 ## 2026-06-13 — Steve declares the 3.0 arc DONE
 
 - All plans (1.2 through 3.0) moved to dev/done/; dev/ has no open
