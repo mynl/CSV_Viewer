@@ -131,7 +131,7 @@ App pipeline: ingest (drop / browse / paste / `?src=<url>`) →
 The grid owns everything from data to pixels: fzf global search +
 per-column filters, type-aware sort, lazy formatting, deferred chunked
 search index, sampled width measurement (see
-`dev/plan-2.0-speedups.md`). Column widths solved once per load
+`dev/done/plan-2.0-speedups.md`). Column widths solved once per load
 (equal-risk VaR allocation), frozen w.r.t. filtering. The viewer passes
 `{globalSearch:false, expandButtons:false, statusBar: <footer element>}`
 and drives its navbar via `setGlobalFilter` / `clearFilters` / `expand`

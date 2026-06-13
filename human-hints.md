@@ -41,6 +41,13 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-13 — Steve declares the 3.0 arc DONE
+
+- All plans (1.2 through 3.0) moved to dev/done/; dev/ has no open
+  plans. Steve: "seriously happy camper" — double-clicking csvs opens
+  the viewer, JL and the Quarto blog both render the grid. Feature
+  freeze is lifted; next work starts a fresh plan doc.
+
 ## 2026-06-13 — blog/JLab embedding bugs fixed (v3.0.7)
 
 - Steve's hacks/index-from-blog-copy.qmd rendered an EMPTY grid; same
