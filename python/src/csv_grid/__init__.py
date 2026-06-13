@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.0.7"
+__version__ = "3.1.0"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
@@ -30,6 +30,9 @@ _OPTION_MAP = {
     "expand_buttons": "expandButtons",
     "align": "align",
     "formats": "formats",
+    "width_mode": "widthMode",
+    "rows": "maxRows",
+    "max_height": "height",
     "render_cap": "renderCap",
     "eager_cells": "eagerCells",
     "worker": "worker",
@@ -158,10 +161,60 @@ _assets_emitted = False
 
 def show(df, *, name: str | None = None, assets=None,
          index: bool = False, **options) -> None:
-    """Display `df` as a CsvGrid in Jupyter / Quarto. Assets are emitted
-    once per kernel session (= once per rendered page); assets='inline'
-    forces re-emission (e.g. after restarting the browser page without
-    the kernel), a base-URL string loads them from there instead.
+    """Display `df` as a CsvGrid in Jupyter / Quarto.
+
+    Assets (the grid's JS + CSS) are emitted once per kernel session (=
+    once per rendered page); ``assets='inline'`` forces re-emission (e.g.
+    after reloading the browser page without restarting the kernel), and a
+    base-URL string loads them from there instead of inlining.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Data to render. Types and number/date formatting are re-inferred
+        grid-side from the emitted values (dates -> ISO, NaN/None -> blank,
+        integral float columns -> ints) exactly as the csv-viewer app does.
+    name : str, optional
+        Label shown in the grid's status line.
+    assets : {None, 'inline', str, False}
+        None (default) inlines on the first call per session, then dedupes;
+        'inline' forces inlining; a base-URL string links the assets from
+        there; False omits them (already on the page).
+    index : bool, default False
+        Include the DataFrame index as leading column(s).
+
+    Other options (keyword, snake_case; mirror the JS CsvGrid API)
+    --------------------------------------------------------------
+    global_search : bool, default True   fzf search box.
+    column_filters : bool, default True  per-column filter row.
+    sortable : bool, default True        click headers to sort.
+    status_bar : bool, default True      row-counts line.
+    expand_buttons : bool, default True  Expand / Contract pair.
+    align : str, optional                'llrcr…', one of l/r/c per column,
+                                         overriding the type-based default.
+    formats / fmt : list, optional       per-column format spec, None entry
+                                         = auto rules; subset of d3/Python
+                                         ``[,][.N](f|d|%|e|s)`` plus the
+                                         named 'year' and 'eng'.
+    width_mode : {'equal-risk', 'coverage'}, default 'equal-risk'
+                                         squeeze allocation when the table
+                                         is wider than its container:
+                                         equal-risk = every column truncates
+                                         with equal probability; coverage =
+                                         maximize the count of cells shown
+                                         in full.
+    rows : int, optional                 cap the scroll viewport to ~N rows
+                                         (vertical scroll for the rest).
+    max_height : str, optional           raw CSS max-height (e.g. '400px');
+                                         overrides ``rows`` when set.
+    render_cap : int, default 2000       rows rendered before "show all".
+    eager_cells : int, default 200000    below this, format everything up
+                                         front (else lazy).
+    worker : bool, default False         parse worker (off by default here
+                                         — the data is inlined, not fetched).
+
+    Dark mode follows the host page automatically (prefers-color-scheme;
+    JupyterLab dark themes included).
     """
     global _assets_emitted
     try:

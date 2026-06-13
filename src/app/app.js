@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.0.7';
+const VERSION = '3.1.0';
 
 const $ = id => document.getElementById(id);
 
@@ -129,6 +129,9 @@ function initEvents() {
     // separate buttons by design — no mode-flipping play/pause toggles
     $('expand-btn').addEventListener('click', () => grid.expand());
     $('contract-btn').addEventListener('click', () => grid.contract());
+    // column-fit method: a two-state labeled segmented control (not a toggle)
+    $('fit-balanced').addEventListener('click', () => setFit('equal-risk'));
+    $('fit-maximize').addEventListener('click', () => setFit('coverage'));
     // re-interpret the loaded data with the opposite header assumption
     $('header-btn').addEventListener('click', () => {
         if (rawText) loadText(rawText, loadedFileName, guessedHeaders);
@@ -140,6 +143,20 @@ function initEvents() {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(() => grid.applyLayout(), 150);
     });
+
+    // follow the OS light/dark preference if it changes mid-session (the
+    // initial value is set inline in <head> to avoid a flash)
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+        document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
+    });
+}
+
+/* Switch the column-fit method and reflect it in the segmented control's
+ * active state. 'equal-risk' = Balanced, 'coverage' = Maximize. */
+function setFit(mode) {
+    grid.setWidthMode(mode);
+    $('fit-balanced').classList.toggle('active', mode !== 'coverage');
+    $('fit-maximize').classList.toggle('active', mode === 'coverage');
 }
 
 /* Auto-load a CSV from ?src=<url>. Subject to CORS on cross-origin hosts;
@@ -166,12 +183,16 @@ function initPWA() {
 
 document.addEventListener('DOMContentLoaded', () => {
     $('header-version').textContent = 'v' + VERSION;
+    const params = new URLSearchParams(location.search);
+    const widthMode = params.get('widths') === 'coverage' ? 'coverage' : 'equal-risk';
     grid = new CsvGrid('#grid-root', null, {
         globalSearch: false,      // the navbar owns the search box
         expandButtons: false,     // the navbar owns Expand / Contract
         statusBar: $('status'),   // row counts render into the footer
+        widthMode,                // ?widths=coverage opts into the coverage fit
     });
     initEvents();
+    setFit(widthMode);            // sync the segmented control to the URL choice
     initPWA();
     // installed-PWA file handling: Windows "Open with" / default app for
     // .csv etc. (manifest file_handlers); launches queue until consumed
@@ -182,6 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    const src = new URLSearchParams(location.search).get('src');
+    const src = params.get('src');
     if (src) loadFromUrl(src);
 });

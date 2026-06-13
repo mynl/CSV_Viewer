@@ -1,5 +1,57 @@
 # Changelog
 
+## 3.1.0 (2026-06-13)
+
+All of `dev/plan-3.1-options-responsive-fileassoc.md`: coverage column
+fit, bounded height, dark mode, responsive toolbars, granular file
+handlers, docs.
+
+- **Coverage column-fit mode** — new `widthMode` option, `'equal-risk'`
+  (default, unchanged) or `'coverage'`. Equal-risk gives every column the
+  same truncation probability; coverage instead **maximizes the number of
+  cells shown in full** — `max Σ F_j(w_j) s.t. Σ w_j ≤ budget`, solved by
+  greedy water-fill over each column's upper concave envelope (buy the
+  steepest cells-per-pixel slope first). It completes cheap thin-tail
+  columns to 100% and concentrates truncation on the few expensive
+  thick-tail outliers. Both modes share the tight / floors-and-scroll
+  regimes and consume the same measured layout, so switching is a
+  re-solve with no re-measure. The viewer exposes it as the **Fit:
+  Balanced | Maximize** segmented control and the **`?widths=coverage`**
+  URL param; Python via `show(df, width_mode='coverage')`. New solver +
+  thin-vs-thick-tail checks (`grid.setWidthMode`).
+- **Bounded height** — grid `maxRows` (cap the scroll viewport to ~N data
+  rows, measured from the rendered table) and `height` (raw CSS
+  max-height, overrides `maxRows`); vertical scroll for the rest, sticky
+  header stays. Python `rows=` / `max_height=`. Not pagination. The
+  separate `renderCap` DOM cap is unchanged.
+- **Dark mode** — grid colors are now CSS custom properties on `.csvgrid`
+  (light defaults); a `prefers-color-scheme: dark` block auto-follows the
+  OS, and `.csvgrid[data-theme="dark"|"light"]` lets a host force either.
+  This also **fixes the JupyterLab "white island" header** — the sticky
+  header bg is `var(--csvgrid-bg)` instead of a hardcoded `#fff`, so it
+  tracks the surrounding theme. The viewer sets Bootstrap `data-bs-theme`
+  from the OS preference (inline in `<head>`, no flash; kept in sync
+  mid-session) and its chrome uses theme-aware Bootstrap variables.
+- **Responsive toolbars** — the viewer navbar collapses button labels to
+  icons below the `lg` breakpoint and wraps as a last resort, so it stays
+  usable down to phone width; the new Fit control collapses with the
+  rest. The grid's own toolbar responds to the GRID's width (CSS
+  container queries on `.csvgrid`), wrapping and widening the search field
+  on narrow embeds.
+- **Granular file handlers** — the manifest now registers `.csv`, `.tsv`,
+  and `.tab` as one `file_handler` entry each (text/csv and
+  text/tab-separated-values), so any one can be dropped without touching
+  the others. `.txt`/`.md` stay off the OS "Open with" menu (the
+  over-association trimmed in 3.0.6); in-app drag/drop/browse still accept
+  all the formats. Redeploy + reinstall the PWA to pick up the change.
+- **Docs** — the python `show()` docstring is now a single enumerated
+  options reference (all snake_case options + the new `width_mode` /
+  `rows` / `max_height` + dark-mode note); READMEs and the grid header
+  comment updated to match.
+- `dist/` rebuilt (es 31.4 KB, umd 24.6 KB, iife 24.4 KB) + python
+  embedded assets refreshed; version bumped in the three JS places +
+  python. Smoke test grows to 164 checks.
+
 ## 3.0.7 (2026-06-13)
 
 Two embedding bugs found via the blog page (the Reading-Since-1990 qmd)

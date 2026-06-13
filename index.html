@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CSV Viewer</title>
+    <!-- set the Bootstrap theme before first paint (no flash); app.js keeps
+         it in sync if the OS preference changes mid-session -->
+    <script>
+        document.documentElement.setAttribute('data-bs-theme',
+            matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    </script>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="manifest" href="manifest.webmanifest">
@@ -13,9 +19,9 @@
     <link rel="stylesheet" href="src/grid/grid.css">
     <link rel="stylesheet" href="src/app/app.css">
 </head>
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
-<header class="sticky-top bg-white border-bottom shadow-sm">
+<header class="sticky-top bg-body border-bottom shadow-sm">
     <nav class="navbar py-2">
         <div class="container-fluid px-4">
             <span class="navbar-brand mb-0 d-flex align-items-center">
@@ -26,27 +32,39 @@
                           style="font-size: 0.6rem; letter-spacing: 0.05em;"></span>
                 </span>
             </span>
-            <div id="toolbar" class="d-none d-flex align-items-center gap-2 flex-grow-1 ms-4">
+            <div id="toolbar" class="d-none d-flex align-items-center gap-2 flex-grow-1 ms-lg-4 flex-wrap">
                 <input type="text" id="global-filter" class="form-control form-control-sm"
-                       style="max-width: 320px;" placeholder="fzf search: term 'exact !not ^pre fix$"
+                       style="max-width: 320px; min-width: 7em;" placeholder="fzf search: term 'exact !not ^pre fix$"
                        title="Space-separated terms AND together. Fuzzy by default; 'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.">
                 <button id="clear-filters-btn" class="btn btn-sm btn-outline-secondary" title="Clear all filters">
-                    <i class="bi bi-funnel"></i> Clear
+                    <i class="bi bi-funnel"></i><span class="btn-label"> Clear</span>
                 </button>
+                <!-- Column-fit method: two explicit labeled states (a radio-style
+                     segmented control), NOT a mode-flipping toggle -->
+                <div id="fit-group" class="btn-group btn-group-sm" role="group" aria-label="Column fit method">
+                    <button id="fit-balanced" type="button" class="btn btn-outline-secondary active"
+                            title="Balanced fit: every column truncates with equal probability (equal-risk)">
+                        <i class="bi bi-distribute-horizontal"></i><span class="btn-label"> Balanced</span>
+                    </button>
+                    <button id="fit-maximize" type="button" class="btn btn-outline-secondary"
+                            title="Maximize fit: show as many cells in full as possible (coverage)">
+                        <i class="bi bi-bullseye"></i><span class="btn-label"> Maximize</span>
+                    </button>
+                </div>
                 <button id="expand-btn" class="btn btn-sm btn-outline-secondary"
                         title="Expand all columns to their full natural width (table scrolls horizontally)">
-                    <i class="bi bi-arrows-angle-expand"></i> Expand
+                    <i class="bi bi-arrows-angle-expand"></i><span class="btn-label"> Expand</span>
                 </button>
                 <button id="contract-btn" class="btn btn-sm btn-outline-secondary"
-                        title="Back to fitted widths (equal-risk squeeze); also clears any dragged widths">
-                    <i class="bi bi-arrows-angle-contract"></i> Contract
+                        title="Back to fitted widths (the selected fit method); also clears any dragged widths">
+                    <i class="bi bi-arrows-angle-contract"></i><span class="btn-label"> Contract</span>
                 </button>
                 <button id="header-btn" class="btn btn-sm btn-outline-secondary"
                         title="Toggle: row 1 is a header row (auto-detected on load; click to re-interpret)">
-                    <i class="bi bi-card-heading"></i> Row 1 = header
+                    <i class="bi bi-card-heading"></i><span class="btn-label"> Row 1 = header</span>
                 </button>
                 <button id="open-btn" class="btn btn-sm btn-outline-primary ms-auto">
-                    <i class="bi bi-folder2-open"></i> Open
+                    <i class="bi bi-folder2-open"></i><span class="btn-label"> Open</span>
                 </button>
             </div>
         </div>
@@ -60,13 +78,13 @@
         <div class="row g-4 justify-content-center">
             <div class="col-lg-5 col-md-6">
                 <div class="card h-100 shadow-sm border-0">
-                    <div class="card-header bg-white border-bottom-0 pt-4 px-4">
-                        <h5 class="card-title fw-bold text-dark mb-0">Open a file</h5>
+                    <div class="card-header bg-body border-bottom-0 pt-4 px-4">
+                        <h5 class="card-title fw-bold text-body mb-0">Open a file</h5>
                     </div>
                     <div class="card-body p-4">
                         <label class="form-label text-muted small fw-bold text-uppercase">Drag &amp; drop or browse</label>
                         <div id="drop-zone"
-                             class="drop-zone rounded-3 border-2 border-dashed d-flex flex-column align-items-center justify-content-center p-5 bg-light">
+                             class="drop-zone rounded-3 border-2 border-dashed d-flex flex-column align-items-center justify-content-center p-5 bg-body-tertiary">
                             <i class="bi bi-cloud-arrow-up display-4 text-muted mb-3"></i>
                             <span class="text-muted text-center px-3">Drop a CSV here or click to browse</span>
                             <input type="file" id="file-input" class="d-none" accept=".csv,.tsv,.txt,.tab,.md,.markdown">
@@ -86,8 +104,8 @@
             </div>
             <div class="col-lg-5 col-md-6">
                 <div class="card h-100 shadow-sm border-0">
-                    <div class="card-header bg-white border-bottom-0 pt-4 px-4">
-                        <h5 class="card-title fw-bold text-dark mb-0">Or paste data</h5>
+                    <div class="card-header bg-body border-bottom-0 pt-4 px-4">
+                        <h5 class="card-title fw-bold text-body mb-0">Or paste data</h5>
                     </div>
                     <div class="card-body p-4 d-flex flex-column">
                         <label class="form-label text-muted small fw-bold text-uppercase">Paste CSV / TSV text</label>

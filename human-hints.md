@@ -41,6 +41,44 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-13 — 3.1 stages 1–4 executed (v3.1.0)
+
+- Steve: execute the 3.1 plan stage by stage, carry on while tests stay
+  green, stop on unexpected issues. Did stages 1–4; **stopped before
+  stage 5** (see below).
+- **§1 coverage width mode**: `widthMode` option, default `'equal-risk'`
+  (unchanged), new `'coverage'` = greedy water-fill over each column's
+  upper concave envelope (`coverageWidths` + `concaveEnvelope` in
+  util.js; solveWidths gained a `mode` arg, equal-risk body verbatim).
+  Wired JS option / `grid.setWidthMode` / python `width_mode` / viewer
+  `?widths=coverage` + a navbar **Fit: Balanced | Maximize** segmented
+  control (two labeled states, not a toggle). 6 new smoke checks (164
+  total): coverage shows more full cells than equal-risk on a
+  thin-vs-thick fixture, respects budget, agrees in the tight/floors
+  regimes.
+- **§2 bounded height**: grid `maxRows` (measures rendered row height) /
+  `height` (raw CSS); python `rows` / `max_height`. Vertical scroll, not
+  pagination.
+- **§3 dark mode**: grid.css colors → CSS custom properties on `.csvgrid`;
+  `prefers-color-scheme: dark` block + `[data-theme]` override. Fixes the
+  JLab white-island header (sticky bg now `var(--csvgrid-bg)`). Viewer
+  sets Bootstrap `data-bs-theme` inline in `<head>` (no flash) + chrome
+  uses `--bs-*` vars; `bg-white/bg-light/text-dark` → `bg-body/
+  bg-body-tertiary/text-body`.
+- **§4 responsive**: navbar collapses `.btn-label`s to icons below `lg`,
+  wraps as last resort; grid toolbar uses CSS container queries
+  (`container-type: inline-size` on `.csvgrid`).
+- **§5 file handlers**: I stopped here — plan wanted csv/tsv/tab/txt but
+  3.0.6 had deliberately narrowed to .csv (Chromium registers ALL declared
+  handlers; no install-time per-extension opt-in). Steve chose **csv +
+  tsv + tab** (excl. txt/md). Manifest now has one entry per extension so
+  any can be dropped cleanly. In-app browse still accepts all formats.
+- **§6 docs**: python `show()` docstring expanded into the full enumerated
+  options reference; READMEs + grid header comment updated.
+- dist rebuilt + python assets refreshed; version 3.1.0 in the 3 JS
+  places + python. CHANGELOG 3.1.0 covers the whole plan. **3.1 complete;
+  awaiting Steve's review/commit.** Plan can move to dev/done when he says.
+
 ## 2026-06-13 — 3.1 drafting started (meta-planning)
 
 - Draft at dev/plan-3.1-options-responsive-fileassoc.md. Decisions

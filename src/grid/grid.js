@@ -25,6 +25,14 @@
  *   formats: null           per-column format specs, null entry = auto
  *                           rules; subset of Python/d3: [,][.N](f|d|%|e|s)
  *                           plus the named 'year' and 'eng'
+ *   widthMode: 'equal-risk' squeeze allocation when the table is wider
+ *                           than its container: 'equal-risk' (every column
+ *                           truncates with equal probability) or 'coverage'
+ *                           (maximize the count of fully-shown cells)
+ *   maxRows: null           cap the scroll viewport to ~N rows (vertical
+ *                           scroll for the rest); null = unbounded
+ *   height: null            raw CSS max-height for the scroll viewport
+ *                           (e.g. '400px'); overrides maxRows when set
  *   renderCap: 2000         rows rendered before "show all"
  *   eagerCells: 200000      below this, format + index everything at load
  *   worker: true            parse worker for csv >= ~1 MB; false = always
@@ -34,7 +42,7 @@
  * methods: setData(data) -> Promise (a superseded load never settles;
  * failures reject AND show in the grid), destroy(). The viewer app also
  * drives its navbar controls through setGlobalFilter / clearFilters /
- * expand / contract / applyLayout.
+ * expand / contract / setWidthMode / applyLayout.
  *
  * Multiple instances per page work: no module-global state, no element
  * ids, no document-level listeners (the transient drag-resize
@@ -66,7 +74,8 @@ export default class CsvGrid {
             globalSearch: true, columnFilters: true, sortable: true,
             statusBar: true, expandButtons: true, align: null, formats: null,
             renderCap: 2000, eagerCells: 200000, worker: true,
-            headerMode: 'auto', ...options,
+            headerMode: 'auto', widthMode: 'equal-risk',
+            maxRows: null, height: null, ...options,
         };
 
         this.fileName = '';
@@ -312,6 +321,21 @@ export default class CsvGrid {
         this.layout = this.measureLayout();   // frozen for this load
         this.applyLayout();
         this.refresh();
+        this._applyHeight();
+    }
+
+    /* Bound the scroll viewport's height (vertical scroll for the rest,
+     * sticky header stays). `height` is a raw CSS max-height; `maxRows`
+     * caps it to ~N data rows, measured from the just-rendered table.
+     * No-op (unbounded) when neither is set — the host may still cap it. */
+    _applyHeight() {
+        const o = this.opts;
+        if (o.height) { this.els.scroll.style.maxHeight = o.height; return; }
+        if (o.maxRows && this.els.body.rows.length) {
+            const headH = this.els.head.offsetHeight;
+            const rowH = this.els.body.rows[0].offsetHeight;
+            this.els.scroll.style.maxHeight = Math.ceil(headH + rowH * o.maxRows + 2) + 'px';
+        }
     }
 
     _showError(msg) {
@@ -354,6 +378,13 @@ export default class CsvGrid {
     contract() {
         this.expandAll = false;
         this.manualWidths.clear();
+        this.applyLayout();
+    }
+
+    /* Switch the squeeze allocation method and re-solve. Same measured
+     * layout, no reload — only the budget allocation changes. */
+    setWidthMode(mode) {
+        this.opts.widthMode = mode === 'coverage' ? 'coverage' : 'equal-risk';
         this.applyLayout();
     }
 
@@ -434,7 +465,7 @@ export default class CsvGrid {
         const table = this.els.table;
         const avail = this.expandAll ? Infinity : table.parentElement.clientWidth;
         if (!avail) return;
-        const widths = solveWidths(this.layout.arrays, this.layout.floors, avail);
+        const widths = solveWidths(this.layout.arrays, this.layout.floors, avail, this.opts.widthMode);
         for (const [c, w] of this.manualWidths) if (c < widths.length) widths[c] = w;
         let cg = table.querySelector('colgroup');
         if (cg) cg.remove();

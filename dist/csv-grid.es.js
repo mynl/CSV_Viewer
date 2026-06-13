@@ -1,4 +1,4 @@
-/* csv-grid v3.0.7 — built by Vite from src/grid/ of the
+/* csv-grid v3.1.0 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -463,7 +463,10 @@ function B(e, t, n) {
 	}
 	return e.negate && (i = !i), i ? a : -1;
 }
-function V(e, t, n) {
+function V(e, t, n, r = "equal-risk") {
+	return r === "coverage" ? U(e, t, n) : H(e, t, n);
+}
+function H(e, t, n) {
 	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
 	if (a(o) <= n) return o;
 	if (a(i(0)) >= n) return i(0);
@@ -474,13 +477,63 @@ function V(e, t, n) {
 	}
 	return i(s);
 }
-function H(e, t) {
+function U(e, t, n) {
+	let r = e.map((e, n) => Math.max(t[n], e.length ? e[e.length - 1] : 0)), i = (e) => e.reduce((e, t) => e + t, 0);
+	if (i(r) <= n) return r;
+	if (i(t) >= n) return t.slice();
+	let a = t.slice(), o = n - i(t), s = [];
+	for (let n = 0; n < e.length; n++) {
+		let r = W(e[n], t[n]);
+		for (let e = 1; e < r.length; e++) {
+			let t = r[e].w - r[e - 1].w, i = r[e].cells - r[e - 1].cells;
+			t > 0 && i > 0 && s.push({
+				j: n,
+				dw: t,
+				slope: i / t
+			});
+		}
+	}
+	s.sort((e, t) => t.slope - e.slope);
+	for (let e of s) {
+		if (o <= 0) break;
+		let t = Math.min(e.dw, o);
+		a[e.j] += t, o -= t;
+	}
+	return a;
+}
+function W(e, t) {
+	let n = e.length, r = 0;
+	for (; r < n && e[r] <= t;) r++;
+	let i = [{
+		w: t,
+		cells: r
+	}];
+	for (; r < n;) {
+		let t = e[r];
+		for (; r < n && e[r] === t;) r++;
+		i.push({
+			w: t,
+			cells: r
+		});
+	}
+	let a = [];
+	for (let e of i) {
+		for (; a.length >= 2;) {
+			let t = a[a.length - 2], n = a[a.length - 1];
+			if ((n.w - t.w) * (e.cells - t.cells) - (n.cells - t.cells) * (e.w - t.w) >= 0) a.pop();
+			else break;
+		}
+		a.push(e);
+	}
+	return a;
+}
+function G(e, t) {
 	if (e <= t) return Array.from({ length: e }, (e, t) => t);
 	let n = Array(t), r = e / t;
 	for (let e = 0; e < t; e++) n[e] = Math.floor(e * r);
 	return n;
 }
-function U(e, t) {
+function K(e, t) {
 	let n = e.trim();
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
@@ -519,20 +572,20 @@ function U(e, t) {
 	let r = n.toLowerCase();
 	return (e, t) => e.toLowerCase().includes(r);
 }
-function W(e) {
+function q(e) {
 	return e.align ? `col-${e.type} align-${e.align}` : `col-${e.type}`;
 }
-function G(e) {
+function J(e) {
 	return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 //#endregion
 //#region src/grid/grid.js
-var K = 1e6, q = 2e3, J = 1e4;
-function Y(e, t) {
+var Y = 1e6, X = 2e3, Z = 1e4;
+function Q(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var X = class t {
+var $ = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -548,37 +601,40 @@ var X = class t {
 			eagerCells: 2e5,
 			worker: !0,
 			headerMode: "auto",
+			widthMode: "equal-risk",
+			maxRows: null,
+			height: null,
 			...n
 		}, this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
 	}
 	_buildScaffold() {
 		let e = this.opts, t = this.root;
 		if (t.classList.add("csvgrid"), t.replaceChildren(), this.els = {}, e.globalSearch || e.expandButtons) {
-			let n = Y("div", "csvgrid-toolbar");
+			let n = Q("div", "csvgrid-toolbar");
 			if (e.globalSearch) {
-				let e = Y("input", "csvgrid-search");
+				let e = Q("input", "csvgrid-search");
 				e.type = "text", e.placeholder = "fzf search: term 'exact !not ^pre fix$", e.title = "Space-separated terms AND together. Fuzzy by default; 'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.", e.addEventListener("input", () => this.setGlobalFilter(e.value)), e.addEventListener("keydown", (t) => {
 					t.key === "Escape" && (t.preventDefault(), e.value = "", e.blur(), this.setGlobalFilter(""));
 				}), n.appendChild(e), this.els.search = e;
 			}
 			if (e.expandButtons) {
-				let e = Y("button", "csvgrid-btn");
+				let e = Q("button", "csvgrid-btn");
 				e.type = "button", e.textContent = "Expand", e.title = "Expand all columns to their full natural width (table scrolls horizontally)", e.addEventListener("click", () => this.expand());
-				let t = Y("button", "csvgrid-btn");
+				let t = Q("button", "csvgrid-btn");
 				t.type = "button", t.textContent = "Contract", t.title = "Back to fitted widths (equal-risk squeeze); also clears any dragged widths", t.addEventListener("click", () => this.contract()), n.append(e, t);
 			}
 			t.appendChild(n);
 		}
-		let n = Y("div", "csvgrid-scroll"), r = Y("table", "csvgrid-table"), i = Y("thead"), a = Y("tbody");
+		let n = Q("div", "csvgrid-scroll"), r = Q("table", "csvgrid-table"), i = Q("thead"), a = Q("tbody");
 		r.append(i, a), n.appendChild(r), t.appendChild(n);
-		let o = Y("div", "csvgrid-capnote csvgrid-hidden"), s = Y("button", "csvgrid-btn");
+		let o = Q("div", "csvgrid-capnote csvgrid-hidden"), s = Q("button", "csvgrid-btn");
 		s.type = "button", s.addEventListener("click", () => {
 			this.showAll = !0, this.renderBody(), this.renderStatus();
 		}), o.appendChild(s), t.appendChild(o);
-		let c = Y("div", "csvgrid-error csvgrid-hidden");
+		let c = Q("div", "csvgrid-error csvgrid-hidden");
 		t.appendChild(c);
 		let l = null;
-		e.statusBar === !0 ? (l = Y("div", "csvgrid-status"), t.appendChild(l)) : e.statusBar && (l = e.statusBar), Object.assign(this.els, {
+		e.statusBar === !0 ? (l = Q("div", "csvgrid-status"), t.appendChild(l)) : e.statusBar && (l = e.statusBar), Object.assign(this.els, {
 			table: r,
 			head: i,
 			body: a,
@@ -627,7 +683,7 @@ var X = class t {
 	}
 	_parse(t, n, r) {
 		if (t = e(t), !t.trim()) throw Error("No data found.");
-		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= K ? this._getWorker() : null;
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= Y ? this._getWorker() : null;
 		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
 			this._pending.set(n, {
 				resolve: e,
@@ -674,7 +730,18 @@ var X = class t {
 			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
 			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
 		}
-		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
+		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
+	}
+	_applyHeight() {
+		let e = this.opts;
+		if (e.height) {
+			this.els.scroll.style.maxHeight = e.height;
+			return;
+		}
+		if (e.maxRows && this.els.body.rows.length) {
+			let t = this.els.head.offsetHeight, n = this.els.body.rows[0].offsetHeight;
+			this.els.scroll.style.maxHeight = Math.ceil(t + n * e.maxRows + 2) + "px";
+		}
 	}
 	_showError(e) {
 		this.els.error.textContent = e, this.els.error.classList.remove("csvgrid-hidden");
@@ -697,8 +764,11 @@ var X = class t {
 	contract() {
 		this.expandAll = !1, this.manualWidths.clear(), this.applyLayout();
 	}
+	setWidthMode(e) {
+		this.opts.widthMode = e === "coverage" ? "coverage" : "equal-risk", this.applyLayout();
+	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = H(this.rows.length, q), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = G(this.rows.length, X), a = [], o = [];
 		for (let t = 0; t < this.cols.length; t++) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -740,7 +810,7 @@ var X = class t {
 		if (!this.layout) return;
 		let e = this.els.table, t = this.expandAll ? Infinity : e.parentElement.clientWidth;
 		if (!t) return;
-		let n = V(this.layout.arrays, this.layout.floors, t);
+		let n = V(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
 		for (let [e, t] of this.manualWidths) e < n.length && (n[e] = t);
 		let r = e.querySelector("colgroup");
 		r && r.remove(), r = document.createElement("colgroup");
@@ -759,7 +829,7 @@ var X = class t {
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + J);
+			let o = Math.min(t, i + Z);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -771,7 +841,7 @@ var X = class t {
 	rebuildView() {
 		let { rows: e, cols: t } = this, n = L(this.globalFilter);
 		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
-		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => U(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => K(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
 		this.scores = [];
 		for (let t = 0; t < e.length; t++) {
 			let r = 0;
@@ -821,7 +891,7 @@ var X = class t {
 		let n = document.createElement("tr");
 		if (e.forEach((e, t) => {
 			let r = document.createElement("th");
-			r.className = W(e), this.opts.sortable ? (r.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${G(e.name)}`, r.title = `${e.name} (${e.type}) — click to sort`, r.addEventListener("click", () => this.onSort(t))) : (r.innerHTML = `<span class="sort-arrow"></span>${G(e.name)}`, r.title = `${e.name} (${e.type})`, r.classList.add("csvgrid-nosort"));
+			r.className = q(e), this.opts.sortable ? (r.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${J(e.name)}`, r.title = `${e.name} (${e.type}) — click to sort`, r.addEventListener("click", () => this.onSort(t))) : (r.innerHTML = `<span class="sort-arrow"></span>${J(e.name)}`, r.title = `${e.name} (${e.type})`, r.classList.add("csvgrid-nosort"));
 			let i = document.createElement("span");
 			i.className = "col-resizer", i.title = "Drag to resize — double-click to fit content", i.addEventListener("mousedown", (e) => this.startColResize(e, t)), i.addEventListener("dblclick", (e) => {
 				e.stopPropagation(), this.fitColumn(t);
@@ -842,7 +912,7 @@ var X = class t {
 		for (let i = 0; i < n; i++) {
 			let n = t[i], a = this.getFormattedRow(n), o = e.map((e, t) => {
 				let n = a[t];
-				return n === "" ? `<td class="${W(e)} blank">·</td>` : `<td class="${W(e)}">${G(n)}</td>`;
+				return n === "" ? `<td class="${q(e)} blank">·</td>` : `<td class="${q(e)}">${J(n)}</td>`;
 			});
 			r.push(`<tr>${o.join("")}</tr>`);
 		}
@@ -863,6 +933,6 @@ var X = class t {
 	}
 };
 //#endregion
-export { X as default };
+export { $ as default };
 
 //# sourceMappingURL=csv-grid.es.js.map

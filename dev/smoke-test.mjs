@@ -115,6 +115,23 @@ check('squeeze: low-sd col shown fully', squeezed[0], 100);
 check('squeeze: high-sd col absorbs it', squeezed[1] < 990, true);
 check('floors when nothing fits', solveWidths([constant, spread], [60, 70], 100), [100, 70]);
 
+// --- coverage width mode (3.1): greedy water-fill, thin vs thick tail.
+// Col A (thin) needs 60..90; Col B (thick) hides one outlier at 400.
+const thin = [60, 70, 80, 90], thick = [60, 70, 80, 400], wfloors = [50, 50];
+const er = solveWidths([thin, thick], wfloors, 300, 'equal-risk');
+const cov = solveWidths([thin, thick], wfloors, 300, 'coverage');
+const shown = ws => [thin, thick].reduce((acc, s, j) => acc + s.filter(x => x <= ws[j]).length, 0);
+check('coverage respects budget', cov[0] + cov[1] <= 300, true);
+check('coverage shows more full cells than equal-risk', shown(cov) > shown(er), true);
+check('coverage completes the thin column', cov[0], 90);
+check('width mode defaults to equal-risk',
+      solveWidths([thin, thick], wfloors, 300), er);
+// shared regimes: coverage agrees with equal-risk when all fits / nothing fits
+check('coverage tight -> natural',
+      solveWidths([constant, spread], [50, 50], 5000, 'coverage'), [100, 990]);
+check('coverage nothing-fits -> floors',
+      solveWidths([thin, thick], [60, 70], 100, 'coverage'), [60, 70]);
+
 // --- number format classification (greater_tables rules)
 check('year by range', classifyNumber('started', [1990, 2005, 2024], 0).format, 'year');
 check('year by title', classifyNumber('Accident Year', [1492, 2120], 0).format, 'year');

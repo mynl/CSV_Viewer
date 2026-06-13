@@ -48,9 +48,14 @@ html = to_html(df, name="results.df", assets="inline")   # fragment string
 - Options mirror the JS API in snake_case: `global_search`,
   `column_filters`, `sortable`, `status_bar`, `expand_buttons`, `align`
   (`'llrcr…'`), `formats`/`fmt` (per-column `[,][.N](f|d|%|e|s)`,
-  `'year'`, `'eng'`, None = auto), `render_cap`, `eager_cells`,
+  `'year'`, `'eng'`, None = auto), `width_mode` (`'equal-risk'` default,
+  or `'coverage'` to maximize the count of fully-shown cells), `rows`
+  (cap the viewport to ~N rows, vertical scroll for the rest) /
+  `max_height` (raw CSS, e.g. `'400px'`), `render_cap`, `eager_cells`,
   `worker` (default False — data is inlined), plus `name` (status line)
-  and `index` (include the DataFrame index as leading columns).
+  and `index` (include the DataFrame index as leading columns). Dark mode
+  follows the host page (`prefers-color-scheme`; JupyterLab dark themes
+  included).
 
 Dates are emitted ISO (`yyyy-mm-dd`, with `hh:mm` only when a column has
 non-midnight times); integral float columns are emitted as integers so

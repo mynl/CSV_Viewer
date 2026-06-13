@@ -204,12 +204,21 @@ export function termScore(t, rowLow, rowRaw) {
 export const CELL_PAD = 18;     // padding + border + safety, px
 export const MIN_COL = 50;      // absolute floor, px
 
-/* Allocate column widths into `avail` px. Tight (every cell fully visible)
- * if it fits; otherwise the equal-risk VaR rule: bisect for the single
- * percentile q such that the per-column q-th percentile widths (floored)
- * sum to avail — every column truncates with the same probability 1 - q.
+/* Allocate column widths into `avail` px. Two selectable modes (the
+ * `mode` argument; `widthMode` option on the grid). Both share the trivial
+ * regimes — tight (every cell fully visible) when it all fits, floors +
+ * horizontal scroll when nothing does — and differ only in the squeeze.
  * `arrays` must be sorted ascending. */
-export function solveWidths(arrays, floors, avail) {
+export function solveWidths(arrays, floors, avail, mode = 'equal-risk') {
+    return mode === 'coverage'
+        ? coverageWidths(arrays, floors, avail)
+        : equalRiskWidths(arrays, floors, avail);
+}
+
+/* Equal-risk (VaR) squeeze: bisect for the single percentile q such that
+ * the per-column q-th percentile widths (floored) sum to avail — every
+ * column truncates with the same probability 1 - q. */
+function equalRiskWidths(arrays, floors, avail) {
     const pct = (s, q) => s.length ? s[Math.floor(q * (s.length - 1))] : 0;
     const widthsAt = q => arrays.map((s, j) => Math.max(floors[j], pct(s, q)));
     const total = w => w.reduce((a, b) => a + b, 0);
@@ -224,6 +233,71 @@ export function solveWidths(arrays, floors, avail) {
         if (total(widthsAt(mid)) <= avail) lo = mid; else hi = mid;
     }
     return widthsAt(lo);
+}
+
+/* Coverage squeeze: maximize the total number of cells shown in full,
+ *   max Σ_j F_j(w_j)  s.t.  Σ w_j ≤ avail,  floor_j ≤ w_j ≤ natural_j,
+ * where F_j is column j's empirical cell-width CDF. Completes cheap
+ * thin-tail columns to 100% and concentrates truncation on the few
+ * expensive thick-tail outliers (the right cells to drop). Greedy
+ * water-fill: every column starts at its floor, then budget is spent on
+ * the steepest available marginal slope (cells gained per px) first.
+ * Greedy is optimal only on a concave curve, so each column contributes
+ * the segments of its UPPER CONCAVE ENVELOPE (slopes strictly decreasing);
+ * pooling those globally and buying by slope respects per-column order for
+ * free. Equalizes the marginal cells/px at a cutoff slope λ. */
+function coverageWidths(arrays, floors, avail) {
+    const natural = arrays.map((s, j) => Math.max(floors[j], s.length ? s[s.length - 1] : 0));
+    const sum = a => a.reduce((x, y) => x + y, 0);
+    if (sum(natural) <= avail) return natural;            // tight: everything fits
+    if (sum(floors) >= avail) return floors.slice();      // floors + scroll
+
+    const widths = floors.slice();
+    let budget = avail - sum(floors);
+    const segs = [];
+    for (let j = 0; j < arrays.length; j++) {
+        const env = concaveEnvelope(arrays[j], floors[j]);
+        for (let i = 1; i < env.length; i++) {
+            const dw = env[i].w - env[i - 1].w;
+            const dc = env[i].cells - env[i - 1].cells;
+            if (dw > 0 && dc > 0) segs.push({ j, dw, slope: dc / dw });
+        }
+    }
+    segs.sort((a, b) => b.slope - a.slope);
+    for (const s of segs) {
+        if (budget <= 0) break;
+        const buy = Math.min(s.dw, budget);    // partial buy is fine — width is continuous
+        widths[s.j] += buy;
+        budget -= buy;
+    }
+    return widths;
+}
+
+/* Upper concave envelope of a column's (width, cumulative-cells-shown)
+ * step curve, starting at the floor (cells already shown for free at the
+ * header-driven minimum). Returns vertices with strictly decreasing slope
+ * — the efficient frontier the water-fill buys along. `sorted` ascending. */
+function concaveEnvelope(sorted, floor) {
+    const n = sorted.length;
+    let i = 0;
+    while (i < n && sorted[i] <= floor) i++;        // free cells at the floor
+    const pts = [{ w: floor, cells: i }];
+    while (i < n) {                                 // one vertex per distinct width
+        const w = sorted[i];
+        while (i < n && sorted[i] === w) i++;
+        pts.push({ w, cells: i });
+    }
+    const hull = [];
+    for (const p of pts) {
+        while (hull.length >= 2) {
+            const a = hull[hull.length - 2], b = hull[hull.length - 1];
+            // drop b unless it is a strict concave vertex (clockwise turn)
+            const cross = (b.w - a.w) * (p.cells - a.cells) - (b.cells - a.cells) * (p.w - a.w);
+            if (cross >= 0) hull.pop(); else break;
+        }
+        hull.push(p);
+    }
+    return hull;
 }
 
 /* Deterministic stride sample of k indices from 0..n-1 (all of them when

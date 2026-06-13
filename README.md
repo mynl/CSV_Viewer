@@ -51,7 +51,11 @@ automatically and honor their `|:--|--:|` alignment spec.
   column. Money columns (by header or by value) get 2dp.
 - Columns are sized tight (minimum width showing everything) when the table
   fits the window; when it doesn't, width is allocated so every column
-  truncates with equal probability — widths are frozen per file load.
+  truncates with equal probability — widths are frozen per file load. The
+  **Fit** control switches between this *Balanced* rule and *Maximize*,
+  which instead shows as many cells in full as possible (completing thin
+  columns, truncating thick-tail outliers); `?widths=coverage` selects
+  Maximize on load.
 - Large files parse in a Web Worker (the UI stays live) with lazy
   formatting and a deferred search index.
 
@@ -83,11 +87,16 @@ or arrays; null/NaN → blank), `{url: string}`; plus optional `name` and
 `headerMode`. Options (defaults): `globalSearch`, `columnFilters`,
 `sortable`, `statusBar`, `expandButtons` (all true), `align`
 (`'llrcr…'`), `formats` (per-column `[,][.N](f|d|%|e|s)`, `'year'`,
-`'eng'`, null = auto rules), `renderCap`, `eagerCells`, `worker`,
-`headerMode`. Methods: `setData(data)` (returns a promise),
-`destroy()`. Multiple grids per page work; types and formatting are
-inferred from the data exactly as in the app. As an npm dependency:
-`"csv-grid": "file:path/to/csv-viewer"` resolves the `exports` map.
+`'eng'`, null = auto rules), `widthMode` (`'equal-risk'` default, or
+`'coverage'` to maximize the count of fully-shown cells), `maxRows` /
+`height` (bounded-height scroll viewport), `renderCap`, `eagerCells`,
+`worker`, `headerMode`. Methods: `setData(data)` (returns a promise),
+`setWidthMode(mode)`, `destroy()`. Dark mode follows the OS
+(`prefers-color-scheme`) and can be forced with
+`data-theme="dark"|"light"` on the grid element. Multiple grids per page
+work; types and formatting are inferred from the data exactly as in the
+app. As an npm dependency: `"csv-grid": "file:path/to/csv-viewer"`
+resolves the `exports` map.
 
 ### Python: csv_grid
 
