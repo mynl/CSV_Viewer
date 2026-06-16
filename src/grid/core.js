@@ -173,6 +173,25 @@ export function parseNumber(s) {
     return { v, dec };
 }
 
+/* True if `s` is an integer-form token whose magnitude exceeds 2^53, so
+ * float64 cannot hold it exactly (parseNumber would silently round it, and
+ * distinct big values can collapse to the same double — data corruption,
+ * not formatting). Such a column is kept as TEXT so the digits survive
+ * verbatim. Integer-form only: a '.' or exponent means an inherently
+ * approximate float, which stays a number. Pure lexical test — no BigInt:
+ * <= 15 digits is always safe (10^15 < 2^53), 16 digits needs one string
+ * compare against MAX_SAFE_INTEGER, 17+ is always unsafe. */
+const MAX_SAFE_DIGITS = '9007199254740991';   // Number.MAX_SAFE_INTEGER, 2^53 - 1
+export function isUnsafeBigInt(s) {
+    s = s.trim();
+    if (s.endsWith('%')) return false;                  // a percent is a fraction
+    if (s.startsWith('(') && s.endsWith(')')) s = s.slice(1, -1);   // (123) negative
+    s = s.replace(/[$,]/g, '').replace(/^[+-]/, '');
+    if (!/^\d+$/.test(s)) return false;                 // not integer-form (has . or e, or junk)
+    s = s.replace(/^0+(?=\d)/, '');                     // ignore leading zeros for magnitude
+    return s.length > 16 || (s.length === 16 && s > MAX_SAFE_DIGITS);
+}
+
 function monthNum(word) {
     const w = word.toLowerCase();
     const i = MONTH_NAMES.findIndex(n => n.startsWith(w) || (w === 'sept' && n === 'september'));
@@ -281,6 +300,13 @@ const MONEY_TITLE_RE = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|pai
  * quantities, so they get NO thousands separators (account 100200, not
  * 100,200). Header text only — no value heuristics (author's call). */
 const ID_TITLE_RE = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i;
+/* Ratio/rate headers (ROE, loss ratio, combined ratio, yield, …): a float
+ * column stored as a fraction is shown as a percentage (0.625 -> 62.5%).
+ * Letter-only boundaries (?<![a-z])…(?![a-z]) — NOT \b — so the word is
+ * found inside snake_case / digits too (loss_ratio, lr3) while short tokens
+ * (lr, roe, coc) don't bleed into longer words. A value gate (max|x| <= 2)
+ * in classifyNumber, not the name, is the real guard against false hits. */
+const PERCENT_TITLE_RE = /(?<![a-z])(ratio|rate|roe|roa|coc|lr|elr|plr|margin|yield|return|growth|retention|cede|ceded|discount|apr|apy|coupon|util|utilization|share|pct|percent|frequency)(?![a-z])/i;
 
 /* Choose a numeric column's display format (greater_tables rules):
  *   year  — integers, header says year-ish OR all values in (1800, 2030);
@@ -307,8 +333,9 @@ export function classifyNumber(name, values, maxDec) {
         if (MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
         return { format: 'int', dec: 0 };
     }
-    if (!allInt && MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
-    // loop, not Math.max(...spread): a 250K-element spread blows the stack
+    // floats (the all-integer block above always returns). Compute magnitude
+    // stats once via a loop, not Math.max(...spread) (a 250K spread blows the
+    // stack), so the percent value-gate and the rules below can share them.
     let nNz = 0, maxAbs = 0, minAbs = Infinity, sum = 0;
     for (const v of xs) {
         if (v === 0) continue;
@@ -319,8 +346,19 @@ export function classifyNumber(name, values, maxDec) {
         sum += a;
     }
     if (!nNz) return { format: 'float', dec: Math.min(maxDec, 6) };
+    // ratio/rate column stored as a fraction -> percent. Gated to |x| <= 2
+    // (<= 200%): the author expects values in ~ -1..2, not floored at 0; a
+    // column already in percentage points (rate 62) must NOT become 6,200%.
+    // Ranks ABOVE money so "loss ratio" isn't grabbed by 'loss'. Uniform
+    // decimals = the precision the data carried, less the two places ×100
+    // shifts (clamped 1..4): 0.625(3dp) -> 62.5%, 0.1523(4dp) -> 15.23%.
+    if (PERCENT_TITLE_RE.test(name) && maxAbs <= 2) {
+        return { format: 'pct', dec: Math.max(1, Math.min(4, maxDec - 2)) };
+    }
+    // money by title trumps the rest (author: "deffo 2dp")
+    if (MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
     // money by value: ≤ 2 observed decimals and everything under 100,000
-    if (!allInt && maxDec <= 2 && maxAbs < 1e5) return { format: 'float', dec: 2 };
+    if (maxDec <= 2 && maxAbs < 1e5) return { format: 'float', dec: 2 };
     if (maxAbs / minAbs > 1e6) return { format: 'eng', dec: 0 };
     const meanAbs = sum / nNz;
     const dec = Math.max(0, Math.min(maxDec, 3 - Math.floor(Math.log10(meanAbs)), 6));
@@ -367,7 +405,7 @@ export function inferColumns(headers, rows) {
     const sample = sampleIndices(rows.length, INFER_SAMPLE);
     return headers.map((name, c) => {
         // --- type decision, from the sample only
-        let isNum = true, isDate = true, leadingZero = false, seen = 0;
+        let isNum = true, isDate = true, leadingZero = false, bigInt = false, seen = 0;
         for (const r of sample) {
             const raw = (rows[r][c] ?? '').trim();
             if (raw === '' || isNullToken(raw)) continue;
@@ -378,12 +416,23 @@ export function inferColumns(headers, rows) {
                 // Gated to numeric values so zero-padded dates/times (05/01,
                 // 09:30) are NOT misread as codes.
                 if (parseNumber(raw) === null) isNum = false;
-                else if (!leadingZero && LEADING_ZERO_RE.test(raw)) leadingZero = true;
+                else {
+                    if (!leadingZero && LEADING_ZERO_RE.test(raw)) leadingZero = true;
+                    // integer past 2^53 -> float64 loses digits; keep the
+                    // column text so the exact value survives (D1)
+                    if (!bigInt && isUnsafeBigInt(raw)) bigInt = true;
+                }
             }
             if (isDate && parseDate(raw, false) === null) isDate = false;
-            if (leadingZero || (!isNum && !isDate)) break;   // result is text; nothing more can change it
+            if (leadingZero || bigInt || (!isNum && !isDate)) break;   // result is text; nothing more can change it
         }
-        if (seen === 0 || leadingZero) return { name, type: 'text', values: null };
+        // big-int columns read as numbers though stored as text -> right-align;
+        // an ordinary leading-zero/text column keeps its default left-align
+        if (seen === 0 || leadingZero || bigInt) {
+            return bigInt
+                ? { name, type: 'text', align: 'right', values: null }
+                : { name, type: 'text', values: null };
+        }
 
         // --- build typed values over ALL rows (a non-sampled cell that
         // doesn't parse stays null -> renders raw, never demotes the column)

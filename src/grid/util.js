@@ -78,9 +78,15 @@ export function parseAlignSpec(s) {
     return [...s].map(ch => ({ l: 'left', r: 'right', c: 'center' }[ch] ?? null));
 }
 
-export function formatCell(raw, col, r) {
+/* `mode`: 'auto' applies the type-aware display rules (separators, ISO
+ * dates, percent, eng, …); 'raw' returns the verbatim trimmed source for
+ * any non-blank cell (no rules at all) — the display lens. Type is the same
+ * either way, so alignment (cellClass) and sort (col.values) are unaffected;
+ * only the cell text changes. */
+export function formatCell(raw, col, r, mode = 'auto') {
     raw = (raw ?? '').trim();
     if (raw === '') return '';
+    if (mode === 'raw') return raw;
     if (col.type === 'number') {
         const v = col.values[r];
         // unparsed cell in a numeric column: blank a null token (NaN/NA),
@@ -89,6 +95,7 @@ export function formatCell(raw, col, r) {
         if (col.fmt) return formatWithSpec(v, col.fmt);   // explicit spec wins
         if (col.format === 'year' || col.format === 'plain') return String(v);
         if (col.format === 'eng') return engFormat(v);
+        if (col.format === 'pct') return numberFormatter(col.dec).format(v * 100) + '%';
         return numberFormatter(col.dec).format(v);
     }
     if (col.type === 'date') {

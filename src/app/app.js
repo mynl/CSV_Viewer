@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.2.0';
+const VERSION = '3.3.0';
 
 const $ = id => document.getElementById(id);
 
@@ -76,6 +76,9 @@ function showIngest() {
  * the all-numeric order was genuinely ambiguous. Empty (hidden) otherwise.
  * The list is truncated so the note stays a single tidy line. */
 function setDateNote() {
+    // Raw mode does no date reinterpretation, so the ambiguity note doesn't
+    // apply — keep it hidden there.
+    if ($('display-raw').classList.contains('active')) { $('date-note').textContent = ''; return; }
     const cols = grid.ambiguousDateCols || [];
     const shown = cols.length > 3
         ? `${cols.slice(0, 3).join(', ')}, +${cols.length - 3} more`
@@ -148,6 +151,10 @@ function initEvents() {
     // column-fit method: a two-state labeled segmented control (not a toggle)
     $('fit-balanced').addEventListener('click', () => setFit('equal-risk'));
     $('fit-maximize').addEventListener('click', () => setFit('coverage'));
+    // display lens: Inferred (type-aware formatting) vs Raw (verbatim source),
+    // another labeled segmented control, parked in the footer
+    $('display-inferred').addEventListener('click', () => setDisplay('auto'));
+    $('display-raw').addEventListener('click', () => setDisplay('raw'));
     // re-interpret the loaded data with the opposite header assumption
     // (inline Row-1 button + "More" menu item share the handler)
     document.querySelectorAll('.header-toggle').forEach(el => el.addEventListener('click', headerAction));
@@ -299,6 +306,17 @@ function setFit(mode) {
     grid.setWidthMode(mode);
     $('fit-balanced').classList.toggle('active', mode !== 'coverage');
     $('fit-maximize').classList.toggle('active', mode === 'coverage');
+}
+
+/* Switch the display lens and reflect it in the footer switch. 'auto' =
+ * Inferred (type-aware formatting), 'raw' = verbatim source. The date-
+ * ambiguity note is hidden in raw mode (set the active state first so
+ * setDateNote sees it). */
+function setDisplay(mode) {
+    $('display-inferred').classList.toggle('active', mode !== 'raw');
+    $('display-raw').classList.toggle('active', mode === 'raw');
+    grid.setDisplayMode(mode);
+    setDateNote();
 }
 
 /* Auto-load a CSV from ?src=<url>. Subject to CORS on cross-origin hosts;

@@ -4,41 +4,60 @@ Very high-level running summary of discussions and decisions in this
 project. Newest first. The pinned section below tracks the current
 formatting rules.
 
-## Number & date formatting rules (current as of v3.2)
+## Number & date formatting rules (current as of v3.3)
 
-Per numeric column, first match wins:
+Per numeric column, first match wins. **All-integer columns:**
 
-1. **Year** — all integers AND (header matches `year|yr|vintage|cohort`
-   OR all values in 1800–2100 inclusive, v2.1.1): plain, no commas
-   (`1995`).
-2. **Identifier** (v3.2) — all integers AND header matches an id/code word
+1. **Year** — header matches `year|yr|vintage|cohort` OR all values in
+   1800–2100 inclusive (v2.1.1): plain, no commas (`1995`).
+2. **Identifier** (v3.2) — header matches an id/code word
    (`id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|
    invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|
    policy|claim|seq`) AND **not** also a money header: plain integer, no
    commas (`100200`). Header text only — no value heuristics.
-3. **Money by header** — header matches `amount|amt|balance|price|cost|
+3. **Money by header** — exactly 2dp with commas (see word list below).
+   Wins id/money overlap (`Order Amount`, `Account Balance` stay 2dp).
+4. **Integer** — commas, 0dp.
+
+**Columns with decimals:**
+
+1. **Percent** (v3.3, D2) — header matches a ratio/rate word
+   (`ratio|rate|roe|roa|coc|lr|elr|plr|margin|yield|return|growth|retention|
+   cede|ceded|discount|apr|apy|coupon|util|utilization|share|pct|percent|
+   frequency`, letter-only boundaries so `loss_ratio` matches) AND
+   `max|x| ≤ 2` (≤ 200%): shown as a percentage (`0.625 → 62.5%`). Decimals
+   uniform = `clamp(maxObservedDecimals − 2, 1, 4)`. Ranks above money so
+   `loss ratio` isn't grabbed by `loss`. The `≤ 2` gate is the real guard
+   (a `rate` of 62 percentage points stays float, not `6,200%`). All-integer
+   ratio columns are skipped (units ambiguous).
+2. **Money by header** — header matches `amount|amt|balance|price|cost|
    fee|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|
-   income|expense|revenue` or a currency symbol/code: exactly 2dp with
-   commas, even for all-integer columns. Wins the id/money overlap
-   (`Order Amount`, `Account Balance` stay 2dp).
-4. **Integer** — all integer-valued: commas, 0dp.
-5. **Money by value** — floats with ≤ 2 observed decimals and max |x|
-   < 100,000: exactly 2dp ("probably money").
-6. **Engineering** — floats spanning > 6 orders of magnitude: 3
-   significant digits with SI suffixes n µ m k M G T (`4.5M`).
-7. **Sensible float** (the white-whale rule) — uniform decimals
+   income|expense|revenue` or a currency symbol/code: exactly 2dp, commas.
+3. **Money by value** — ≤ 2 observed decimals and max |x| < 100,000: 2dp.
+4. **Engineering** — spanning > 6 orders of magnitude: 3 significant
+   digits with SI suffixes n µ m k M G T (`4.5M`).
+5. **Sensible float** (the white-whale rule) — uniform decimals
    `d = clamp(min(maxObservedDecimals, 3 − floor(log10(mean |x| over
    nonzero))), 0, 6)`: ~4 significant digits at the column's typical
    magnitude, never more precision than the raw data carried. Example:
    mean ~10⁵ → 0dp; mean ~10 → 2dp; mean ~0.02 → up to 5dp (capped by
    observed precision).
 
-Type decision (v3.2): made from a stride sample of ≤ 2048 rows, so one
+Type decision (v3.2/3.3): made from a stride sample of ≤ 2048 rows, so one
 oddball deep in a big file can't demote a clean numeric/date column — the
 stray cell renders raw. Null tokens (`NaN NA N/A #N/A null none - -- .`)
 count as missing, never demote, render blank (number/date cols; text cols
-keep them). A value parsing as a number with a significant leading zero
-(`007`) forces the column to text.
+keep them). Two rules force text on numeric-looking values: a significant
+leading zero (`007`), and (v3.3, D1) an **integer-form value beyond 2⁵³**
+(can't be an exact float64) — that column is kept text so the digits
+survive, but is **right-aligned** and sorts by magnitude (loses `>`/`..`
+filters). Floats with big exponents (`1.23e30`) stay numbers.
+
+**Raw display mode** (v3.3, D3): bottom-right footer switch `Inferred | Raw`
+(two labeled states, not a toggle). Raw shows verbatim source text (no
+formatting at all) but keeps type-based alignment + sort; it's a re-render,
+not a re-parse. Independent of export's raw/formatted option. Library:
+`displayMode` option + `setDisplayMode()`. Ambiguity note suppressed in raw.
 
 Dates: recognized liberally (ISO, `13/01/2024`, `13-05-24`, `13.05.2024`,
 `5 Jan 2024`, `05-Jan-24`, `Jan 5, 2024`; 2-digit years pivot at 50);
@@ -53,6 +72,33 @@ against each row's cells concatenated into one string — formatted values
 first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
+
+## 2026-06-16 — Stage D executed (3.3.0: big-int, percent, raw mode)
+
+- All three parts landed, smoke green, dist rebuilt, version → **3.3.0** (app.js
+  VERSION, sw.js cache, package.json, python `__version__`/`pyproject`).
+- **D1:** `isUnsafeBigInt(s)` in core.js (lexical: strip sign/`$`/commas/parens,
+  reject `.`/`e`/`%`, then `len > 16` or 16-digit `> "9007199254740991"`).
+  `inferColumns` forces such a column to text with `align:'right'`. New curated
+  expectations: `giant-ints.csv` now text/right-aligned, digits verbatim.
+- **D2:** `PERCENT_TITLE_RE` uses **letter-only lookarounds** `(?<![a-z])…
+  (?![a-z])` (NOT `\b`) so `loss_ratio` matches; **dropped `severity`** from the
+  plan's word list (it's a $ amount, not a ratio — the gate would mask it but
+  conceptually wrong). Decimal rule shipped as `clamp(maxObservedDecimals−2,
+  1,4)`. classifyNumber float branch reordered: stats loop first, then
+  **percent → money(title) → money(value) → eng → float**. New `pct` format in
+  formatCell (`v*100 + '%'`). New `ratios.csv` fixture. py payload's
+  `loss_ratio`/`rate` are now percents (updated smoke). **greater_tables not
+  independently re-verified** (no local source) — decimal rule is Steve's own
+  proposal and consistent with the existing "never more precision than the data"
+  float rule; flagged for sign-off.
+- **D3:** grid `displayMode` option + `setDisplayMode()` (clears formatted +
+  search caches, re-measures widths, re-renders; no re-parse). `formatCell(raw,
+  col, r, mode)` gains a `'raw'` branch. Footer: `#footer-right` wraps date-note
+  + the `Inferred|Raw` segmented switch (compact btn css), switch rightmost.
+  `setDisplay()` in app.js; `setDateNote()` now returns empty in raw mode.
+- **OPEN for Steve:** (1) D2 percent decimal rule + word list — confirm vs
+  greater_tables; (2) plan still in `dev/` — move to `dev/done/` only on his say.
 
 ## 2026-06-16 — Stage D planned (big-int, percent, raw mode)
 

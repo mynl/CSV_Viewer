@@ -232,7 +232,21 @@
 
 <footer id="status-bar" class="d-none">
     <span id="status"></span>
-    <span id="date-note"></span>
+    <!-- Right cluster: the ambiguity note then the display-mode switch. The
+         switch is rightmost so it stays pinned; the note grows leftward into
+         the status whitespace and doesn't shift the switch. Two explicitly
+         labeled states (a segmented control, not a meaning-flipping toggle):
+         Inferred = type-aware formatting, Raw = verbatim source. -->
+    <span id="footer-right">
+        <span id="date-note"></span>
+        <span id="display-label">Formatting:</span>
+        <span id="display-mode" class="btn-group btn-group-sm" role="group" aria-label="Display mode">
+            <button id="display-inferred" type="button" class="btn btn-outline-secondary active"
+                    title="Inferred: type-aware formatting (separators, ISO dates, percent)">Inferred</button>
+            <button id="display-raw" type="button" class="btn btn-outline-secondary"
+                    title="Raw: show the source text verbatim (still aligned and sorted by type)">Raw</button>
+        </span>
+    </span>
 </footer>
 
 <script type="module" src="src/app/app.js"></script>

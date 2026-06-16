@@ -1,6 +1,6 @@
 {
     "name": "csv-grid",
-    "version": "3.2.0",
+    "version": "3.3.0",
     "description": "Embeddable, type-aware CSV / records grid — the library half of csv-viewer. Runtime has zero dependencies; dist/ is committed, no install needed to consume.",
     "private": true,
     "type": "module",

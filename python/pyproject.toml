@@ -1,6 +1,6 @@
 [project]
 name = "csv-grid"
-version = "3.2.0"
+version = "3.3.0"
 description = "Emit csv-viewer's CsvGrid interactive tables from pandas DataFrames (Jupyter / Quarto / static HTML)."
 readme = "README.md"
 license = "MIT"

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
          classifyNumber, engFormat, looksHeaderless, guessHeaders,
          cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
-         parseMarkdownTable, splitMdRow, isNullToken } from '../src/grid/core.js';
+         parseMarkdownTable, splitMdRow, isNullToken, isUnsafeBigInt } from '../src/grid/core.js';
 import { formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
          solveWidths, sampleIndices, parseFormatSpec, formatWithSpec,
          parseAlignSpec, normalizeRecords, toCSV, toMarkdown } from '../src/grid/util.js';
@@ -147,7 +147,7 @@ check('money title int 2dp', classifyNumber('Amount 1', [1200, 7], 0),
 check('money by value 2dp', classifyNumber('x', [12500.25, 9800.5], 2).dec, 2);
 check('not money over 100k -> magnitude rule',
       classifyNumber('factor', [250000.5, 980000.25], 2).dec, 0);
-check('not money 3dp -> magnitude rule', classifyNumber('rate', [0.015, 0.025], 3).dec, 3);
+check('not money 3dp -> magnitude rule', classifyNumber('coeff', [0.015, 0.025], 3).dec, 3);
 check('year beats money title', classifyNumber('premium year', [1990, 2024], 0).format, 'year');
 check('float unit-scale dec 2', classifyNumber('q', [12.5, 9.25], 2).dec, 2);
 
@@ -263,6 +263,76 @@ check('A5 ISO not ambiguous',
 check('A5 month-name not ambiguous',
       inferColumns(['d'], [['Jan 5, 2024'], ['Feb 6, 2024']])[0].ambiguousOrder, false);
 
+// --- 3.3 Stage D1: integers beyond 2^53 kept as exact text --------------
+check('D1 isUnsafeBigInt cases',
+      [isUnsafeBigInt('9007199254740991'),   // 2^53-1, exactly max -> safe
+       isUnsafeBigInt('9007199254740993'),   // 2^53+1 -> unsafe
+       isUnsafeBigInt('9999999999999999'),   // 16 nines -> unsafe
+       isUnsafeBigInt('123456789012345678901234567890'), // 30 digits -> unsafe
+       isUnsafeBigInt('42'),                 // small -> safe
+       isUnsafeBigInt('1.23e30'),            // float form -> not integer-form
+       isUnsafeBigInt('12.5'),               // has decimal -> safe
+       isUnsafeBigInt('-9999999999999999'),  // signed unsafe
+       isUnsafeBigInt('(9999999999999999)'), // paren-negative unsafe
+       isUnsafeBigInt('50%')],               // percent -> not a big int
+      [false, true, true, true, false, false, false, true, true, false]);
+const bigcol = inferColumns(['value'],
+    [['9007199254740993'], ['9999999999999999'], ['123456789012345678901234567890'], ['42']]);
+check('D1 big-int column forced to text', bigcol[0].type, 'text');
+check('D1 big-int column right-aligned', bigcol[0].align, 'right');
+check('D1 big-int digits render verbatim',
+      formatCell('123456789012345678901234567890', bigcol[0], 2), '123456789012345678901234567890');
+check('D1 safe integer column stays number',
+      inferColumns(['v'], [['9007199254740991'], ['42']])[0].type, 'number');
+check('D1 float with big exponent stays number',
+      inferColumns(['v'], [['1.23e30'], ['4.5e29']])[0].type, 'number');
+// long account/ID numbers above 2^53 also become exact text (right-aligned)
+check('D1 long account number -> exact text',
+      inferColumns(['Account No'], [['12345678901234567'], ['12345678901234568']])[0].type, 'text');
+
+// --- 3.3 Stage D2: percent format for ratio columns ---------------------
+check('D2 ratio in-range -> percent', classifyNumber('loss_ratio', [0.625, 0.481], 3),
+      { format: 'pct', dec: 1 });
+check('D2 snake_case ratio matched (letter boundary, not \\b)',
+      classifyNumber('combined_ratio', [1.04, 0.98], 2).format, 'pct');
+check('D2 percent beats money word ("loss ratio")',
+      classifyNumber('loss ratio', [0.6, 0.7], 2).format, 'pct');
+check('D2 short token roe', classifyNumber('roe', [0.12, 0.18], 2).format, 'pct');
+check('D2 short token does not bleed (prorate != rate)',
+      classifyNumber('prorated', [0.5, 1.2], 1).format, 'float');
+check('D2 out-of-range float ratio stays non-percent (no x100)',
+      classifyNumber('rate', [62.5, 71.2], 1).format, 'float');
+check('D2 all-integer ratio skipped (units ambiguous)',
+      classifyNumber('rate', [1, 2], 0).format, 'int');
+check('D2 percent decimals uniform from data (4dp -> 2)',
+      classifyNumber('yield', [0.1523, 0.2], 4).dec, 2);
+check('D2 percent decimals floor at 1 (2dp -> 1)',
+      classifyNumber('margin', [1.04, 0.98], 2).dec, 1);
+check('D2 non-ratio float unchanged', classifyNumber('temperature', [0.5, 1.2], 1).format, 'float');
+const pctcol = inferColumns(['lr'], [['0.625'], ['0.481']]);
+check('D2 percent renders with %', formatCell('0.625', pctcol[0], 0), '62.5%');
+check('D2 percent right-aligned like numbers', pctcol[0].type, 'number');
+// a %-suffixed source column round-trips: 12.5% -> 0.125 -> 12.5%
+check('D2 percent source round-trips',
+      formatCell('12.5%', inferColumns(['pct'], [['12.5%'], ['8.0%']])[0], 0), '12.5%');
+
+// --- 3.3 Stage D3: raw display mode (formatCell 'raw' lens) -------------
+// raw returns the verbatim trimmed source; type/align/sort are unaffected
+const d3cols = inferColumns(['n', 'when', 'lr'],
+    [['1,200', '1/6/2024', '0.625'], ['7', '2/30/2020', '0.481']]);
+check('D3 raw shows source number (no separators)',
+      formatCell('1,200', d3cols[0], 0, 'raw'), '1,200');
+check('D3 auto still formats number', formatCell('1,200', d3cols[0], 0, 'auto'), '1,200');
+check('D3 raw shows source date (no ISO normalize)',
+      formatCell('1/6/2024', d3cols[1], 0, 'raw'), '1/6/2024');
+check('D3 raw shows source percent fraction',
+      formatCell('0.625', d3cols[2], 0, 'raw'), '0.625');
+check('D3 raw blank stays blank', formatCell('  ', d3cols[0], 0, 'raw'), '');
+check('D3 raw on big-int text is verbatim',
+      formatCell('123456789012345678901234567890',
+                 inferColumns(['v'], [['123456789012345678901234567890'], ['42']])[0], 0, 'raw'),
+      '123456789012345678901234567890');
+
 // --- 3.2 Stage B: export serializers ------------------------------------
 
 check('toCSV basic', toCSV(['a', 'b'], [['1', '2'], ['3', '4']]), 'a,b\r\n1,2\r\n3,4');
@@ -371,7 +441,9 @@ check('py integral floats -> int (money title 2dp)',
       formatCell(pyd.rows[0][1], pyd.cols[1], 0), '12,500,000.00');
 check('py year column plain', formatCell(pyd.rows[0][3], pyd.cols[3], 0), '1995');
 check('py date iso', formatCell(pyd.rows[0][4], pyd.cols[4], 0), '1995-03-15');
-check('py rate 2dp', formatCell(pyd.rows[3][5], pyd.cols[5], 3), '1.00');
+// loss_ratio + rate columns are now percents (D2): fractions <= 2, ratio names
+check('py loss_ratio is percent', pyd.cols[2].format, 'pct');
+check('py rate percent', formatCell(pyd.rows[3][5], pyd.cols[5], 3), '100.0%');
 
 // --- dist ES bundle loads as a real module with CsvGrid as its default
 // export (3.0 stage 4; loadability only — instantiation needs a DOM;

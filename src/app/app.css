@@ -15,7 +15,10 @@
 }
 
 /* Status bar — row counts lower-left (#status, the grid's statusBar
- * element), the date-ambiguity note lower-right (#date-note). */
+ * element); a right cluster (#footer-right) carries the date-ambiguity note
+ * (#date-note) then the Inferred/Raw display-mode switch (#display-mode),
+ * the switch pinned rightmost so the note can grow/shrink without moving it.
+ * #status flex-grows and truncates first, so on a phone the switch stays. */
 #status-bar {
     position: fixed;
     bottom: 0;
@@ -23,19 +26,47 @@
     right: 0;
     z-index: 5;
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
     background: var(--bs-body-bg);
     border-top: 1px solid var(--bs-border-color);
-    padding: 3px 12px;
+    padding: 2px 12px;
     font-size: 0.75rem;
     color: var(--bs-secondary-color);
+}
+#status {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#footer-right {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
 }
 #date-note {
     text-align: right;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+#display-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    margin-right: -6px;   /* snug the label up against the switch */
+}
+/* Compact segmented switch so the footer stays slim (Bootstrap's btn-sm is
+ * too tall for a 0.75rem footer). */
+#display-mode .btn {
+    padding: 0 0.5rem;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    --bs-btn-border-color: var(--bs-border-color);
 }
 
 /* Responsive navbar — four clean phases as the window narrows, so buttons

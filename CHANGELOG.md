@@ -1,5 +1,46 @@
 # Changelog
 
+## 3.3.0 (2026-06-16)
+
+All of `dev/plan-3.3-bigint-percent-rawmode.md` — Stage D, in three parts.
+
+### D1 — integers beyond 2⁵³ kept exact
+
+An integer-form value too large for a float64 (`> 9,007,199,254,740,991`)
+would be silently rounded, collapsing distinct values (a list of big primes,
+a 20-digit account number). Such a column is now kept as **text** so every
+digit survives verbatim. These columns read as numbers, so they are
+**right-aligned** and sort by magnitude (numeric collation); they lose the
+numeric `>`/`..` filters (substring only). Floats with big exponents
+(`1.23e30`) are inherently approximate and stay numbers. New `isUnsafeBigInt`
+in `core.js` — a pure lexical test, no `BigInt`, negligible cost in the
+inference sample loop.
+
+### D2 — percent format for ratio columns
+
+Float columns named like ratios/rates (`ratio`, `rate`, `roe`, `roa`, `lr`,
+`margin`, `yield`, `combined_ratio`, …) whose values are all `|x| ≤ 2` are
+read as fractions and shown as percentages (`0.625 → 62.5%`, `1.04 → 104.0%`).
+The `≤ 200%` value gate is the real guard: a column already in percentage
+points (`rate` 62) is left alone, not turned into `6,200%`. All-integer
+columns are skipped (units too ambiguous). Decimals are uniform per column =
+the precision the data carried, less the two places `×100` shifts (clamped
+1–4). Ranks above the money rule so a *loss ratio* isn't grabbed by `loss`.
+The header match uses letter-only boundaries, so `loss_ratio` and other
+snake_case names are caught. A `%`-suffixed source column round-trips
+(`12.5% → 0.125 → 12.5%`).
+
+### D3 — raw display mode
+
+A bottom-right footer switch, **Inferred / Raw** (two explicit labeled states,
+not a meaning-flipping toggle), flips the whole table to show source text
+verbatim — no separators, no ISO dates, no percent, no engineering suffixes.
+Type inference still runs, so columns stay aligned and sort correctly; only the
+displayed text changes. Toggling is a re-render (cache + width re-solve), not a
+re-parse. Purely a view lens, independent of export's own raw/formatted choice;
+the date-ambiguity note is suppressed in raw mode (no reinterpretation happens).
+Exposed on the library as the `displayMode` option and `setDisplayMode()`.
+
 ## 3.2.0 (2026-06-16)
 
 All of `dev/plan-3.2-export-inference-responsive.md` — inference quality,

@@ -78,11 +78,18 @@ number/date columns (a text column keeps a literal `None`/`NA`).
 2. else every one parses as a date → **date**;
 3. else **text**.
 
-Two rules force text even when the values look numeric: a **significant
+Two rules force text even when the values look numeric. A **significant
 leading zero** (`007`, `01234`) keeps the column text so the zero survives.
-A value that *doesn't* parse in a column already typed number/date (e.g. a
-stray bad date past the sample) is left unparsed and shown raw — never
-hidden — and sorts as blank.
+And an **integer beyond 2⁵³** (`9,007,199,254,740,991`) can't be held exactly
+by a float64 — storing it as a number would silently round the digits, and
+distinct values could collapse to the same double — so the column is kept
+text and the digits render verbatim (a list of big primes, a 20-digit account
+number). These columns still *read* as numbers, so they are right-aligned;
+they sort by magnitude (not lexically) but lose the numeric `>`/`..` filters
+(substring only). Floats with big exponents (`1.23e30`) are inherently
+approximate and stay numbers. A value that *doesn't* parse in a column already
+typed number/date (e.g. a stray bad date past the sample) is left unparsed and
+shown raw — never hidden — and sorts as blank.
 
 **Number format** — first match wins (the [greater_tables][gt] conventions):
 
@@ -99,11 +106,20 @@ hidden — and sorts as blank.
 
 *Columns with decimals:*
 
-1. **Money by header** → 2dp with separators.
-2. **Money by value** — ≤ 2 observed decimals and `max|x| < 100,000` → 2dp.
-3. **Engineering** — values span > 6 orders of magnitude → 3 significant
+1. **Percent** — a ratio/rate header (`ratio`, `rate`, `roe`, `lr`, `margin`,
+   `yield`, `combined_ratio`, …) whose values are all `|x| ≤ 2` (≤ 200%) is
+   read as a fraction and shown as a percentage (`0.625 → 62.5%`,
+   `1.04 → 104.0%`). The `≤ 2` gate is the real guard: it keeps a column
+   already in *percentage points* (a `rate` of `62`) from being multiplied
+   into `6,200%`. Decimals are uniform per column = the precision the data
+   carried, less the two places `×100` shifts (clamped 1–4). All-integer
+   columns are skipped (units too ambiguous). Ranks above money so a *loss
+   ratio* isn't grabbed by the `loss` money word.
+2. **Money by header** → 2dp with separators.
+3. **Money by value** — ≤ 2 observed decimals and `max|x| < 100,000` → 2dp.
+4. **Engineering** — values span > 6 orders of magnitude → 3 significant
    figures with SI suffix (`4.5M`, `1.2m`).
-4. **Sensible float** — uniform decimals
+5. **Sensible float** — uniform decimals
    `d = clamp(min(maxObservedDecimals, 3 − floor(log10(mean|x|))), 0, 6)`:
    ~4 significant figures at the column's typical magnitude, never more
    precision than the data carried.
@@ -120,12 +136,17 @@ small file demotes the whole column to text.
 **Number parsing** accepts `1,234.56`, `(2,500)` (parentheses = negative),
 `$99.50`, `12.5%` (→ `0.125`; a trailing `%` is ×1/100), `1e-03`, and `.5`.
 
-**Alignment.** Numbers right, dates center, text left. Decimals are uniform
-within a column.
+**Alignment.** Numbers right, dates center, text left (big-int columns,
+though stored as text, are right-aligned). Decimals are uniform within a
+column.
 
-> Planned refinements — exact preservation of integers beyond 2⁵³, percent
-> formatting for ratio columns, and a raw display mode — are specified in
-> `dev/plan-3.3-bigint-percent-rawmode.md`.
+**Raw display mode.** None of this is always wanted. The **Inferred / Raw**
+switch in the bottom-right of the footer flips the whole table to *Raw*: every
+cell shows its source text verbatim — no separators, no ISO dates, no percent,
+no engineering suffixes. Type inference still runs, so columns stay aligned and
+sort correctly; only the displayed text changes (and toggling is a re-render,
+not a re-parse). It is purely a view lens — independent of export, which has
+its own raw/formatted choice. Default is Inferred.
 
 [gt]: https://github.com/mynl/greater_tables_project
 
@@ -158,10 +179,12 @@ or arrays; null/NaN → blank), `{url: string}`; plus optional `name` and
 `sortable`, `statusBar`, `expandButtons` (all true), `align`
 (`'llrcr…'`), `formats` (per-column `[,][.N](f|d|%|e|s)`, `'year'`,
 `'eng'`, null = auto rules), `widthMode` (`'equal-risk'` default, or
-`'coverage'` to maximize the count of fully-shown cells), `maxRows` /
-`height` (bounded-height scroll viewport), `renderCap`, `eagerCells`,
-`worker`, `headerMode`. Methods: `setData(data)` (returns a promise),
-`setWidthMode(mode)`, `destroy()`. Dark mode follows the OS
+`'coverage'` to maximize the count of fully-shown cells), `displayMode`
+(`'auto'` default = type-aware formatting, or `'raw'` = verbatim source),
+`maxRows` / `height` (bounded-height scroll viewport), `renderCap`,
+`eagerCells`, `worker`, `headerMode`. Methods: `setData(data)` (returns a
+promise), `setWidthMode(mode)`, `setDisplayMode('auto'|'raw')`, `destroy()`.
+Dark mode follows the OS
 (`prefers-color-scheme`) and can be forced with
 `data-theme="dark"|"light"` on the grid element. Multiple grids per page
 work; types and formatting are inferred from the data exactly as in the

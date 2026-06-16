@@ -39,21 +39,37 @@ are for eyeballing the real grid in a browser.
 | `Premium` | float 2dp | `1,234.50` (money header → exactly 2dp) |
 | `rate` | float 3dp | `0.625` (sensible decimals from magnitude) |
 | `span` | eng | `4.5M`, `1.2m` (spans > 6 orders → SI suffixes) |
-| `pct` | float 3dp | `12.5%` parses to **`0.125`** — a trailing `%` is consumed as ×1/100 |
+| `pct` | percent | `12.5%` parses to `0.125` and (header `pct` matches the percent rule, values ≤ 2) renders back as **`12.5%`** — a `%`-suffixed ratio column round-trips |
 | `signed` | int | `(2,500)` → `-2,500` (paren negatives) |
 | `Zip` | **text** | `07030` kept verbatim — a significant leading zero forces text even for an id-ish header |
 | `qty` | int | `NaN`/`NA` are treated as missing and render **blank**; the column stays numeric |
 
-### `giant-ints.csv` — float64 precision
-JS numbers are IEEE-754 doubles, so integers above 2⁵³ lose precision (this
-is the "bitten before" case):
-- `9007199254740991` (2⁵³−1) — exact.
-- `9007199254740993` → renders `9,007,199,254,740,992` (off by one).
-- `9999999999999999` → renders `10,000,000,000,000,000`.
-- `123456789012345678901234567890` → renders `123,456,789,012,345,680,000,000,000,000`.
+### `giant-ints.csv` — integers beyond 2⁵³ (D1, the "bitten before" case)
+JS numbers are IEEE-754 doubles, so an integer above 2⁵³ can't be held
+exactly. To avoid silently corrupting the digits, **a column with any such
+integer-form value is kept as text** and the digits render verbatim. The
+column is right-aligned (it reads as a number) and sorts by magnitude, but
+loses the numeric `>`/`..` filters:
+- `9007199254740991` (2⁵³−1) — at the safe boundary, so on its own this would
+  stay a number; here it shares the column, which is text, so it shows as-is.
+- `9007199254740993` (2⁵³+1) — unsafe; forces the column to text.
+- `9999999999999999` (sixteen nines) — unsafe.
+- `123456789012345678901234567890` (30-digit Python int) — unsafe; renders all
+  thirty digits, no rounding.
+- `42` — ordinary, but inherits the column's text type.
 
-The column still types as a number and formats with separators; the digits
-are just rounded to the nearest representable double. No error is raised.
+A float with a big exponent (`1.23e30`) is *not* affected — it's inherently
+approximate and stays a number.
+
+### `ratios.csv` — percent format for ratio columns (D2)
+| column | type/format | renders |
+|--------|-------------|---------|
+| `line` | text | category label |
+| `premium` | float 2dp | money header → `12,500,000.00` |
+| `roe` | percent | `0.121 → 12.1%` (ratio header, values ≤ 2) |
+| `loss_ratio` | percent | `0.625 → 62.5%` — snake_case header still matched |
+| `combined_ratio` | percent | `1.043 → 104.3%` — values > 1 are fine up to 200% |
+| `rate_pp` | float 2dp | **the guardrail:** values are percentage *points* (62.5, 104.0), so `max > 2` fails the gate and the column is **not** re-percented into `6,250%` |
 
 ### `quotes.csv` — RFC 4180 strings
 Embedded commas, doubled `""` quotes, an embedded newline (a cell spanning

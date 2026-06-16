@@ -38,13 +38,15 @@
  *   worker: true            parse worker for csv >= ~1 MB; false = always
  *                           synchronous; or an explicit worker URL
  *   headerMode: 'auto'      'auto' | 'first-row' | 'headerless'
+ *   displayMode: 'auto'     'auto' (type-aware formatting) | 'raw' (verbatim
+ *                           source text); a view lens, no effect on export
  *
  * methods: setData(data) -> Promise (a superseded load never settles;
  * failures reject AND show in the grid), destroy(),
  * export({scope, format, values}) -> string (CSV / markdown of the view or
- * whole table). The viewer app also drives its navbar controls through
- * setGlobalFilter / clearFilters / expand / contract / setWidthMode /
- * applyLayout.
+ * whole table), setDisplayMode('auto'|'raw'). The viewer app also drives its
+ * navbar controls through setGlobalFilter / clearFilters / expand / contract
+ * / setWidthMode / applyLayout.
  *
  * Multiple instances per page work: no module-global state, no element
  * ids, no document-level listeners (the transient drag-resize
@@ -77,8 +79,11 @@ export default class CsvGrid {
             statusBar: true, expandButtons: true, align: null, formats: null,
             renderCap: 2048, eagerCells: 262144, worker: true,
             headerMode: 'auto', widthMode: 'equal-risk',
-            maxRows: null, height: null, ...options,
+            maxRows: null, height: null, displayMode: 'auto', ...options,
         };
+        // 'auto' = type-aware formatting; 'raw' = verbatim source (the lens).
+        // A view preference, independent of the export raw/formatted choice.
+        this.displayMode = this.opts.displayMode === 'raw' ? 'raw' : 'auto';
 
         this.fileName = '';
         this.headers = [];
@@ -419,6 +424,32 @@ export default class CsvGrid {
         this.applyLayout();
     }
 
+    /* Switch the display lens between 'auto' (type-aware formatting) and
+     * 'raw' (verbatim source). No re-parse — reuses this.rows/this.cols;
+     * drops the formatted + search caches (both derive from display text),
+     * re-measures widths (raw text differs in length), and re-renders.
+     * Independent of the export raw/formatted option. */
+    setDisplayMode(mode) {
+        mode = mode === 'raw' ? 'raw' : 'auto';
+        if (mode === this.displayMode || !this.cols.length) { this.displayMode = mode; return; }
+        this.displayMode = mode;
+        this.formatted = new Array(this.rows.length);   // re-derive on demand
+        this.searchRaw = null;
+        this.searchLow = null;
+        this.searchReady = false;
+        this.indexing = null;
+        if (this.rows.length * this.cols.length <= this.opts.eagerCells) {
+            for (let r = 0; r < this.rows.length; r++) this.getFormattedRow(r);
+            this.searchRaw = this.formatted.map(
+                (frow, r) => frow.join(' ') + ' ' + this.rows[r].join(' '));
+            this.searchLow = this.searchRaw.map(s => s.toLowerCase());
+            this.searchReady = true;
+        }
+        this.layout = this.measureLayout();   // widths re-freeze for this lens
+        this.applyLayout();
+        this.refresh();
+    }
+
     // ------------------------------------------------------------- layout
 
     /* Measure formatted cell and header widths with a canvas in the table's
@@ -519,7 +550,7 @@ export default class CsvGrid {
     getFormattedRow(r) {
         let f = this.formatted[r];
         if (!f) {
-            f = this.cols.map((col, c) => formatCell(this.rows[r][c], col, r));
+            f = this.cols.map((col, c) => formatCell(this.rows[r][c], col, r, this.displayMode));
             this.formatted[r] = f;
         }
         return f;
