@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.1.0';
+const VERSION = '3.2.0';
 
 const $ = id => document.getElementById(id);
 
@@ -46,6 +46,7 @@ function loadText(text, fileName, headerOverride = null) {
             $('toolbar').classList.remove('d-none');
             $('status-bar').classList.remove('d-none');
             $('header-btn').classList.toggle('active', !grid.guessedHeaders);
+            setDateNote();
             grid.applyLayout();   // width solve needs the table visible
         })
         .catch(err => showError(err.message || String(err)));
@@ -69,6 +70,19 @@ function showIngest() {
     $('toolbar').classList.add('d-none');
     $('status-bar').classList.add('d-none');
     $('ingest-view').classList.remove('d-none');
+}
+
+/* Lower-right footer note: which date columns we read as US m/d/y because
+ * the all-numeric order was genuinely ambiguous. Empty (hidden) otherwise.
+ * The list is truncated so the note stays a single tidy line. */
+function setDateNote() {
+    const cols = grid.ambiguousDateCols || [];
+    const shown = cols.length > 3
+        ? `${cols.slice(0, 3).join(', ')}, +${cols.length - 3} more`
+        : cols.join(', ');
+    $('date-note').textContent = cols.length
+        ? `Dates in ${shown} read as US m/d/y (ambiguous)`
+        : '';
 }
 
 function initEvents() {

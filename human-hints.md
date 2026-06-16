@@ -4,28 +4,41 @@ Very high-level running summary of discussions and decisions in this
 project. Newest first. The pinned section below tracks the current
 formatting rules.
 
-## Number & date formatting rules (current as of v1.4)
+## Number & date formatting rules (current as of v3.2)
 
 Per numeric column, first match wins:
 
 1. **Year** — all integers AND (header matches `year|yr|vintage|cohort`
    OR all values in 1800–2100 inclusive, v2.1.1): plain, no commas
    (`1995`).
-2. **Money by header** — header matches `amount|amt|balance|price|cost|
+2. **Identifier** (v3.2) — all integers AND header matches an id/code word
+   (`id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|
+   invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|
+   policy|claim|seq`) AND **not** also a money header: plain integer, no
+   commas (`100200`). Header text only — no value heuristics.
+3. **Money by header** — header matches `amount|amt|balance|price|cost|
    fee|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|
    income|expense|revenue` or a currency symbol/code: exactly 2dp with
-   commas, even for all-integer columns.
-3. **Integer** — all integer-valued: commas, 0dp.
-4. **Money by value** — floats with ≤ 2 observed decimals and max |x|
+   commas, even for all-integer columns. Wins the id/money overlap
+   (`Order Amount`, `Account Balance` stay 2dp).
+4. **Integer** — all integer-valued: commas, 0dp.
+5. **Money by value** — floats with ≤ 2 observed decimals and max |x|
    < 100,000: exactly 2dp ("probably money").
-5. **Engineering** — floats spanning > 6 orders of magnitude: 3
+6. **Engineering** — floats spanning > 6 orders of magnitude: 3
    significant digits with SI suffixes n µ m k M G T (`4.5M`).
-6. **Sensible float** (the white-whale rule) — uniform decimals
+7. **Sensible float** (the white-whale rule) — uniform decimals
    `d = clamp(min(maxObservedDecimals, 3 − floor(log10(mean |x| over
    nonzero))), 0, 6)`: ~4 significant digits at the column's typical
    magnitude, never more precision than the raw data carried. Example:
    mean ~10⁵ → 0dp; mean ~10 → 2dp; mean ~0.02 → up to 5dp (capped by
    observed precision).
+
+Type decision (v3.2): made from a stride sample of ≤ 2048 rows, so one
+oddball deep in a big file can't demote a clean numeric/date column — the
+stray cell renders raw. Null tokens (`NaN NA N/A #N/A null none - -- .`)
+count as missing, never demote, render blank (number/date cols; text cols
+keep them). A value parsing as a number with a significant leading zero
+(`007`) forces the column to text.
 
 Dates: recognized liberally (ISO, `13/01/2024`, `13-05-24`, `13.05.2024`,
 `5 Jan 2024`, `05-Jan-24`, `Jan 5, 2024`; 2-digit years pivot at 50);
@@ -40,6 +53,54 @@ against each row's cells concatenated into one string — formatted values
 first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
+
+## 2026-06-16 — 3.2 Stage A landed (inference quality)
+
+- Implemented all of Stage A in `core.js`/`util.js`; version bumped to
+  3.2.0 (app, sw cache, package.json, python). dist rebuilt, smoke test
+  green (now with A1–A5 checks). B (export) and C (responsive) still to do.
+- Two judgment calls flagged to Steve (refinements to the written plan):
+  (1) **null-token blanking gated to number/date columns** — text columns
+  keep `None`/`NA` (could be a real category); also cheaper (only when
+  `values[r]===null`). (2) **A3 precedence is year → (id AND not money) →
+  money → int**, not the plan's year→id→money — so `Order Amount` /
+  `Account Balance` keep 2dp instead of going plain. One-line revert each
+  if he disagrees.
+- `sampleIndices` moved from util.js to core.js (inference needs it),
+  re-exported from util.js so importers are unaffected. New: `isNullToken`,
+  `numDateOrder` (private), `ID_TITLE_RE`, `LEADING_ZERO_RE`, `INFER_SAMPLE`.
+- Grid exposes `ambiguousDateCols`; app renders the lower-right footer note
+  (`#date-note`). The grid's own built-in status bar does NOT auto-append
+  it (avoids changing embedder output) — embedders read the property.
+
+## 2026-06-16 — 3.2 plan drafted (export, inference, responsive)
+
+- Plan at `dev/plan-3.2-export-inference-responsive.md`. Decided **3.2.0,
+  not 4.0** (all additive). Three stages, A independent, B→C coupled.
+- **A (core.js inference quality)**: null-token set (NaN/NA/N/A/#N/A/null/
+  None/-/--/.) treated as missing + rendered blank; **type decided from
+  the 2048 sample** (oddball deep in a big file no longer demotes; stray
+  cell renders raw verbatim — `formatCell` already passes raw through when
+  `values[r]===null`); identifier integer columns (header regex ONLY:
+  id/no/account/code/zip/… ) → plain ints, no commas (precedence year →
+  id → money → int); leading-zero codes (`007`) → text; dates keep the
+  current per-column guess (ambiguous all-numeric → US m/d/y) but add a
+  **lower-right note** listing columns converted under genuine ambiguity.
+- **Global (powers of two)**: WIDTH_SAMPLE 2000→2048, default renderCap
+  2000→2048, eagerCells 200000→**262144** (2¹⁸). NOT the fixYear century
+  base, NOT the 1800–2100 year range.
+- **B (export)**: `toCSV`/`toMarkdown` in util.js; `grid.export({scope,
+  format,values})`; Copy (split-button, clipboard) + Save (split-button,
+  Blob, UTF-8, **BOM on CSV-save**). view=filtered+sorted, all=original
+  order. **raw default; formatted gated to ≤2048 rows** (Steve's call —
+  formatted only for small tables, keeps the click instant).
+- **C (responsive)**: breakpoint-static "⋯ More" dropdown (no JS
+  measuring; dynamic priority-plus rejected). Always-visible quintet:
+  Clear | Balanced | Maximize | Expand | Contract. Open / Row 1=header /
+  Copy / Save fold into More on narrow widths. Fixes Open wrapping to row
+  2.
+- **Column-stats popover: OUT** (nice, low priority, skipped). Plan
+  written; nothing coded yet — awaiting Steve's go to execute Stage A.
 
 ## 2026-06-13 — 3.1 stages 1–4 executed (v3.1.0)
 

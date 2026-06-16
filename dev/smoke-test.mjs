@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
          classifyNumber, engFormat, looksHeaderless, guessHeaders,
          cleanCsvText, dateNeedsDayFirst, isMarkdownTable,
-         parseMarkdownTable, splitMdRow } from '../src/grid/core.js';
+         parseMarkdownTable, splitMdRow, isNullToken } from '../src/grid/core.js';
 import { formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
          solveWidths, sampleIndices, parseFormatSpec, formatWithSpec,
          parseAlignSpec, normalizeRecords } from '../src/grid/util.js';
@@ -203,6 +203,65 @@ const ukcols = inferColumns(['when'], [['05/01/2024'], ['13/01/2024']]);
 check('uk column day-first', formatCell('05/01/2024', ukcols[0], 0), '2024-01-05');
 const uscols = inferColumns(['when'], [['05/01/2024'], ['12/01/2024']]);
 check('us column month-first', formatCell('05/01/2024', uscols[0], 0), '2024-05-01');
+
+// --- 3.2 Stage A: inference quality ------------------------------------
+
+// A1 — null tokens don't demote a numeric column; they render blank
+check('isNullToken cases', [isNullToken('NaN'), isNullToken(' na '), isNullToken('#N/A'),
+       isNullToken('-'), isNullToken('hello'), isNullToken('')], [true, true, true, true, false, false]);
+const nullcol = inferColumns(['v'], [['100'], ['NaN'], ['N/A'], ['200'], ['-']]);
+check('A1 null tokens keep number type', nullcol[0].type, 'number');
+check('A1 NaN renders blank', formatCell('NaN', nullcol[0], 1), '');
+check('A1 N/A renders blank', formatCell('N/A', nullcol[0], 2), '');
+check('A1 dash renders blank', formatCell('-', nullcol[0], 4), '');
+check('A1 real number still formats', formatCell('100', nullcol[0], 0), '100');
+// text columns keep their literal tokens (None may be a real category)
+check('A1 text column keeps token',
+      formatCell('None', inferColumns(['s'], [['alpha'], ['None'], ['beta']])[0], 1), 'None');
+
+// A2 — type decided from a stride sample: an oddball outside the sample
+// (index 1 is not in sampleIndices(5000, 2048)) can't demote the column
+const bigNum = Array.from({ length: 5000 }, () => ['5']);
+bigNum[1] = ['oops'];
+const bigCols = inferColumns(['v'], bigNum);
+check('A2 out-of-sample oddball does not demote', bigCols[0].type, 'number');
+check('A2 oddball renders raw (never hidden)', formatCell('oops', bigCols[0], 1), 'oops');
+check('A2 sampled cell still formats', formatCell('5', bigCols[0], 0), '5');
+// small files: sample = all rows, so a stray text cell still demotes
+check('A2 small file stays strict',
+      inferColumns(['v'], [['5'], ['oops'], ['7']])[0].type, 'text');
+
+// A3 — identifier-named integer columns drop thousands separators
+check('A3 account number -> plain', classifyNumber('Account Number', [1200, 9000], 0),
+      { format: 'plain', dec: 0 });
+check('A3 policy id -> plain', classifyNumber('Policy ID', [100123, 100124], 0).format, 'plain');
+check('A3 plain renders without commas',
+      formatCell('100200', inferColumns(['Account No'], [['100200'], ['100300']])[0], 0), '100200');
+check('A3 year still beats identifier', classifyNumber('Order Year', [2019, 2024], 0).format, 'year');
+check('A3 money word beats identifier (Order Amount)',
+      classifyNumber('Order Amount', [1200, 9000], 0), { format: 'float', dec: 2 });
+check('A3 money word beats identifier (Account Balance)',
+      classifyNumber('Account Balance', [1200, 9000], 0).dec, 2);
+
+// A4 — significant leading zeros stay text; plain 0 / 0.5 do not
+check('A4 leading-zero code -> text',
+      inferColumns(['code'], [['007'], ['012'], ['100']])[0].type, 'text');
+check('A4 plain zero stays number',
+      inferColumns(['v'], [['0'], ['5'], ['10']])[0].type, 'number');
+check('A4 decimal below one stays number',
+      inferColumns(['v'], [['0.5'], ['1.5']])[0].type, 'number');
+
+// A5 — ambiguous all-numeric date columns flag ambiguousOrder
+check('A5 ambiguous flagged',
+      inferColumns(['d'], [['05/01/2024'], ['06/02/2024']])[0].ambiguousOrder, true);
+check('A5 forced day-first not ambiguous',
+      inferColumns(['d'], [['05/01/2024'], ['13/02/2024']])[0].ambiguousOrder, false);
+check('A5 forced month-first not ambiguous',
+      inferColumns(['d'], [['05/01/2024'], ['12/31/2024']])[0].ambiguousOrder, false);
+check('A5 ISO not ambiguous',
+      inferColumns(['d'], [['2024-01-05'], ['2024-02-06']])[0].ambiguousOrder, false);
+check('A5 month-name not ambiguous',
+      inferColumns(['d'], [['Jan 5, 2024'], ['Feb 6, 2024']])[0].ambiguousOrder, false);
 
 // --- cleanCsvText (1.4): BOM + leading blank lines
 check('clean bom', cleanCsvText('﻿a,b\n1,2'), 'a,b\n1,2');

@@ -138,6 +138,16 @@ const MOND_RE = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/; // Jan 5
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
     'july', 'august', 'september', 'october', 'november', 'december'];
 
+/* Null tokens: strings that mean "missing", not data. Treated like blanks
+ * by inference (never count toward or against a type, never demote a
+ * numeric/date column) and rendered as empty cells by formatCell. A small,
+ * conservative, documented list — no fuzzy threshold. Compared on the
+ * trimmed, lower-cased string. */
+const NULL_TOKENS = new Set(['nan', 'na', 'n/a', '#n/a', 'null', 'none', '-', '--', '.']);
+export function isNullToken(s) {
+    return NULL_TOKENS.has((s ?? '').trim().toLowerCase());
+}
+
 /* Parse a number: thousands commas, (123) negatives, leading $, trailing %,
  * scientific notation (1e-03), bare leading-dot floats (.5).
  * Returns {v, dec} or null. */
@@ -215,10 +225,28 @@ export function parseDate(s, dayFirst = false) {
     return null;
 }
 
+/* Classify an all-numeric date's order signal:
+ *   'day'       — first part > 12, so it must be day-first (13/05/2024)
+ *   'month'     — second part > 12, so it must be month-first (05/13/2024)
+ *   'ambiguous' — both parts <= 12: order is genuinely unknowable (05/01/2024)
+ *   null        — not the ambiguous 2-digit d/m/y form (ISO-ish y/m/d, or
+ *                 not a numeric triple at all)
+ * Drives both the per-column day-first decision and the A5 ambiguity note. */
+function numDateOrder(s) {
+    const m = NUMDATE_RE.exec(s.trim());
+    if (!m) return null;
+    const a = m[1], b = m[3], c = m[4];
+    if (a.length === 4) return null;                          // y/m/d, unambiguous
+    if (!(c.length === 4 || c.length === 2)) return null;     // not a d/m/y or m/d/y year
+    if (+a > 12 && +b <= 12) return 'day';
+    if (+b > 12 && +a <= 12) return 'month';
+    if (+a <= 12 && +b <= 12) return 'ambiguous';
+    return null;
+}
+
 /* True if this value pins the ambiguous numeric form to day-first. */
 export function dateNeedsDayFirst(s) {
-    const m = NUMDATE_RE.exec(s.trim());
-    return !!m && m[1].length <= 2 && +m[1] > 12 && +m[3] <= 12;
+    return numDateOrder(s) === 'day';
 }
 
 /* Headerless detection (bank-export style): the first row is data, not
@@ -249,6 +277,10 @@ export function guessHeaders(cols) {
 
 const YEAR_TITLE_RE = /\b(year|yr|vintage|cohort)\b/i;
 const MONEY_TITLE_RE = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i;
+/* Identifier-ish headers: integer columns that are codes/keys, not
+ * quantities, so they get NO thousands separators (account 100200, not
+ * 100,200). Header text only — no value heuristics (author's call). */
+const ID_TITLE_RE = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i;
 
 /* Choose a numeric column's display format (greater_tables rules):
  *   year  — integers, header says year-ish OR all values in (1800, 2030);
@@ -267,6 +299,10 @@ export function classifyNumber(name, values, maxDec) {
         // year range inclusive 1800–2100: projection columns run decades ahead
         const yearish = YEAR_TITLE_RE.test(name) || xs.every(v => v >= 1800 && v <= 2100);
         if (yearish) return { format: 'year', dec: 0 };
+        // identifier (account/policy/order no.) that is NOT also a money
+        // column -> plain integer, no separators. Money words win the
+        // overlap ("Order Amount", "Account Balance") -> 2dp below.
+        if (ID_TITLE_RE.test(name) && !MONEY_TITLE_RE.test(name)) return { format: 'plain', dec: 0 };
         // money by title trumps everything below (author: "deffo 2dp")
         if (MONEY_TITLE_RE.test(name)) return { format: 'float', dec: 2 };
         return { format: 'int', dec: 0 };
@@ -303,54 +339,94 @@ export function engFormat(v) {
     return (v < 0 ? '-' : '') + Number(m.toPrecision(3)) + ENG_SUFFIX[e];
 }
 
-/* Classify each column over its non-blank values: number if all parse as
- * numbers, else date if all parse as dates, else text. Strict
- * all-or-nothing — needs every cell, which is why this runs in the worker
- * for large files. */
+/* Deterministic stride sample of k indices from 0..n-1 (all of them when
+ * n <= k). Used both for the column type decision below and (in util.js)
+ * for the width-percentile sample — a few thousand evenly-spaced rows pin
+ * a column's character down fine without touching every cell. */
+export function sampleIndices(n, k) {
+    if (n <= k) return Array.from({ length: n }, (_, i) => i);
+    const out = new Array(k);
+    const stride = n / k;
+    for (let i = 0; i < k; i++) out[i] = Math.floor(i * stride);
+    return out;
+}
+
+const INFER_SAMPLE = 2048;          // rows sampled for the column type decision
+const LEADING_ZERO_RE = /^-?0\d/;   // 007, 01234 — a significant leading zero (code, not a number; excludes 0, 0.5)
+
+/* Classify each column as number / date / text. The TYPE decision is made
+ * from a stride sample of up to INFER_SAMPLE rows: a lone oddball deep in a
+ * large file no longer demotes an otherwise-clean numeric/date column — the
+ * stray cell is left unparsed (value null) and renders raw via formatCell,
+ * so data is never hidden. For files <= INFER_SAMPLE rows the sample is
+ * every row, so behavior is unchanged. Blanks and null tokens (NaN/NA/…)
+ * never count toward or against a type. A column with a significant leading
+ * zero (007) is forced to text so the zero survives. The typed values array
+ * is then built over ALL rows. */
 export function inferColumns(headers, rows) {
+    const sample = sampleIndices(rows.length, INFER_SAMPLE);
     return headers.map((name, c) => {
-        let isNum = true, isDate = true, maxDec = 0, seen = 0;
-        let dayFirst = false, hasTime = false;
-        const numv = new Array(rows.length).fill(null);
-        let datev = new Array(rows.length).fill(null);
-        for (let r = 0; r < rows.length; r++) {
+        // --- type decision, from the sample only
+        let isNum = true, isDate = true, leadingZero = false, seen = 0;
+        for (const r of sample) {
             const raw = (rows[r][c] ?? '').trim();
-            if (raw === '') continue;
+            if (raw === '' || isNullToken(raw)) continue;
             seen++;
             if (isNum) {
+                // a value that parses as a number but carries a significant
+                // leading zero (007) is a code, not a quantity -> force text.
+                // Gated to numeric values so zero-padded dates/times (05/01,
+                // 09:30) are NOT misread as codes.
+                if (parseNumber(raw) === null) isNum = false;
+                else if (!leadingZero && LEADING_ZERO_RE.test(raw)) leadingZero = true;
+            }
+            if (isDate && parseDate(raw, false) === null) isDate = false;
+            if (leadingZero || (!isNum && !isDate)) break;   // result is text; nothing more can change it
+        }
+        if (seen === 0 || leadingZero) return { name, type: 'text', values: null };
+
+        // --- build typed values over ALL rows (a non-sampled cell that
+        // doesn't parse stays null -> renders raw, never demotes the column)
+        if (isNum) {
+            const numv = new Array(rows.length).fill(null);
+            let maxDec = 0;
+            for (let r = 0; r < rows.length; r++) {
+                const raw = (rows[r][c] ?? '').trim();
+                if (raw === '' || isNullToken(raw)) continue;
                 const p = parseNumber(raw);
                 if (p) { numv[r] = p.v; if (p.dec > maxDec) maxDec = p.dec; }
-                else isNum = false;
             }
-            if (isDate) {
-                // parse month-first; matchability is convention-independent,
-                // so one parse decides candidacy. Track the day-first signal.
-                const p = parseDate(raw, false);
-                if (p) {
-                    datev[r] = p.t;
-                    hasTime = hasTime || p.hasTime;
-                    if (!dayFirst && dateNeedsDayFirst(raw)) dayFirst = true;
-                } else isDate = false;
-            }
-            if (!isNum && !isDate) break;
-        }
-        if (seen === 0) return { name, type: 'text', values: null };
-        if (isNum) {
             const cls = classifyNumber(name, numv, maxDec);
             return { name, type: 'number', format: cls.format, dec: cls.dec, values: numv };
         }
         if (isDate) {
+            // parse month-first; track the day-first signal and whether the
+            // all-numeric order was ever pinned by data (A5 ambiguity note)
+            let dayFirst = false, hasTime = false, sawAmbiguous = false, forced = false;
+            let datev = new Array(rows.length).fill(null);
+            for (let r = 0; r < rows.length; r++) {
+                const raw = (rows[r][c] ?? '').trim();
+                if (raw === '' || isNullToken(raw)) continue;
+                const p = parseDate(raw, false);
+                if (p) { datev[r] = p.t; hasTime = hasTime || p.hasTime; }
+                const ord = numDateOrder(raw);
+                if (ord === 'day') { dayFirst = true; forced = true; }
+                else if (ord === 'month') forced = true;
+                else if (ord === 'ambiguous') sawAmbiguous = true;
+            }
             if (dayFirst) {
                 // re-parse the whole column day-first (rare: UK-style data)
                 datev = new Array(rows.length).fill(null);
                 for (let r = 0; r < rows.length; r++) {
                     const raw = (rows[r][c] ?? '').trim();
-                    if (raw === '') continue;
+                    if (raw === '' || isNullToken(raw)) continue;
                     const p = parseDate(raw, true);
                     if (p) datev[r] = p.t;
                 }
             }
-            return { name, type: 'date', hasTime, values: datev };
+            // ambiguous iff we saw an unknowable all-numeric value and nothing
+            // anywhere in the column pinned the order
+            return { name, type: 'date', hasTime, ambiguousOrder: sawAmbiguous && !forced, values: datev };
         }
         return { name, type: 'text', values: null };
     });

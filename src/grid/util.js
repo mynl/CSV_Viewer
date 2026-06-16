@@ -4,7 +4,11 @@
  * inference) lives in core.js. Everything here must stay side-effect-free.
  */
 
-import { engFormat, parseNumber, parseDate, inferColumns } from './core.js';
+import { engFormat, parseNumber, parseDate, inferColumns, isNullToken } from './core.js';
+
+// sampleIndices lives in core.js (inference uses it too); re-exported here
+// so existing importers (grid.js, the smoke test) keep their import path.
+export { sampleIndices } from './core.js';
 
 // ------------------------------------------------------------- formatting
 
@@ -79,15 +83,17 @@ export function formatCell(raw, col, r) {
     if (raw === '') return '';
     if (col.type === 'number') {
         const v = col.values[r];
-        if (v === null) return raw;
+        // unparsed cell in a numeric column: blank a null token (NaN/NA),
+        // else show it raw (a stray non-numeric value, never hidden)
+        if (v === null) return isNullToken(raw) ? '' : raw;
         if (col.fmt) return formatWithSpec(v, col.fmt);   // explicit spec wins
-        if (col.format === 'year') return String(v);
+        if (col.format === 'year' || col.format === 'plain') return String(v);
         if (col.format === 'eng') return engFormat(v);
         return numberFormatter(col.dec).format(v);
     }
     if (col.type === 'date') {
         const t = col.values[r];
-        if (t === null) return raw;
+        if (t === null) return isNullToken(raw) ? '' : raw;
         const d = new Date(t);
         const pad = x => String(x).padStart(2, '0');
         let s = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -298,18 +304,6 @@ function concaveEnvelope(sorted, floor) {
         hull.push(p);
     }
     return hull;
-}
-
-/* Deterministic stride sample of k indices from 0..n-1 (all of them when
- * n <= k). Quantiles from the sample stand in for the full distribution —
- * the equal-risk width allocation is a VaR estimate, and ~2,000 points
- * pin a quantile curve down fine. */
-export function sampleIndices(n, k) {
-    if (n <= k) return Array.from({ length: n }, (_, i) => i);
-    const out = new Array(k);
-    const stride = n / k;
-    for (let i = 0; i < k; i++) out[i] = Math.floor(i * stride);
-    return out;
 }
 
 // ------------------------------------------------------------- filtering

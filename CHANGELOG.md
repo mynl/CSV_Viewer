@@ -1,5 +1,41 @@
 # Changelog
 
+## 3.2.0 (in progress)
+
+Stage A of `dev/plan-3.2-export-inference-responsive.md` — inference
+quality (Stages B export and C responsive toolbar to follow). Pure
+`core.js`/`util.js`; no startup cost beyond cheap checks in loops that
+already ran.
+
+- **Null tokens don't demote a column** — `NaN`, `NA`, `N/A`, `#N/A`,
+  `null`, `none`, `-`, `--`, `.` (case-insensitive) are treated like blanks
+  by inference, so a stray "NaN" no longer turns a numeric column into
+  text. They render as empty cells in number/date columns; text columns
+  keep the literal token (it may be a real category).
+- **Type decided from a sample** — a column's number/date/text decision is
+  now made from a stride sample of up to 2048 rows, not every row. One
+  oddball deep in a large file can't demote an otherwise-clean numeric/date
+  column; the stray cell is left unparsed and **rendered raw** (never
+  hidden), and sorts as blank. Files ≤ 2048 rows are unchanged (sample =
+  all rows). The typed values array is still built over every row.
+- **Identifier columns lose the commas** — integer columns whose header
+  looks like a code/key (`id`, `no`, `number`, `account`, `policy`,
+  `order`, `zip`, `invoice`, `sku`, … — header text only) format as plain
+  integers (`100200`, not `100,200`). Money-word headers win the overlap
+  (`Order Amount`, `Account Balance` stay 2dp), and a year header/range
+  still wins over both.
+- **Leading-zero codes stay text** — a value that parses as a number but
+  carries a significant leading zero (`007`, `01234`) forces the column to
+  text so the zero survives; plain `0` and `0.5` are unaffected.
+- **Ambiguous-date note** — all-numeric date columns are still read
+  best-effort (month-first US m/d/y unless a day > 12 forces day-first). A
+  column whose order was never pinned by the data is flagged; the viewer
+  shows a lower-right footer note, e.g. *"Dates in Open Date, Close Date
+  read as US m/d/y (ambiguous)."* Grid exposes `ambiguousDateCols`.
+- **Tunables rounded to powers of two** — `WIDTH_SAMPLE` and `renderCap`
+  2000 → 2048, `eagerCells` 200000 → 262144. (`sampleIndices` moved to
+  `core.js`; the inference and width samples share the 2048 figure.)
+
 ## 3.1.0 (2026-06-13)
 
 All of `dev/plan-3.1-options-responsive-fileassoc.md`: coverage column

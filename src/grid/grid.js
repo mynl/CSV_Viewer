@@ -33,8 +33,8 @@
  *                           scroll for the rest); null = unbounded
  *   height: null            raw CSS max-height for the scroll viewport
  *                           (e.g. '400px'); overrides maxRows when set
- *   renderCap: 2000         rows rendered before "show all"
- *   eagerCells: 200000      below this, format + index everything at load
+ *   renderCap: 2048         rows rendered before "show all"
+ *   eagerCells: 262144      below this, format + index everything at load
  *   worker: true            parse worker for csv >= ~1 MB; false = always
  *                           synchronous; or an explicit worker URL
  *   headerMode: 'auto'      'auto' | 'first-row' | 'headerless'
@@ -56,7 +56,7 @@ import { parseFormatSpec, parseAlignSpec, formatCell, normalizeRecords,
          cellClass, escapeHtml, CELL_PAD, MIN_COL } from './util.js';
 
 const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
-const WIDTH_SAMPLE = 2000;        // rows sampled per column for width percentiles
+const WIDTH_SAMPLE = 2048;        // rows sampled per column for width percentiles
 const INDEX_CHUNK = 10000;        // rows per chunk when building the search index
 
 function el(tag, cls) {
@@ -73,7 +73,7 @@ export default class CsvGrid {
         this.opts = {
             globalSearch: true, columnFilters: true, sortable: true,
             statusBar: true, expandButtons: true, align: null, formats: null,
-            renderCap: 2000, eagerCells: 200000, worker: true,
+            renderCap: 2048, eagerCells: 262144, worker: true,
             headerMode: 'auto', widthMode: 'equal-risk',
             maxRows: null, height: null, ...options,
         };
@@ -93,6 +93,7 @@ export default class CsvGrid {
         this.expandAll = false;  // bypass the squeeze: natural widths + h-scroll (sticky)
         this.manualWidths = new Map();   // col index -> px, set by drag-resize
         this.guessedHeaders = false;
+        this.ambiguousDateCols = [];   // date cols defaulted to US m/d/y (see _install)
         this.view = [];          // row indices after filter + sort
         this.sortCol = null;
         this.sortDir = 1;
@@ -293,6 +294,9 @@ export default class CsvGrid {
         }
         this.fileName = name || '';
         this.guessedHeaders = d.headerless;
+        // date columns whose all-numeric order was unknowable (defaulted to
+        // US m/d/y) — the chrome surfaces this as a note; embedders may read it
+        this.ambiguousDateCols = cols.filter(c => c.ambiguousOrder).map(c => c.name);
         this.headers = d.headers;
         this.rows = rows;
         this.cols = cols;

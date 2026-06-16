@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
