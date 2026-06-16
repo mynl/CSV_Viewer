@@ -76,8 +76,8 @@ value). For per-cell matching use the column filter boxes.
 - **§6 docs**: python `show()` docstring expanded into the full enumerated
   options reference; READMEs + grid header comment updated.
 - dist rebuilt + python assets refreshed; version 3.1.0 in the 3 JS
-  places + python. CHANGELOG 3.1.0 covers the whole plan. **3.1 complete;
-  awaiting Steve's review/commit.** Plan can move to dev/done when he says.
+  places + python. CHANGELOG 3.1.0 covers the whole plan. **3.1 done:
+  Steve tested (incl. light/dark), committed; plan moved to dev/done.**
 
 ## 2026-06-13 — 3.1 drafting started (meta-planning)
 
