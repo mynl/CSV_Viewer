@@ -1,0 +1,25 @@
+Package: csvgrid
+Title: Interactive, Type-Aware Tables from Data Frames (the 'csv-viewer' Grid)
+Version: 3.3.0
+Authors@R:
+    person("Stephen J.", "Mildenhall", , "stephen.j.mildenhall@gmail.com",
+           role = c("aut", "cre"))
+Description: Render a data frame or tibble as an interactive 'CsvGrid'
+    table, the embeddable grid from the 'csv-viewer' project. Columns are
+    typed automatically (number, date, text) with opinionated formatting:
+    numbers right-aligned with thousands separators and uniform decimals,
+    ratio and rate columns as percentages, identifier-like columns without
+    separators, dates as ISO and centered, text left-aligned, and
+    equal-risk column-width allocation. Includes fuzzy global search,
+    per-column filters, and sortable headers. A drop-in alternative to
+    'DT::datatable()' for the common case. Works in the 'RStudio' Viewer,
+    'R Markdown', 'Quarto', and 'shiny' via 'htmlwidgets'.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports:
+    htmlwidgets
+Suggests:
+    DT
+RoxygenNote: 7.3.2
+URL: https://github.com/mynl/CSV_Viewer
+BugReports: https://github.com/mynl/CSV_Viewer/issues

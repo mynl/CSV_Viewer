@@ -1,0 +1,12 @@
+# Dependencies loaded before the csvgrid.js binding runs. Order matters:
+# csv-grid.iife.js must define the global CsvGrid first.
+dependencies:
+  - name: csv-grid
+    version: 3.3.0
+    src: htmlwidgets/lib/csv-grid
+    script: csv-grid.iife.js
+    stylesheet: csv-grid.css
+  - name: csvgrid-widget
+    version: 3.3.0
+    src: htmlwidgets/lib/csvgrid-widget
+    stylesheet: csvgrid-widget.css

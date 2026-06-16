@@ -1,0 +1,17 @@
+/* Widget-host layout. The htmlwidgets output element gets class
+   "csvgrid html-widget"; CsvGrid renders its toolbar / scroll area /
+   status line as its children. Make the host a flex column that fills its
+   box and let the grid's own scroll area take the slack, so the table
+   scrolls inside the widget instead of the widget overflowing its
+   container (RStudio Viewer fill, fixed-height knitr/Quarto blocks, and
+   Shiny outputs all then behave). The grid's own .csvgrid-* styles
+   (colors, dark mode, fonts) come from csv-grid.css. */
+.csvgrid.html-widget {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.csvgrid.html-widget > .csvgrid-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+}

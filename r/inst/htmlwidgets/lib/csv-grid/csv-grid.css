@@ -1,0 +1,233 @@
+/* csv-grid styles — self-contained, no framework. Namespaced .csvgrid-*
+ * (structural) with table-internal classes scoped under .csvgrid .csvgrid-table.
+ * Replicates the viewer's Bootstrap-era look so embed pages match.
+ *
+ * All colors come from custom properties on .csvgrid (light defaults
+ * below). Dark mode auto-follows the OS via prefers-color-scheme, and a
+ * host can force either theme with .csvgrid[data-theme="dark"|"light"].
+ * The variable indirection also fixes the JupyterLab "white island"
+ * header: the sticky header bg is var(--csvgrid-bg), so it tracks the
+ * surrounding theme instead of a hardcoded #fff. */
+
+.csvgrid {
+    --csvgrid-fg: #212529;
+    --csvgrid-bg: #fff;
+    --csvgrid-muted: #6c757d;
+    --csvgrid-border: #dee2e6;
+    --csvgrid-input-border: #ced4da;
+    --csvgrid-accent: #0d6efd;
+    --csvgrid-focus-ring: rgba(13, 110, 253, 0.25);
+    --csvgrid-row-hover: rgba(0, 0, 0, 0.075);
+    --csvgrid-grip-hover: rgba(13, 110, 253, 0.3);
+    --csvgrid-blank: #adb5bd;
+    --csvgrid-filter-active-bg: #e7f1ff;
+    --csvgrid-error-fg: #842029;
+    --csvgrid-error-bg: #f8d7da;
+    --csvgrid-error-border: #f5c2c7;
+
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--csvgrid-fg);
+}
+.csvgrid-hidden { display: none !important; }
+
+/* Dark palette — auto via the OS unless the host forced light, and
+ * explicitly via [data-theme="dark"]. (Two selectors, one palette.) */
+@media (prefers-color-scheme: dark) {
+    .csvgrid:not([data-theme="light"]) {
+        --csvgrid-fg: #dee2e6;
+        --csvgrid-bg: #1e1e1e;
+        --csvgrid-muted: #adb5bd;
+        --csvgrid-border: #495057;
+        --csvgrid-input-border: #495057;
+        --csvgrid-accent: #6ea8fe;
+        --csvgrid-focus-ring: rgba(110, 168, 254, 0.25);
+        --csvgrid-row-hover: rgba(255, 255, 255, 0.075);
+        --csvgrid-grip-hover: rgba(110, 168, 254, 0.4);
+        --csvgrid-blank: #6c757d;
+        --csvgrid-filter-active-bg: #2b3a55;
+        --csvgrid-error-fg: #ea868f;
+        --csvgrid-error-bg: #2c0b0e;
+        --csvgrid-error-border: #842029;
+    }
+}
+.csvgrid[data-theme="dark"] {
+    --csvgrid-fg: #dee2e6;
+    --csvgrid-bg: #1e1e1e;
+    --csvgrid-muted: #adb5bd;
+    --csvgrid-border: #495057;
+    --csvgrid-input-border: #495057;
+    --csvgrid-accent: #6ea8fe;
+    --csvgrid-focus-ring: rgba(110, 168, 254, 0.25);
+    --csvgrid-row-hover: rgba(255, 255, 255, 0.075);
+    --csvgrid-grip-hover: rgba(110, 168, 254, 0.4);
+    --csvgrid-blank: #6c757d;
+    --csvgrid-filter-active-bg: #2b3a55;
+    --csvgrid-error-fg: #ea868f;
+    --csvgrid-error-bg: #2c0b0e;
+    --csvgrid-error-border: #842029;
+}
+
+/* Toolbar (only generated when globalSearch / expandButtons are on) */
+.csvgrid-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.csvgrid-search {
+    flex: 1;
+    max-width: 320px;
+    min-width: 8em;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--csvgrid-input-border);
+    border-radius: 0.25rem;
+    background: var(--csvgrid-bg);
+    color: var(--csvgrid-fg);
+}
+.csvgrid-search:focus {
+    outline: 0;
+    border-color: var(--csvgrid-accent);
+    box-shadow: 0 0 0 0.25rem var(--csvgrid-focus-ring);
+}
+.csvgrid-btn {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--csvgrid-muted);
+    border-radius: 0.25rem;
+    background: var(--csvgrid-bg);
+    color: var(--csvgrid-muted);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.csvgrid-btn:hover {
+    background: var(--csvgrid-muted);
+    color: var(--csvgrid-bg);
+}
+
+/* Scrollable table region; hosts cap its height / add card chrome */
+.csvgrid-scroll { overflow: auto; }
+
+/* Respond to the GRID's own width (embeds), not the viewport: a narrow
+ * container lets the toolbar wrap and shrinks the search field rather than
+ * overflowing. */
+.csvgrid { container-type: inline-size; }
+@container (max-width: 360px) {
+    .csvgrid-search { max-width: none; flex-basis: 100%; }
+}
+
+/* Widths are pinned per load via <colgroup> + table-layout: fixed (set from
+ * JS); tight when everything fits, equal-risk truncation when it doesn't. */
+.csvgrid .csvgrid-table {
+    border-collapse: collapse;
+    width: auto;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    background: var(--csvgrid-bg);
+}
+.csvgrid .csvgrid-table th,
+.csvgrid .csvgrid-table td {
+    padding: 0.25rem;
+    border-bottom: 1px solid var(--csvgrid-border);
+    text-align: left;
+}
+.csvgrid .csvgrid-table tbody tr:hover td { background: var(--csvgrid-row-hover); }
+
+.csvgrid .csvgrid-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--csvgrid-bg);
+    box-shadow: inset 0 -2px 0 var(--csvgrid-border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.csvgrid .csvgrid-table thead th.csvgrid-nosort { cursor: default; }
+.csvgrid .csvgrid-table thead th .col-resizer {
+    /* th has overflow:hidden, so the grip must sit inside the edge */
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 3;
+}
+.csvgrid .csvgrid-table thead th .col-resizer:hover { background: var(--csvgrid-grip-hover); }
+body.csvgrid-resizing { cursor: col-resize; user-select: none; }
+
+.csvgrid .csvgrid-table thead th .sort-arrow {
+    display: inline-block;
+    width: 1em;
+    color: var(--csvgrid-accent);
+}
+
+.csvgrid .csvgrid-table thead tr.filter-row th {
+    cursor: default;
+    box-shadow: inset 0 -2px 0 var(--csvgrid-border);
+    top: 28px;              /* sits below the (0.8rem) header row */
+    padding: 2px 4px;
+}
+.csvgrid-filter {
+    width: 100%;
+    min-width: 4em;
+    font-size: 0.78rem;
+    padding: 1px 6px;
+    border: 1px solid var(--csvgrid-input-border);
+    border-radius: 0.25rem;
+    background: var(--csvgrid-bg);
+    color: var(--csvgrid-fg);
+}
+.csvgrid-filter:focus {
+    outline: 0;
+    border-color: var(--csvgrid-accent);
+    box-shadow: 0 0 0 0.2rem var(--csvgrid-focus-ring);
+}
+.csvgrid-filter.active-filter {
+    background-color: var(--csvgrid-filter-active-bg);
+    border-color: var(--csvgrid-accent);
+}
+
+.csvgrid .csvgrid-table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.csvgrid .csvgrid-table .col-number { text-align: right; }
+.csvgrid .csvgrid-table .col-date { text-align: center; }   /* greater_tables convention */
+.csvgrid .csvgrid-table .col-text { text-align: left; }
+/* explicit alignment (align option / markdown spec) overrides type alignment */
+.csvgrid .csvgrid-table .align-left { text-align: left; }
+.csvgrid .csvgrid-table .align-center { text-align: center; }
+.csvgrid .csvgrid-table .align-right { text-align: right; }
+.csvgrid .csvgrid-table td.blank { color: var(--csvgrid-blank); }
+
+/* "Showing first N — show all" note below the table */
+.csvgrid-capnote {
+    text-align: center;
+    margin: 1rem 0;
+}
+
+/* Row-counts line (only when statusBar: true generates it) */
+.csvgrid-status {
+    font-size: 0.75rem;
+    color: var(--csvgrid-muted);
+    padding: 3px 0;
+}
+
+/* Load errors ({url} fetch failures, unusable input) */
+.csvgrid-error {
+    margin: 0.5rem 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--csvgrid-error-fg);
+    background: var(--csvgrid-error-bg);
+    border: 1px solid var(--csvgrid-error-border);
+    border-radius: 0.25rem;
+}

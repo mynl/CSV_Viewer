@@ -82,17 +82,25 @@ export default defineConfig(({ mode }) => {
         plugins: [{
             // grid.css is plain CSS (not imported from JS — the source runs
             // natively in dev, where JS-importing CSS would fail); ship it.
-            // The python emitter package carries its own copy of the umd
-            // bundle + css (inlined into notebooks/qmd) — refresh it here
-            // so `npm run build` keeps python/csv_grid in sync.
+            // The python emitter package and the R htmlwidget package each
+            // carry their own copy of the iife bundle + css (inlined into
+            // notebooks/qmd, served as a widget dependency) — refresh both
+            // here so `npm run build` keeps python/csv_grid and r/ in sync.
             name: 'copy-assets',
             closeBundle() {
                 copyFileSync(here('./src/grid/grid.css'), here('./dist/csv-grid.css'));
                 const py = './python/src/csv_grid/assets/';
+                const r = './r/inst/htmlwidgets/lib/csv-grid/';
                 copyFileSync(here('./dist/csv-grid.css'), here(py + 'csv-grid.css'));
+                if (existsSync(here(r))) {
+                    copyFileSync(here('./dist/csv-grid.css'), here(r + 'csv-grid.css'));
+                }
                 // only present after the second (umd + iife) pass
                 if (existsSync(here('./dist/csv-grid.iife.js'))) {
                     copyFileSync(here('./dist/csv-grid.iife.js'), here(py + 'csv-grid.iife.js'));
+                    if (existsSync(here(r))) {
+                        copyFileSync(here('./dist/csv-grid.iife.js'), here(r + 'csv-grid.iife.js'));
+                    }
                 }
             },
         }],

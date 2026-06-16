@@ -73,6 +73,43 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-16 — R package added (`r/`, htmlwidget, GitHub distro)
+
+Third face of the repo, alongside `python/`: an R htmlwidget package
+`csvgrid`, mirroring `DT::datatable` — `csvgrid(df)` from a data frame /
+tibble (full tidyverse for free, tibbles are data frames). Steve's nudge:
+actuaries love R, so this widens the user base. Decisions: htmlwidget (the
+idiomatic R way, same framework DT/plotly use), GitHub-only distribution
+(`remotes::install_github("mynl/CSV_Viewer", subdir="r")`), CRAN deferred
+until/if it gets traction. R's "PyPI" is **CRAN** (stricter: human review,
+`R CMD check` clean, infrequent updates); GitHub and R-universe are the
+fast channels.
+
+Structure: `r/R/csvgrid.R` (the `csvgrid()` widget fn + `csvgrid_payload`
+serializer + Shiny `csvgridOutput`/`renderCsvgrid`), `inst/htmlwidgets/`
+(`csvgrid.js` binding, `csvgrid.yaml` deps, `csvgrid-widget.css` flex-fill
+layout, `lib/csv-grid/` = copied iife.js + css), `man/` hand-written `.Rd`,
+`demo.R` (side-by-side vs DT: a stocks frame for dates/variable-width
+text/percent + mtcars), comprehensive `README.md`. Wired the asset copy
+into vite's `copy-assets` plugin so `npm run build` refreshes `r/` like it
+does `python/`. No app/grid change, so no VERSION bump; package is 3.3.0
+to match.
+
+Key implementation notes: the grid takes `new CsvGrid(el, {records,
+columns, name}, opts)` with **array-of-arrays records, columns required**;
+the binding's `resize()` calls `grid.applyLayout()` because the grid keeps
+no resize listener of its own (it solves widths vs `parent.clientWidth`).
+Serializer: dates→ISO, factors/logicals→character, NA→null; whole-valued
+doubles serialize without `.0` (unlike Python's json) so no integral-int
+dance needed. Used `TOJSON_ARGS = list(digits=NA, na="null")` so raw
+numbers keep full precision (grid does the rounding). Validated the
+serializer in R 4.3.2 (jsonlite only; htmlwidgets not installed here):
+precision, NA→null, ISO dates, mtcars row-name leading `" "` column, and
+single-column arrays all correct. Bug caught + fixed: `cbind(...,
+check.names=FALSE)` collides with `cbind.data.frame` — build the column
+list directly instead. Full widget render still untested locally
+(htmlwidgets absent); install recipe handed to Steve.
+
 ## 2026-06-16 — Stage D executed (3.3.0: big-int, percent, raw mode)
 
 - All three parts landed, smoke green, dist rebuilt, version → **3.3.0** (app.js
