@@ -1,4 +1,7 @@
 tests/**/*.csv
+# …but commit the small, curated fixtures (the big volume CSVs stay ignored)
+!tests/csv/curated/
+!tests/csv/curated/*.csv
 
 node_modules/
 dev/tmp-big.csv

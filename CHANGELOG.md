@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.2.0 (in progress)
+## 3.2.0 (2026-06-16)
 
 All of `dev/plan-3.2-export-inference-responsive.md` — inference quality,
 export, and a responsive toolbar.

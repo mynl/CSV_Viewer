@@ -1,0 +1,7 @@
+id,name,comment
+1,"Smith, John","He said ""hello, world"" to me"
+2,"O'Brien, Pat","first line
+second line"
+3,plain,"trailing comma,"
+4,"semicolons; and | pipes","tab	between words"
+5,"Zoë — ünïcode","emoji 🎲🎯 ok"

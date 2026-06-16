@@ -98,9 +98,13 @@ npm run build
 uv run --project python dev/make-embed-test-python.py
 ```
 
-**Test data**: `dev/sample.csv` (quoted fields, commas in values,
-currency, paren negatives, ISO + US dates, blanks) for manual testing.
-Fixtures: `dev/embed-test.html` (dist UMD, two grids, works from
+**Test data**: a committed curated set lives in `tests/csv/curated/`
+(`sample.csv`, the two bank exports, plus `dates.csv`, `numbers.csv`,
+`giant-ints.csv`, `quotes.csv`) and `tests/md/` — each targets a specific
+parsing/inference/formatting corner; see `tests/README.md`. The large
+volume/perf CSVs under `tests/csv/` are git-ignored (`tests/**/*.csv`, with
+`tests/csv/curated/` exempted). Embed/worker fixtures: `dev/embed-test.html`
+(dist UMD, two grids, works from
 file://), `dev/embed-test-es.html` (dist ES import, serve),
 `dev/worker-test.html` / `dev/worker-test-dist.html` (worker pathing —
 generate `dev/tmp-big.csv` first, recipe in the file),

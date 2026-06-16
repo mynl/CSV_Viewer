@@ -54,6 +54,67 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-16 — Stage D planned (big-int, percent, raw mode)
+
+- Plan at `dev/plan-3.3-bigint-percent-rawmode.md`, target **3.3.0**. Added a
+  "How formatting is decided" spec section to README (current rules; D1/D2/D3
+  fold in when they land).
+- **D1 big-int (correctness fix):** integers > 2^53 lose float precision and
+  distinct values collide (prime lists corrupt). Fix: integer-form token
+  beyond 2^53 → column becomes **text**, digits verbatim, **right-aligned**
+  (Steve: "they are numbers, right-align is just plain right"). Pure string
+  test (len/lexical vs `9007199254740991`), no BigInt, ~0 cost. Loses numeric
+  filters on that column (sort still ok via numeric collator).
+- **D2 percent:** ratio headers (roe/coc/lr/ratio/rate/return/…) + value gate
+  **max|x| ≤ 2.0** (200%; Steve expects −1…2, not floored at 0) → `0.625 →
+  62.5%`. Floats only; precedence **before money** (else `loss_ratio` caught
+  by `loss`). Decimal rule + word list OPEN — **must check greater_tables**.
+- **D3 raw mode (Steve: "sadly we need it"):** global lens that keeps type
+  inference (so align + sort work) but renders **verbatim source** — no
+  separators/2dp/ISO/eng/percent. It's a *view* lens, NOT a load option
+  (parsing unchanged). **Control lives in the FOOTER** (`#status-bar`,
+  Steve's call, Sublime-style) — two-state slider `Inferred ⟷ Raw`, default
+  Inferred, **bottom-right**; row-count status left (flex-grow/truncate),
+  ambiguous-date note sits *left of* the slider so the slider stays pinned
+  (doesn't move when the note toggles). Different category from the top
+  layout controls, out of prime toolbar space (no quintet growth / More fold /
+  breakpoint nudge). `grid.setDisplayMode()` re-formats + re-measures, no
+  re-parse. **Independent** of export raw/formatted (view defaults Inferred,
+  export defaults raw — different use cases; I dropped the coupling idea).
+  Coding M; startup ~0.
+- Sequence D1 → D2 → D3; each bumps to 3.3.0 + rebuild dist + smoke.
+- **Backlog (~3.4):** per-column raw (needs column-header UI) — on the list,
+  not in 3.3.
+
+## 2026-06-16 — 3.2.0 released + repo tidy
+
+- 3.2.0 finalized: CHANGELOG dated, `plan-3.2-…md` moved to `dev/done/`.
+  All three stages + the responsive fine-tuning are in.
+- **dev/ tidy.** Surfaced that most of `dev/` is documented infrastructure
+  (smoke test wired to `npm test`, embed/worker fixtures, `make-embed`,
+  `python-payload.json`) — left in place. Only the *sample data* moved:
+  `sample.csv` + the two bank exports → `tests/csv/curated/`,
+  `sample-table.md` → `tests/md/`. Updated CLAUDE.md + README refs.
+- **gitignore gotcha:** `tests/**/*.csv` ignores ALL test CSVs (keeps the
+  44 MB volume fixtures out of git). Added an exception so a committed
+  curated set can live at `tests/csv/curated/` (`!tests/csv/curated/` +
+  `!tests/csv/curated/*.csv`); md isn't ignored so `tests/md/` is fine.
+- **New curated fixtures** (`tests/csv/curated/`): `dates.csv` (iso/us/uk/
+  ambiguous/month-name/2-digit/datetime + an invalid-date column that
+  demotes to text), `numbers.csv` (int/year/id/money/float/eng/%/parens/
+  leading-zero-zip/null-tokens), `giant-ints.csv` (float64 precision loss
+  >2^53), `quotes.csv` (RFC-4180 edge strings); `tests/md/alignment.md`.
+  All verified against the real pipeline; documented in new `tests/README.md`.
+- **Confirmed quirks (documented):** `2/30/2020` etc. fail date parse → in a
+  small file the whole column falls back to text (renders raw); ints >2^53
+  silently round (e.g. sixteen-nines → 1e16); trailing `%` parses as ×1/100
+  (`12.5%`→0.125); leading-zero codes (`07030`) force text even for id-ish
+  headers; `NaN`/`NA` render blank without demoting.
+- **`dev/icon-build/`**: NOT a test — it's the recipe + 2 HTML pages to
+  rasterize the PWA icons from the bi-table glyph via headless Edge. Only
+  needed when icons change. Recommended keep (documents provenance); left in
+  place pending Steve's call.
+
 ## 2026-06-16 — 3.2 Stage C landed (responsive toolbar, 4 clean phases)
 
 - Steve's spec: four discrete phases, no bit-by-bit button wrapping. (1)
