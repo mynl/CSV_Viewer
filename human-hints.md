@@ -54,6 +54,32 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-16 — 3.2 Stage C landed (responsive toolbar, 4 clean phases)
+
+- Steve's spec: four discrete phases, no bit-by-bit button wrapping. (1)
+  ≥xxl full labels; (2) lg–xxl icons inline; (3) md–lg Row1/Copy/Save/Open
+  fold to "⋯ More" (quintet + search + More on one line); (4) <md search
+  takes its own full-width line, buttons drop below as one group → brand /
+  search / buttons stacked (phone). The earlier jank was flex-wrap peeling
+  buttons off between ~576–768.
+- **Key fix (CSS-only):** force `#global-filter { flex:1 1 100%; max-width:
+  none !important }` at `<md` (767.98) so search owns a line and buttons
+  wrap below as a block; cap search `max-width:14rem !important` at `<lg` so
+  phase 3 stays one line. **!important needed** — the input has an inline
+  `max-width:320px` that beats plain rules.
+- Label-collapse stays at xxl (1399.98); More fold stays at lg (992,
+  `d-lg-*` in index.html). Quintet always visible (NOT folded into More) —
+  phase 4 shows quintet icons + More below search.
+- No HTML/JS change in this pass, no dist rebuild. Breakpoints all tunable
+  in app.css + the d-lg-* classes.
+- app.js: `doExport` → `runExport(src, …)` resolves the enclosing dropdown
+  (`.btn-group`/`.dropdown`) for that menu's Format-values toggle + a button
+  to flash; `openAction`/`headerAction`/`syncHeaderActive` shared by inline
+  button and More item (Row-1 `.active` synced across both). No src/grid
+  change in Stage C, so no dist rebuild needed.
+- All three 3.2 stages now implemented; CHANGELOG still "(in progress)" —
+  finalize the date when Steve confirms done (then plan → dev/done).
+
 ## 2026-06-16 — 3.2 Stage B landed (export: Copy / Save)
 
 - `grid.export({scope,format,values})` in grid.js; pure `toCSV`/`toMarkdown`

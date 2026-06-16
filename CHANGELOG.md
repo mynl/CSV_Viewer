@@ -2,8 +2,32 @@
 
 ## 3.2.0 (in progress)
 
-Stages A + B of `dev/plan-3.2-export-inference-responsive.md` — inference
-quality and export (Stage C responsive toolbar to follow).
+All of `dev/plan-3.2-export-inference-responsive.md` — inference quality,
+export, and a responsive toolbar.
+
+### Responsive toolbar (Stage C)
+
+The viewer toolbar now steps through four clean phases as the window
+narrows, instead of wrapping buttons onto a second line one at a time:
+
+1. **≥ 1500px** — every button shows its full label. The cutoff sits above
+   the ~1450px the full bar needs, so buttons collapse to icons before Open
+   could wrap to a second line.
+2. **992–1500px** — labels collapse to icons; all buttons stay inline
+   (tooltips carry the names).
+3. **md–lg (768px)** — **Row 1, Copy, Save, Open** fold into a single
+   right-aligned **"⋯ More"** dropdown; the search box is capped so search +
+   the always-visible quintet (Clear, Balanced|Maximize, Expand, Contract) +
+   More keep to one line.
+4. **< md (768px)** — the search box takes its own full-width line and the
+   buttons drop below it as one group, so brand / search / buttons end up
+   neatly stacked (phone mode); the version number is dropped here too, the
+   moment the bar stacks, so it doesn't flicker in and out.
+
+Breakpoint-static (Bootstrap display utilities + a few media queries), no JS
+width measuring; the inline and "More" layouts share one set of handlers
+(only markup is duplicated). Easy to retune (`app.css` media queries + the
+`d-lg-*` classes in `index.html`).
 
 ### Export (Copy / Save)
 

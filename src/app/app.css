@@ -38,15 +38,34 @@
     text-overflow: ellipsis;
 }
 
-/* Responsive navbar: below the lg breakpoint collapse the toolbar button
- * labels to their icons so the one-row toolbar stays usable down to phone
- * width (it wraps to a second row as a last resort). */
-@media (max-width: 991.98px) {
+/* Responsive navbar — four clean phases as the window narrows, so buttons
+ * never peel onto a second line one at a time (flex-wrap is only the
+ * last-ditch fallback):
+ *   1. >= 1500px:       every button shows its full label. The cutoff sits
+ *                      above the ~1450px the full labeled bar needs, so the
+ *                      buttons collapse to icons before Open could wrap.
+ *   2. 992-1500:       labels collapse to icons; all buttons stay inline
+ *                      (tooltips carry the names).
+ *   3. md-lg  (768):   Row 1 / Copy / Save / Open fold into the "More"
+ *                      dropdown (markup in index.html, d-lg-* classes); the
+ *                      search box is capped so search + quintet + More keep
+ *                      to one line.
+ *   4. < md   (768):   the search box takes its own full-width line and ALL
+ *                      buttons drop below it as one group (brand / search /
+ *                      buttons end up stacked — phone mode); the version
+ *                      number drops here too, the moment the bar stacks, so
+ *                      it doesn't flicker in and out.
+ * Breakpoints retune here + on the d-lg-* classes in index.html. Overrides
+ * use !important to beat the input's inline max-width. */
+@media (max-width: 1499.98px) {
     #toolbar .btn-label { display: none; }
 }
-@media (max-width: 575.98px) {
+@media (max-width: 991.98px) {
+    #global-filter { max-width: 14rem !important; }
+}
+@media (max-width: 767.98px) {
+    #global-filter { flex: 1 1 100%; max-width: none !important; }
     #header-version { display: none; }
-    #global-filter { max-width: none !important; }
 }
 
 /* Copy / Save split-button menus: positioned by us (no Bootstrap JS /

@@ -59,15 +59,19 @@
                         title="Back to fitted widths (the selected fit method); also clears any dragged widths">
                     <i class="bi bi-arrows-angle-contract"></i><span class="btn-label"> Contract</span>
                 </button>
-                <button id="header-btn" class="btn btn-sm btn-outline-secondary"
+                <button id="header-btn" class="btn btn-sm btn-outline-secondary header-toggle d-none d-lg-inline-block"
                         title="Toggle: row 1 is a header row (auto-detected on load; click to re-interpret)">
                     <i class="bi bi-card-heading"></i><span class="btn-label"> Row 1 = header</span>
                 </button>
-                <!-- Copy: split-button. Primary = copy current view as CSV;
-                     caret menu = view/whole-table × CSV/Markdown + a uniform
-                     raw|formatted toggle. Dropdowns are driven by app.js
+                <!-- Right cluster. From lg up these show inline; below lg they
+                     fold into the "More" dropdown at the end (same handlers,
+                     so logic is shared — only markup is duplicated). The
+                     quintet (search, Clear, fit, Expand, Contract) always
+                     stays visible. Copy: split-button, primary = copy current
+                     view as CSV; caret menu = view/whole-table × CSV/Markdown
+                     + a raw|formatted toggle. Dropdowns are driven by app.js
                      (Bootstrap CSS only, no Bootstrap JS). -->
-                <div class="btn-group btn-group-sm ms-auto" role="group">
+                <div class="btn-group btn-group-sm ms-auto d-none d-lg-flex" role="group">
                     <button id="copy-btn" type="button" class="btn btn-outline-secondary"
                             title="Copy the current view to the clipboard as CSV">
                         <i class="bi bi-clipboard"></i><span class="btn-label"> Copy</span>
@@ -93,7 +97,7 @@
                 </div>
                 <!-- Save: same four scope×format actions, written to a file
                      (CSV gets a UTF-8 BOM for Excel). -->
-                <div class="btn-group btn-group-sm" role="group">
+                <div class="btn-group btn-group-sm d-none d-lg-flex" role="group">
                     <button id="save-btn" type="button" class="btn btn-outline-secondary"
                             title="Save the current view as a CSV file">
                         <i class="bi bi-download"></i><span class="btn-label"> Save</span>
@@ -117,9 +121,42 @@
                         </li>
                     </ul>
                 </div>
-                <button id="open-btn" class="btn btn-sm btn-outline-primary">
+                <button id="open-btn" class="btn btn-sm btn-outline-primary open-action d-none d-lg-inline-block">
                     <i class="bi bi-folder2-open"></i><span class="btn-label"> Open</span>
                 </button>
+                <!-- Narrow-width overflow: a single "More" menu carrying the
+                     folded controls (Open, Row 1, Copy/Save actions). Visible
+                     only below lg; the inline buttons above replace it from lg
+                     up. Items reuse the same classes / data-attributes, so
+                     app.js wires both layouts with one set of handlers. -->
+                <div class="dropdown ms-auto d-lg-none">
+                    <button id="more-btn" type="button" class="btn btn-sm btn-outline-secondary csv-menu-toggle"
+                            aria-expanded="false" title="More actions">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><button type="button" class="dropdown-item open-action"><i class="bi bi-folder2-open me-2"></i>Open file&hellip;</button></li>
+                        <li><button type="button" class="dropdown-item header-toggle"><i class="bi bi-card-heading me-2"></i>Row 1 = header</button></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Copy to clipboard</h6></li>
+                        <li><button type="button" class="dropdown-item" data-export="copy" data-scope="view" data-format="csv">Current view &rarr; CSV</button></li>
+                        <li><button type="button" class="dropdown-item" data-export="copy" data-scope="view" data-format="md">Current view &rarr; Markdown</button></li>
+                        <li><button type="button" class="dropdown-item" data-export="copy" data-scope="all" data-format="csv">Whole table &rarr; CSV</button></li>
+                        <li><button type="button" class="dropdown-item" data-export="copy" data-scope="all" data-format="md">Whole table &rarr; Markdown</button></li>
+                        <li><h6 class="dropdown-header">Save to file</h6></li>
+                        <li><button type="button" class="dropdown-item" data-export="save" data-scope="view" data-format="csv">Current view &rarr; CSV</button></li>
+                        <li><button type="button" class="dropdown-item" data-export="save" data-scope="view" data-format="md">Current view &rarr; Markdown</button></li>
+                        <li><button type="button" class="dropdown-item" data-export="save" data-scope="all" data-format="csv">Whole table &rarr; CSV</button></li>
+                        <li><button type="button" class="dropdown-item" data-export="save" data-scope="all" data-format="md">Whole table &rarr; Markdown</button></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <label class="dropdown-item d-flex align-items-center gap-2 mb-0">
+                                <input type="checkbox" class="form-check-input mt-0 export-formatted">
+                                Format values (as shown)
+                            </label>
+                        </li>
+                    </ul>
+                </div>
             </div>
         </div>
     </nav>

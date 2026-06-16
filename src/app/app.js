@@ -45,7 +45,7 @@ function loadText(text, fileName, headerOverride = null) {
             $('table-view').classList.remove('d-none');
             $('toolbar').classList.remove('d-none');
             $('status-bar').classList.remove('d-none');
-            $('header-btn').classList.toggle('active', !grid.guessedHeaders);
+            syncHeaderActive();
             setDateNote();
             grid.applyLayout();   // width solve needs the table visible
         })
@@ -139,8 +139,9 @@ function initEvents() {
         $('global-filter').value = '';
         grid.clearFilters();
     });
-    // Open returns to ingest and clears any stale text in the paste area
-    $('open-btn').addEventListener('click', () => { $('paste-input').value = ''; showIngest(); });
+    // Open (inline button + "More" menu item): back to ingest, clearing any
+    // stale paste text
+    document.querySelectorAll('.open-action').forEach(el => el.addEventListener('click', openAction));
     // separate buttons by design — no mode-flipping play/pause toggles
     $('expand-btn').addEventListener('click', () => grid.expand());
     $('contract-btn').addEventListener('click', () => grid.contract());
@@ -148,9 +149,8 @@ function initEvents() {
     $('fit-balanced').addEventListener('click', () => setFit('equal-risk'));
     $('fit-maximize').addEventListener('click', () => setFit('coverage'));
     // re-interpret the loaded data with the opposite header assumption
-    $('header-btn').addEventListener('click', () => {
-        if (rawText) loadText(rawText, loadedFileName, guessedHeaders);
-    });
+    // (inline Row-1 button + "More" menu item share the handler)
+    document.querySelectorAll('.header-toggle').forEach(el => el.addEventListener('click', headerAction));
 
     initMenus();
     initExport();
@@ -167,6 +167,26 @@ function initEvents() {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
         document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
     });
+}
+
+// --- folded controls (shared by the inline buttons and the "More" menu) ---
+
+/* Back to ingest, clearing any stale text in the paste area. */
+function openAction() {
+    $('paste-input').value = '';
+    showIngest();
+}
+
+/* Re-interpret the loaded data with the opposite header assumption. */
+function headerAction() {
+    if (rawText) loadText(rawText, loadedFileName, guessedHeaders);
+}
+
+/* Reflect the current header interpretation on every Row-1 control (the
+ * inline button and the "More" menu item). */
+function syncHeaderActive() {
+    document.querySelectorAll('.header-toggle')
+        .forEach(el => el.classList.toggle('active', !grid.guessedHeaders));
 }
 
 // --- export (Copy / Save) -------------------------------------------------
@@ -194,22 +214,27 @@ function initMenus() {
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
 }
 
-/* Wire the primary buttons (view → CSV) and every menu action. */
+/* Wire the primary split-buttons (view → CSV) and every menu action, across
+ * both the inline split-buttons and the narrow "More" menu. */
 function initExport() {
-    $('copy-btn').addEventListener('click', () => doExport('copy', 'view', 'csv', $('copy-btn')));
-    $('save-btn').addEventListener('click', () => doExport('save', 'view', 'csv', $('save-btn')));
+    $('copy-btn').addEventListener('click', e => runExport(e.currentTarget, 'copy', 'view', 'csv'));
+    $('save-btn').addEventListener('click', e => runExport(e.currentTarget, 'save', 'view', 'csv'));
     document.querySelectorAll('#toolbar [data-export]').forEach(item =>
-        item.addEventListener('click', () => doExport(
-            item.dataset.export, item.dataset.scope, item.dataset.format,
-            item.dataset.export === 'copy' ? $('copy-btn') : $('save-btn'))));
+        item.addEventListener('click', e => runExport(e.currentTarget,
+            item.dataset.export, item.dataset.scope, item.dataset.format)));
 }
 
-function doExport(sink, scope, format, btn) {
-    const cb = btn.closest('.btn-group').querySelector('.export-formatted');
+/* Resolve the source control's enclosing dropdown (a Copy/Save split-button
+ * or the narrow "More" menu) to read that menu's Format-values toggle and
+ * find a button to flash, then export. */
+function runExport(src, sink, scope, format) {
+    const box = src.closest('.btn-group, .dropdown');
+    const cb = box && box.querySelector('.export-formatted');
     const values = cb && cb.checked ? 'formatted' : 'raw';
+    const flashBtn = box ? box.querySelector('button') : src;
     const text = grid.export({ scope, format, values });
-    if (sink === 'copy') copyText(text, btn);
-    else saveText(text, format, btn);
+    if (sink === 'copy') copyText(text, flashBtn);
+    else saveText(text, format, flashBtn);
 }
 
 /* Clipboard copy (writeText on https/localhost/PWA; a hidden-textarea
