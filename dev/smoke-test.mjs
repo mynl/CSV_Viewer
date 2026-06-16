@@ -8,7 +8,7 @@ import { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
          parseMarkdownTable, splitMdRow, isNullToken } from '../src/grid/core.js';
 import { formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
          solveWidths, sampleIndices, parseFormatSpec, formatWithSpec,
-         parseAlignSpec, normalizeRecords } from '../src/grid/util.js';
+         parseAlignSpec, normalizeRecords, toCSV, toMarkdown } from '../src/grid/util.js';
 
 let failures = 0;
 function check(label, got, want) {
@@ -262,6 +262,25 @@ check('A5 ISO not ambiguous',
       inferColumns(['d'], [['2024-01-05'], ['2024-02-06']])[0].ambiguousOrder, false);
 check('A5 month-name not ambiguous',
       inferColumns(['d'], [['Jan 5, 2024'], ['Feb 6, 2024']])[0].ambiguousOrder, false);
+
+// --- 3.2 Stage B: export serializers ------------------------------------
+
+check('toCSV basic', toCSV(['a', 'b'], [['1', '2'], ['3', '4']]), 'a,b\r\n1,2\r\n3,4');
+check('toCSV quotes comma/quote/newline',
+      toCSV(['x'], [['a,b'], ['he said "hi"'], ['line1\nline2']]),
+      'x\r\n"a,b"\r\n"he said ""hi"""\r\n"line1\nline2"');
+check('toCSV no quote when clean', toCSV(['x'], [['plain']]), 'x\r\nplain');
+check('toCSV null/undefined -> empty', toCSV(['a', 'b'], [[null, undefined]]), 'a,b\r\n,');
+check('toMarkdown alignment row (compact, no inner spaces)',
+      toMarkdown(['Book', 'Year', 'Price'], [['War & Peace', '1869', '24.99']],
+                 ['left', 'center', 'right']),
+      '| Book | Year | Price |\n|:---|:--:|---:|\n| War & Peace | 1869 | 24.99 |');
+check('toMarkdown escapes pipe, collapses newline',
+      toMarkdown(['x'], [['a|b'], ['line1\nline2']]),
+      '| x |\n|---|\n| a\\|b |\n| line1 line2 |');
+check('toMarkdown default separator when no aligns',
+      toMarkdown(['a', 'b'], [['1', '2']]),
+      '| a | b |\n|---|---|\n| 1 | 2 |');
 
 // --- cleanCsvText (1.4): BOM + leading blank lines
 check('clean bom', cleanCsvText('﻿a,b\n1,2'), 'a,b\n1,2');

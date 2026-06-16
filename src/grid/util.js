@@ -103,6 +103,39 @@ export function formatCell(raw, col, r) {
     return raw;
 }
 
+// -------------------------------------------------------- export serializers
+
+/* RFC 4180 CSV. A field is quoted iff it contains a quote, comma, CR or LF;
+ * embedded quotes are doubled. CRLF line endings (Excel-friendly). Cells
+ * stringify; null/undefined -> ''. Headers are row 1. (The UTF-8 BOM for
+ * file saves is added by the caller, not here — clipboard copies omit it.) */
+export function toCSV(headers, rows2d) {
+    const q = s => {
+        s = (s ?? '') + '';
+        return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const line = cells => cells.map(q).join(',');
+    const out = [line(headers)];
+    for (const row of rows2d) out.push(line(row));
+    return out.join('\r\n');
+}
+
+/* GitHub-flavored markdown pipe table. `aligns[i]` is 'left'|'center'|
+ * 'right' (anything else -> no alignment marker); the separator row encodes
+ * it (:-- / :-: / --:). Embedded pipes are escaped, newlines collapse to a
+ * space (a cell can't span table rows). Outer pipes included. */
+export function toMarkdown(headers, rows2d, aligns = []) {
+    const esc = s => ((s ?? '') + '').replace(/\|/g, '\\|').replace(/\s*\r?\n\s*/g, ' ');
+    const sep = a => a === 'right' ? '---:' : a === 'center' ? ':--:' : a === 'left' ? ':---' : '---';
+    const line = cells => '| ' + cells.map(esc).join(' | ') + ' |';
+    // delimiter row compact, no inner spaces — some parsers (e.g. Sublime)
+    // only recognize alignment markers in the form |:---|---:|
+    const delim = '|' + headers.map((_, i) => sep(aligns[i])).join('|') + '|';
+    const out = [line(headers), delim];
+    for (const row of rows2d) out.push(line(row));
+    return out.join('\n');
+}
+
 // ------------------------------------------------------------ records data
 
 /* Normalize {records, columns} data to a processData-shaped result:

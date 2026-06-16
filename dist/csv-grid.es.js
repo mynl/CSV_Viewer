@@ -92,7 +92,7 @@ function s(e) {
 		aligns: r
 	};
 }
-var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, l = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/, u = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, d = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, f = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, p = [
+var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, l = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/, u = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, d = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, f = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, ee = [
 	"january",
 	"february",
 	"march",
@@ -105,7 +105,7 @@ var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)
 	"october",
 	"november",
 	"december"
-], m = new Set([
+], p = new Set([
 	"nan",
 	"na",
 	"n/a",
@@ -116,10 +116,10 @@ var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)
 	"--",
 	"."
 ]);
-function h(e) {
-	return m.has((e ?? "").trim().toLowerCase());
+function m(e) {
+	return p.has((e ?? "").trim().toLowerCase());
 }
-function g(e) {
+function h(e) {
 	if (e = e.trim(), !c.test(e)) return null;
 	let t = !1;
 	e.startsWith("(") && e.endsWith(")") && (t = !0, e = e.slice(1, -1));
@@ -134,59 +134,59 @@ function g(e) {
 		dec: l
 	};
 }
-function _(e) {
-	let t = e.toLowerCase(), n = p.findIndex((e) => e.startsWith(t) || t === "sept" && e === "september");
+function g(e) {
+	let t = e.toLowerCase(), n = ee.findIndex((e) => e.startsWith(t) || t === "sept" && e === "september");
 	return n < 0 || t.length < 3 ? null : n + 1;
 }
-function v(e) {
+function _(e) {
 	return e = +e, e < 100 ? e < 50 ? 2e3 + e : 1900 + e : e;
 }
-function y(e, t, n, r = 0, i = 0, a = 0, o = !1) {
+function v(e, t, n, r = 0, i = 0, a = 0, o = !1) {
 	let s = new Date(e, t - 1, n, r, i, a);
 	return s.getFullYear() !== e || s.getMonth() !== t - 1 || s.getDate() !== +n ? null : {
 		t: s.getTime(),
 		hasTime: o
 	};
 }
-function b(e, t = !1) {
+function y(e, t = !1) {
 	e = e.trim();
 	let n = l.exec(e);
 	if (n) {
 		let [, e, t, r, i, a, o] = n;
-		return y(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), i !== void 0);
+		return v(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), i !== void 0);
 	}
 	if (n = u.exec(e), n) {
 		let [, e, , r, i] = n;
-		if (e.length === 4 && i.length <= 2) return y(+e, +r, +i);
+		if (e.length === 4 && i.length <= 2) return v(+e, +r, +i);
 		if (e.length <= 2 && (i.length === 4 || i.length === 2)) {
-			let n = v(i);
-			return +e > 12 && +r <= 12 ? y(n, +r, +e) : +r > 12 && +e <= 12 ? y(n, +e, +r) : t ? y(n, +r, +e) : y(n, +e, +r);
+			let n = _(i);
+			return +e > 12 && +r <= 12 ? v(n, +r, +e) : +r > 12 && +e <= 12 ? v(n, +e, +r) : t ? v(n, +r, +e) : v(n, +e, +r);
 		}
 		return null;
 	}
 	if (n = d.exec(e), n) {
-		let e = _(n[2]);
-		return e ? y(v(n[3]), e, +n[1]) : null;
+		let e = g(n[2]);
+		return e ? v(_(n[3]), e, +n[1]) : null;
 	}
 	if (n = f.exec(e), n) {
-		let e = _(n[1]);
-		return e ? y(v(n[3]), e, +n[2]) : null;
+		let e = g(n[1]);
+		return e ? v(_(n[3]), e, +n[2]) : null;
 	}
 	return null;
 }
-function x(e) {
+function b(e) {
 	let t = u.exec(e.trim());
 	if (!t) return null;
 	let n = t[1], r = t[3], i = t[4];
 	return n.length === 4 || !(i.length === 4 || i.length === 2) ? null : +n > 12 && +r <= 12 ? "day" : +r > 12 && +n <= 12 ? "month" : +n <= 12 && +r <= 12 ? "ambiguous" : null;
 }
-function S(e) {
+function x(e) {
 	return e.some((e) => {
 		let t = (e ?? "").trim();
-		return t !== "" && (g(t) !== null || b(t) !== null);
+		return t !== "" && (h(t) !== null || y(t) !== null);
 	});
 }
-function C(e) {
+function S(e) {
 	let t = (e) => e.type === "date" ? "Date" : e.type === "number" ? e.format === "year" ? "Year" : "Amount" : "Description", n = {}, r = {};
 	e.forEach((e) => {
 		let r = t(e);
@@ -196,23 +196,23 @@ function C(e) {
 		r[i] = (r[i] || 0) + 1, e.name = n[i] > 1 ? `${i} ${r[i]}` : i;
 	});
 }
-var w = /\b(year|yr|vintage|cohort)\b/i, T = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i, ee = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i;
-function E(e, t, n) {
+var C = /\b(year|yr|vintage|cohort)\b/i, w = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i, te = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i;
+function T(e, t, n) {
 	let r = t.filter((e) => e !== null), i = r.every((e) => Number.isInteger(e));
-	if (i && r.length) return w.test(e) || r.every((e) => e >= 1800 && e <= 2100) ? {
+	if (i && r.length) return C.test(e) || r.every((e) => e >= 1800 && e <= 2100) ? {
 		format: "year",
 		dec: 0
-	} : ee.test(e) && !T.test(e) ? {
+	} : te.test(e) && !w.test(e) ? {
 		format: "plain",
 		dec: 0
-	} : T.test(e) ? {
+	} : w.test(e) ? {
 		format: "float",
 		dec: 2
 	} : {
 		format: "int",
 		dec: 0
 	};
-	if (!i && T.test(e)) return {
+	if (!i && w.test(e)) return {
 		format: "float",
 		dec: 2
 	};
@@ -240,7 +240,7 @@ function E(e, t, n) {
 		dec: Math.max(0, Math.min(n, 3 - Math.floor(Math.log10(l)), 6))
 	};
 }
-var D = {
+var E = {
 	"-9": "n",
 	"-6": "µ",
 	"-3": "m",
@@ -250,27 +250,27 @@ var D = {
 	9: "G",
 	12: "T"
 };
-function O(e) {
+function D(e) {
 	if (e === 0) return "0";
 	let t = Math.abs(e), n = Math.floor(Math.log10(t) / 3) * 3;
 	n = Math.max(-9, Math.min(12, n));
 	let r = t / 10 ** n;
-	return (e < 0 ? "-" : "") + Number(r.toPrecision(3)) + D[n];
+	return (e < 0 ? "-" : "") + Number(r.toPrecision(3)) + E[n];
 }
-function k(e, t) {
+function O(e, t) {
 	if (e <= t) return Array.from({ length: e }, (e, t) => t);
 	let n = Array(t), r = e / t;
 	for (let e = 0; e < t; e++) n[e] = Math.floor(e * r);
 	return n;
 }
-var A = 2048, j = /^-?0\d/;
-function M(e, t) {
-	let n = k(t.length, A);
+var k = 2048, A = /^-?0\d/;
+function j(e, t) {
+	let n = O(t.length, k);
 	return e.map((e, r) => {
 		let i = !0, a = !0, o = !1, s = 0;
 		for (let e of n) {
 			let n = (t[e][r] ?? "").trim();
-			if (!(n === "" || h(n)) && (s++, i && (g(n) === null ? i = !1 : !o && j.test(n) && (o = !0)), a && b(n, !1) === null && (a = !1), o || !i && !a)) break;
+			if (!(n === "" || m(n)) && (s++, i && (h(n) === null ? i = !1 : !o && A.test(n) && (o = !0)), a && y(n, !1) === null && (a = !1), o || !i && !a)) break;
 		}
 		if (s === 0 || o) return {
 			name: e,
@@ -281,11 +281,11 @@ function M(e, t) {
 			let n = Array(t.length).fill(null), i = 0;
 			for (let e = 0; e < t.length; e++) {
 				let a = (t[e][r] ?? "").trim();
-				if (a === "" || h(a)) continue;
-				let o = g(a);
+				if (a === "" || m(a)) continue;
+				let o = h(a);
 				o && (n[e] = o.v, o.dec > i && (i = o.dec));
 			}
-			let a = E(e, n, i);
+			let a = T(e, n, i);
 			return {
 				name: e,
 				type: "number",
@@ -298,18 +298,18 @@ function M(e, t) {
 			let n = !1, i = !1, a = !1, o = !1, s = Array(t.length).fill(null);
 			for (let e = 0; e < t.length; e++) {
 				let c = (t[e][r] ?? "").trim();
-				if (c === "" || h(c)) continue;
-				let l = b(c, !1);
+				if (c === "" || m(c)) continue;
+				let l = y(c, !1);
 				l && (s[e] = l.t, i ||= l.hasTime);
-				let u = x(c);
+				let u = b(c);
 				u === "day" ? (n = !0, o = !0) : u === "month" ? o = !0 : u === "ambiguous" && (a = !0);
 			}
 			if (n) {
 				s = Array(t.length).fill(null);
 				for (let e = 0; e < t.length; e++) {
 					let n = (t[e][r] ?? "").trim();
-					if (n === "" || h(n)) continue;
-					let i = b(n, !0);
+					if (n === "" || m(n)) continue;
+					let i = y(n, !0);
 					i && (s[e] = i.t);
 				}
 			}
@@ -328,22 +328,22 @@ function M(e, t) {
 		};
 	});
 }
-function N(e, n = null) {
+function M(e, n = null) {
 	let i, a, c = null, l;
 	if (o(e)) {
 		if ({headers: i, rows: a, aligns: c} = s(e), l = n === !1, l && (a = [i, ...a], i = i.map((e, t) => `col${t + 1}`)), !a.length) throw Error("Markdown table has no data rows.");
 	} else {
 		let o = r(e, t(e));
 		if (o.length < 2) throw Error("Need a header row and at least one data row.");
-		l = n === null ? S(o[0]) : !n, i = l ? o[0].map((e, t) => `col${t + 1}`) : o[0].map((e, t) => e.trim() || `col${t + 1}`), a = (l ? o : o.slice(1)).map((e) => {
+		l = n === null ? x(o[0]) : !n, i = l ? o[0].map((e, t) => `col${t + 1}`) : o[0].map((e, t) => e.trim() || `col${t + 1}`), a = (l ? o : o.slice(1)).map((e) => {
 			if (e.length === i.length) return e;
 			let t = e.slice(0, i.length);
 			for (; t.length < i.length;) t.push("");
 			return t;
 		});
 	}
-	let u = M(i, a);
-	return l && C(u), c && u.forEach((e, t) => {
+	let u = j(i, a);
+	return l && S(u), c && u.forEach((e, t) => {
 		c[t] && (e.align = c[t]);
 	}), {
 		headers: u.map((e) => e.name),
@@ -354,15 +354,15 @@ function N(e, n = null) {
 }
 //#endregion
 //#region src/grid/util.js
-var P = /* @__PURE__ */ new Map();
-function F(e) {
-	let t = P.get(e);
+var N = /* @__PURE__ */ new Map();
+function P(e) {
+	let t = N.get(e);
 	return t || (t = new Intl.NumberFormat("en-US", {
 		minimumFractionDigits: e,
 		maximumFractionDigits: e
-	}), P.set(e, t)), t;
+	}), N.set(e, t)), t;
 }
-function I(e) {
+function F(e) {
 	if (e == null || e === "") return null;
 	if (e === "year" || e === "eng") return { kind: e };
 	let t = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(e);
@@ -373,7 +373,7 @@ function I(e) {
 		dec: t[2] === void 0 ? null : +t[2]
 	};
 }
-var L = [
+var I = [
 	[0xe8d4a51000, "T"],
 	[1e9, "G"],
 	[1e6, "M"],
@@ -383,52 +383,62 @@ var L = [
 	[1e-6, "µ"],
 	[1e-9, "n"]
 ];
-function R(e, t) {
+function L(e, t) {
 	switch (t.kind) {
 		case "year": return String(e);
-		case "eng": return O(e);
+		case "eng": return D(e);
 		case "d": {
 			let n = Math.round(e);
-			return t.comma ? F(0).format(n) : String(n);
+			return t.comma ? P(0).format(n) : String(n);
 		}
 		case "f": {
 			let n = t.dec ?? 2;
-			return t.comma ? F(n).format(e) : e.toFixed(n);
+			return t.comma ? P(n).format(e) : e.toFixed(n);
 		}
 		case "%": {
 			let n = t.dec ?? 0, r = e * 100;
-			return (t.comma ? F(n).format(r) : r.toFixed(n)) + "%";
+			return (t.comma ? P(n).format(r) : r.toFixed(n)) + "%";
 		}
 		case "e": return e.toExponential(t.dec ?? 2);
 		case "s": {
-			if (t.dec === null || t.dec === void 0) return O(e);
+			if (t.dec === null || t.dec === void 0) return D(e);
 			if (e === 0) return 0 .toFixed(t.dec);
 			let n = Math.abs(e);
-			for (let [r, i] of L) if (n >= r) return (e / r).toFixed(t.dec) + i;
+			for (let [r, i] of I) if (n >= r) return (e / r).toFixed(t.dec) + i;
 			return (e / 1e-9).toFixed(t.dec) + "n";
 		}
 	}
 }
-function z(e) {
+function R(e) {
 	return [...e].map((e) => ({
 		l: "left",
 		r: "right",
 		c: "center"
 	})[e] ?? null);
 }
-function B(e, t, n) {
+function z(e, t, n) {
 	if (e = (e ?? "").trim(), e === "") return "";
 	if (t.type === "number") {
 		let r = t.values[n];
-		return r === null ? h(e) ? "" : e : t.fmt ? R(r, t.fmt) : t.format === "year" || t.format === "plain" ? String(r) : t.format === "eng" ? O(r) : F(t.dec).format(r);
+		return r === null ? m(e) ? "" : e : t.fmt ? L(r, t.fmt) : t.format === "year" || t.format === "plain" ? String(r) : t.format === "eng" ? D(r) : P(t.dec).format(r);
 	}
 	if (t.type === "date") {
 		let r = t.values[n];
-		if (r === null) return h(e) ? "" : e;
+		if (r === null) return m(e) ? "" : e;
 		let i = new Date(r), a = (e) => String(e).padStart(2, "0"), o = `${i.getFullYear()}-${a(i.getMonth() + 1)}-${a(i.getDate())}`;
 		return t.hasTime && (o += ` ${a(i.getHours())}:${a(i.getMinutes())}`), o;
 	}
 	return e;
+}
+function B(e, t) {
+	let n = (e) => (e = (e ?? "") + "", /[",\r\n]/.test(e) ? "\"" + e.replace(/"/g, "\"\"") + "\"" : e), r = (e) => e.map(n).join(","), i = [r(e)];
+	for (let e of t) i.push(r(e));
+	return i.join("\r\n");
+}
+function ne(e, t, n = []) {
+	let r = (e) => ((e ?? "") + "").replace(/\|/g, "\\|").replace(/\s*\r?\n\s*/g, " "), i = (e) => e === "right" ? "---:" : e === "center" ? ":--:" : e === "left" ? ":---" : "---", a = (e) => "| " + e.map(r).join(" | ") + " |", o = "|" + e.map((e, t) => i(n[t])).join("|") + "|", s = [a(e), o];
+	for (let e of t) s.push(a(e));
+	return s.join("\n");
 }
 function V(e, t) {
 	if (!Array.isArray(e)) throw Error("CsvGrid: records must be an array.");
@@ -437,7 +447,7 @@ function V(e, t) {
 		if (!t) throw Error("CsvGrid: columns are required with array-of-arrays records.");
 		r = t.map(String), i = e.map((e) => r.map((t, r) => n(e[r])));
 	} else r = (t ?? Object.keys(e[0] ?? {})).map(String), i = e.map((e) => r.map((t) => n(e[t])));
-	let a = M(r, i);
+	let a = j(r, i);
 	return {
 		headers: r,
 		rows: i,
@@ -565,10 +575,10 @@ function X(e, t) {
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
 		let e = t.type === "number" ? (e) => {
-			let t = g(e);
+			let t = h(e);
 			return t ? t.v : NaN;
 		} : (e) => {
-			let t = b(e);
+			let t = y(e);
 			return t ? t.t : NaN;
 		}, r = /^(>=|<=|>|<|=)\s*(.+)$/.exec(n);
 		if (r) {
@@ -607,12 +617,12 @@ function Q(e) {
 }
 //#endregion
 //#region src/grid/grid.js
-var te = 1e6, ne = 2048, re = 1e4;
+var re = 1e6, ie = 2048, ae = 1e4;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var ie = class t {
+var oe = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -710,7 +720,7 @@ var ie = class t {
 	}
 	_parse(t, n, r) {
 		if (t = e(t), !t.trim()) throw Error("No data found.");
-		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= te ? this._getWorker() : null;
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= re ? this._getWorker() : null;
 		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
 			this._pending.set(n, {
 				resolve: e,
@@ -720,7 +730,7 @@ var ie = class t {
 				text: t,
 				headerOverride: i
 			});
-		})) : N(t, i);
+		})) : M(t, i);
 	}
 	_getWorker() {
 		if (this._worker === void 0) {
@@ -746,13 +756,13 @@ var ie = class t {
 	_install(e, t) {
 		let { rows: n, cols: r } = e;
 		if (this.opts.align) {
-			let e = z(this.opts.align);
+			let e = R(this.opts.align);
 			r.forEach((t, n) => {
 				e[n] && (t.align = e[n]);
 			});
 		}
 		if (this.opts.formats && r.forEach((e, t) => {
-			e.fmt = I(this.opts.formats[t]);
+			e.fmt = F(this.opts.formats[t]);
 		}), this.fileName = t || "", this.guessedHeaders = e.headerless, this.ambiguousDateCols = r.filter((e) => e.ambiguousOrder).map((e) => e.name), this.headers = e.headers, this.rows = n, this.cols = r, this.formatted = Array(n.length), this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, n.length * r.length <= this.opts.eagerCells) {
 			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
 			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
@@ -791,11 +801,19 @@ var ie = class t {
 	contract() {
 		this.expandAll = !1, this.manualWidths.clear(), this.applyLayout();
 	}
+	export({ scope: e = "view", format: t = "csv", values: n = "raw" } = {}) {
+		let r = e === "all" ? this.rows.map((e, t) => t) : this.view, i = n === "formatted" && r.length <= this.opts.renderCap, a = r.map((e) => i ? this.getFormattedRow(e) : this.cols.map((t, n) => this.rows[e][n] ?? ""));
+		if (t === "md") {
+			let e = this.cols.map((e) => e.align || (e.type === "number" ? "right" : e.type === "date" ? "center" : "left"));
+			return ne(this.headers, a, e);
+		}
+		return B(this.headers, a);
+	}
 	setWidthMode(e) {
 		this.opts.widthMode = e === "coverage" ? "coverage" : "equal-risk", this.applyLayout();
 	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = k(this.rows.length, ne), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = O(this.rows.length, ie), a = [], o = [];
 		for (let t = 0; t < this.cols.length; t++) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -849,14 +867,14 @@ var ie = class t {
 	}
 	getFormattedRow(e) {
 		let t = this.formatted[e];
-		return t || (t = this.cols.map((t, n) => B(this.rows[e][n], t, e)), this.formatted[e] = t), t;
+		return t || (t = this.cols.map((t, n) => z(this.rows[e][n], t, e)), this.formatted[e] = t), t;
 	}
 	buildSearchIndexChunked() {
 		let e = this.loadGen, t = this.rows.length, n = Array(t), r = Array(t), i = 0;
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + re);
+			let o = Math.min(t, i + ae);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -960,6 +978,6 @@ var ie = class t {
 	}
 };
 //#endregion
-export { ie as default };
+export { oe as default };
 
 //# sourceMappingURL=csv-grid.es.js.map

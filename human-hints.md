@@ -54,6 +54,25 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-16 — 3.2 Stage B landed (export: Copy / Save)
+
+- `grid.export({scope,format,values})` in grid.js; pure `toCSV`/`toMarkdown`
+  in util.js. scope view=filter+sort, all=original file order unfiltered.
+  formatted gated per-action to `renderCap` (2048), else raw fallback.
+- Copy + Save split-buttons in the toolbar (right cluster, `ms-auto` moved
+  from Open to the Copy group). Dropdowns driven by a ~20-line vanilla
+  helper in app.js reusing Bootstrap's dropdown CSS — **deliberately did
+  NOT add the Bootstrap JS bundle** (speed + offline shell unchanged).
+  Stage C's "More" menu can reuse `initMenus()`.
+- CSV save gets a UTF-8 BOM; markdown none. Copy via async clipboard with a
+  textarea fallback. Brief on-button "Copied"/"Saved" flash.
+- Two plan refinements flagged: (1) **one uniform Format-values checkbox,
+  default raw**, applied to all four actions — dropped the plan's per-format
+  smart default (MD→formatted) for predictability. (2) **Checkbox stays
+  enabled; export gates per-action on row count** rather than disabling the
+  checkbox for big tables — lets a small filtered view of a big table still
+  format. One-line changes if Steve wants the plan's originals.
+
 ## 2026-06-16 — 3.2 Stage A landed (inference quality)
 
 - Implemented all of Stage A in `core.js`/`util.js`; version bumped to

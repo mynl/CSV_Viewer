@@ -40,9 +40,11 @@
  *   headerMode: 'auto'      'auto' | 'first-row' | 'headerless'
  *
  * methods: setData(data) -> Promise (a superseded load never settles;
- * failures reject AND show in the grid), destroy(). The viewer app also
- * drives its navbar controls through setGlobalFilter / clearFilters /
- * expand / contract / setWidthMode / applyLayout.
+ * failures reject AND show in the grid), destroy(),
+ * export({scope, format, values}) -> string (CSV / markdown of the view or
+ * whole table). The viewer app also drives its navbar controls through
+ * setGlobalFilter / clearFilters / expand / contract / setWidthMode /
+ * applyLayout.
  *
  * Multiple instances per page work: no module-global state, no element
  * ids, no document-level listeners (the transient drag-resize
@@ -53,7 +55,7 @@
 import { cleanCsvText, processData } from './core.js';
 import { parseFormatSpec, parseAlignSpec, formatCell, normalizeRecords,
          parseQuery, termScore, solveWidths, sampleIndices, makeColPredicate,
-         cellClass, escapeHtml, CELL_PAD, MIN_COL } from './util.js';
+         cellClass, escapeHtml, toCSV, toMarkdown, CELL_PAD, MIN_COL } from './util.js';
 
 const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
 const WIDTH_SAMPLE = 2048;        // rows sampled per column for width percentiles
@@ -383,6 +385,31 @@ export default class CsvGrid {
         this.expandAll = false;
         this.manualWidths.clear();
         this.applyLayout();
+    }
+
+    /* Serialize to a string for copy/save. Options:
+     *   scope:  'view' (current filter + sort) | 'all' (every row, original
+     *           file order, unfiltered — predictable, "minimum surprises")
+     *   format: 'csv' (RFC 4180) | 'md' (markdown pipe table)
+     *   values: 'raw' (cells as loaded) | 'formatted' (as displayed)
+     * `formatted` is honored only when the chosen scope's row count is
+     * within renderCap (formatting a quarter-million cells on a click would
+     * stall); above that it transparently falls back to raw. Returns the
+     * string; the caller decides the sink (clipboard / file) and any BOM. */
+    export({ scope = 'view', format = 'csv', values = 'raw' } = {}) {
+        const idx = scope === 'all'
+            ? this.rows.map((_, i) => i)        // original order, unfiltered
+            : this.view;                        // current filter + sort
+        const formatted = values === 'formatted' && idx.length <= this.opts.renderCap;
+        const rows2d = idx.map(r => formatted
+            ? this.getFormattedRow(r)
+            : this.cols.map((_, c) => this.rows[r][c] ?? ''));
+        if (format === 'md') {
+            const aligns = this.cols.map(col => col.align
+                || (col.type === 'number' ? 'right' : col.type === 'date' ? 'center' : 'left'));
+            return toMarkdown(this.headers, rows2d, aligns);
+        }
+        return toCSV(this.headers, rows2d);
     }
 
     /* Switch the squeeze allocation method and re-solve. Same measured

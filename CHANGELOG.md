@@ -2,9 +2,38 @@
 
 ## 3.2.0 (in progress)
 
-Stage A of `dev/plan-3.2-export-inference-responsive.md` — inference
-quality (Stages B export and C responsive toolbar to follow). Pure
-`core.js`/`util.js`; no startup cost beyond cheap checks in loops that
+Stages A + B of `dev/plan-3.2-export-inference-responsive.md` — inference
+quality and export (Stage C responsive toolbar to follow).
+
+### Export (Copy / Save)
+
+- **Copy and Save split-buttons** in the viewer toolbar. Primary click =
+  current view as CSV; the caret menu offers **current view** or **whole
+  table**, each as **CSV** or **Markdown**, with a single **Format values**
+  toggle (default off = raw values as loaded; on = numbers/dates as
+  displayed).
+- **`grid.export({ scope, format, values })`** on the library returns the
+  string. `scope`: `view` (current filter + sort) or `all` (every row in
+  original file order, unfiltered — predictable). `format`: `csv` (RFC
+  4180, CRLF) or `md` (markdown pipe table, type-based column alignment;
+  delimiter row compact — `|:---|---:|` — for parsers like Sublime that
+  reject spaces around the markers). `values`: `raw` or `formatted`; `formatted` is honored only when the
+  chosen scope's row count is within `renderCap` (so a filtered view of a
+  huge table can still be formatted), else it falls back to raw.
+- New pure serializers `toCSV` / `toMarkdown` in `util.js`.
+- Copy uses the async clipboard (textarea fallback off secure contexts);
+  Save downloads a file — **CSV gets a UTF-8 BOM** (Excel-friendly; input
+  already strips BOM, so round-trips stay clean), Markdown does not.
+  Filename derives from the loaded file (fallback `table`).
+- The split-button menus are driven by ~20 lines in `app.js` reusing
+  Bootstrap's dropdown CSS — no Bootstrap JS bundle added (keeps load fast
+  and the offline shell unchanged).
+- The **Open** button now clears the paste textarea on the way back to
+  ingest, so stale pasted text doesn't linger.
+
+### Inference quality (Stage A)
+
+Pure `core.js`/`util.js`; no startup cost beyond cheap checks in loops that
 already ran.
 
 - **Null tokens don't demote a column** — `NaN`, `NA`, `N/A`, `#N/A`,

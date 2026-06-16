@@ -49,6 +49,23 @@
     #global-filter { max-width: none !important; }
 }
 
+/* Copy / Save split-button menus: positioned by us (no Bootstrap JS /
+ * Popper); app.js toggles .show. dropdown-menu-end keeps them right-aligned
+ * under the caret so they don't run off the viewport edge. */
+#toolbar .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: auto;
+    margin-top: 2px;
+}
+#toolbar .dropdown-item .form-check-input { flex: none; }
+/* transient "Copied" / "Saved" confirmation on the primary button */
+#toolbar .btn.flash-ok {
+    color: var(--bs-success);
+    border-color: var(--bs-success);
+}
+
 /* Card chrome + viewport cap on the grid's scroll area (the grid itself
  * stays layout-neutral) */
 #grid-root .csvgrid-scroll {

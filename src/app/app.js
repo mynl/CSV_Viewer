@@ -139,7 +139,8 @@ function initEvents() {
         $('global-filter').value = '';
         grid.clearFilters();
     });
-    $('open-btn').addEventListener('click', showIngest);
+    // Open returns to ingest and clears any stale text in the paste area
+    $('open-btn').addEventListener('click', () => { $('paste-input').value = ''; showIngest(); });
     // separate buttons by design — no mode-flipping play/pause toggles
     $('expand-btn').addEventListener('click', () => grid.expand());
     $('contract-btn').addEventListener('click', () => grid.contract());
@@ -150,6 +151,9 @@ function initEvents() {
     $('header-btn').addEventListener('click', () => {
         if (rawText) loadText(rawText, loadedFileName, guessedHeaders);
     });
+
+    initMenus();
+    initExport();
 
     // re-solve column widths on resize (widths stay frozen w.r.t. filtering)
     let resizeTimer = null;
@@ -163,6 +167,105 @@ function initEvents() {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
         document.documentElement.setAttribute('data-bs-theme', e.matches ? 'dark' : 'light');
     });
+}
+
+// --- export (Copy / Save) -------------------------------------------------
+
+/* Split-button menus, done in ~20 lines so we don't pull in Bootstrap's JS
+ * bundle just for two dropdowns: the caret toggles its own menu, a click
+ * elsewhere or Escape closes any open one. The Format-values checkbox lives
+ * inside a menu, so clicks on it must not bubble up and close the menu. */
+function initMenus() {
+    const closeAll = except => document.querySelectorAll('#toolbar .dropdown-menu.show')
+        .forEach(m => { if (m !== except) m.classList.remove('show'); });
+    document.querySelectorAll('.csv-menu-toggle').forEach(t => {
+        t.addEventListener('click', e => {
+            e.stopPropagation();
+            const menu = t.parentElement.querySelector('.dropdown-menu');
+            const open = menu.classList.contains('show');
+            closeAll(menu);
+            menu.classList.toggle('show', !open);
+            t.setAttribute('aria-expanded', String(!open));
+        });
+    });
+    document.querySelectorAll('#toolbar .dropdown-menu label').forEach(l =>
+        l.addEventListener('click', e => e.stopPropagation()));
+    document.addEventListener('click', () => closeAll());
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
+}
+
+/* Wire the primary buttons (view → CSV) and every menu action. */
+function initExport() {
+    $('copy-btn').addEventListener('click', () => doExport('copy', 'view', 'csv', $('copy-btn')));
+    $('save-btn').addEventListener('click', () => doExport('save', 'view', 'csv', $('save-btn')));
+    document.querySelectorAll('#toolbar [data-export]').forEach(item =>
+        item.addEventListener('click', () => doExport(
+            item.dataset.export, item.dataset.scope, item.dataset.format,
+            item.dataset.export === 'copy' ? $('copy-btn') : $('save-btn'))));
+}
+
+function doExport(sink, scope, format, btn) {
+    const cb = btn.closest('.btn-group').querySelector('.export-formatted');
+    const values = cb && cb.checked ? 'formatted' : 'raw';
+    const text = grid.export({ scope, format, values });
+    if (sink === 'copy') copyText(text, btn);
+    else saveText(text, format, btn);
+}
+
+/* Clipboard copy (writeText on https/localhost/PWA; a hidden-textarea
+ * fallback otherwise). Brief on-button confirmation either way. */
+function copyText(text, btn) {
+    const ok = () => flash(btn, 'Copied'), bad = () => flash(btn, 'Copy failed');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, bad);
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); ok(); } catch { bad(); }
+        ta.remove();
+    }
+}
+
+/* Download as a file. CSV gets a UTF-8 BOM (Excel reads non-ASCII right; we
+ * strip BOM on input, so a round-trip stays clean); markdown gets none. */
+function saveText(text, format, btn) {
+    const md = format === 'md';
+    const body = md ? text : '﻿' + text;   // UTF-8 BOM, CSV only
+    const mime = (md ? 'text/markdown' : 'text/csv') + ';charset=utf-8';
+    const url = URL.createObjectURL(new Blob([body], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = exportBaseName() + (md ? '.md' : '.csv');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    flash(btn, 'Saved');
+}
+
+/* Loaded filename minus its extension, fallback 'table'. */
+function exportBaseName() {
+    const n = (loadedFileName || '').replace(/\.[^.\\/]+$/, '').trim();
+    return n || 'table';
+}
+
+/* Transient confirmation on a split-button's primary face: swap the label
+ * (when visible) and tint it for ~1.2s, then restore. */
+function flash(btn, msg) {
+    const label = btn.querySelector('.btn-label');
+    if (label) {
+        if (btn._restore == null) btn._restore = label.textContent;
+        label.textContent = ' ' + msg;
+    }
+    btn.classList.add('flash-ok');
+    clearTimeout(btn._flashT);
+    btn._flashT = setTimeout(() => {
+        btn.classList.remove('flash-ok');
+        if (label && btn._restore != null) { label.textContent = btn._restore; btn._restore = null; }
+    }, 1200);
 }
 
 /* Switch the column-fit method and reflect it in the segmented control's
