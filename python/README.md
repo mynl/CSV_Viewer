@@ -36,26 +36,28 @@ show(df, align="llrcr", fmt=[None, None, ",d", "year", ",.2f"])
 html = to_html(df, name="results.df", assets="inline")   # fragment string
 ```
 
-- `show(df, **options)` displays via IPython. The JS + CSS assets are
-  emitted once per kernel session (so once per rendered page); pass
-  `assets="inline"` to force re-emission, or `assets="https://…/base"`
-  to load them from a URL instead of inlining.
-- `to_html(df, **options)` returns an HTML fragment. The first fragment
-  on a page should carry the assets (`assets="inline"` — the default —
-  or a base URL); pass `assets=False` for subsequent tables.
+- `show(df, **options)` displays via IPython. Each grid carries the JS +
+  CSS via an idempotent `<head>` guard (`assets="inline"`, the default),
+  so fragments are self-contained and re-running/clearing a notebook cell
+  can't strip a shared stylesheet. Use `assets="https://…/base"` to link
+  the assets from a URL instead, or `assets=False` if they are already on
+  the page.
+- `to_html(df, **options)` returns a self-contained HTML fragment;
+  fragments compose freely (no need to mark a "first" one).
 - `payload(df)` returns the `{records, columns}` dict the grid consumes,
   if you want to ship data yourself.
 - Options mirror the JS API in snake_case: `global_search`,
   `column_filters`, `sortable`, `status_bar`, `expand_buttons`, `align`
   (`'llrcr…'`), `formats`/`fmt` (per-column `[,][.N](f|d|%|e|s)`,
   `'year'`, `'eng'`, None = auto), `width_mode` (`'equal-risk'` default,
-  or `'coverage'` to maximize the count of fully-shown cells), `rows`
+  or `'coverage'` to maximize the count of fully-shown cells),
+  `display_mode` (`'auto'` formatted / `'raw'` verbatim), `rows`
   (cap the viewport to ~N rows, vertical scroll for the rest) /
   `max_height` (raw CSS, e.g. `'400px'`), `render_cap`, `eager_cells`,
   `worker` (default False — data is inlined), plus `name` (status line)
   and `index` (include the DataFrame index as leading columns). Dark mode
   follows the host page (`prefers-color-scheme`; JupyterLab dark themes
-  included).
+  included) unless `theme="light"`/`"dark"` forces it.
 
 Dates are emitted ISO (`yyyy-mm-dd`, with `hh:mm` only when a column has
 non-midnight times); integral float columns are emitted as integers so

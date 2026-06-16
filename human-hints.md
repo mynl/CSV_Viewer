@@ -73,6 +73,44 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-16 — Python emitter 3.3.1 (JupyterLab asset bug, theme, display_mode)
+
+Diagnosed a maddening intermittent JupyterLab bug: grids would randomly
+go right-aligned + wrapped (tall rows). Not a save trigger, not stale
+assets (confirmed `csv_grid.__version__` 3.3.0 from python/src). Root
+cause: `show()` emitted CSS+JS **once per kernel** (`_assets_emitted`
+flag), parked in ONE cell's output and shared by every grid. Re-running or
+clearing that cell re-emitted it WITHOUT the `<style>`/iife, so the shared
+stylesheet vanished and ALL grids fell back to JLab's
+`.jp-RenderedHTMLCommon { td,th,tr white-space:normal; :not(.jp-RenderedMarkdown)…td text-align:right }`
+rules simultaneously. Proven by the saved `hacks/test.ipynb`: 4
+`new CsvGrid(`, **0** `<style>`, **0** iife. Steve confirmed empirically
+(re-running the asset cell kills it; `assets='inline'` per call fixes it).
+Note: our `.csvgrid .csvgrid-table` specificity already BEATS JLab's
+rules — the bug was the assets going *missing*, not losing a specificity
+fight, so no grid.css change was needed.
+
+Fix (python `__init__.py` only; app/JS untouched): replaced once-per-kernel
+emission with an **idempotent `<head>` injection guard** carried by every
+grid. `<head>` is outside cell output, so cell clear/re-run can't strip it;
+dedup by DOM sentinel (`#csvgrid-css`, `window.CsvGrid`); the injected
+`<script>` uses `.textContent` so it runs synchronously (window.CsvGrid
+ready before the construction script). Deleted `_assets_emitted`. New
+`assets` semantics: `'inline'` (default, head-injected) / base-URL (plain
+linked tags, parser-ordered + browser-cached) / `False` (manual escape
+hatch). Carrying assets per grid costs ~34KB/call (7.3 css + 27 iife) but
+the DOM holds one copy — negligible vs typical notebook media.
+
+Also added, for R/Python parity (both now have these): `theme='auto'|
+'light'|'dark'` (emits `data-theme` on the div) and `display_mode='auto'|
+'raw'` (was always a grid option, never in the python map). Completed the
+`show()` docstring. Bumped python to **3.3.1** (pyproject + `__version__`);
+the three JS version places stay 3.3.0 (no grid change). Regenerated
+`dev/embed-test-python.html` (now two INLINE grids = the canary for this
+bug) + `python-payload.json`; smoke test green. Remaining R/Python
+divergences are idiomatic (R: htmlwidgets sizing + `rownames`; python:
+`assets`, `index`, `render_cap`/`eager_cells`/`worker`).
+
 ## 2026-06-16 — R package added (`r/`, htmlwidget, GitHub distro)
 
 Third face of the repo, alongside `python/`: an R htmlwidget package

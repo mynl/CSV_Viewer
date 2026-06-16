@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.3.0"
+__version__ = "3.3.1"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
@@ -31,6 +31,7 @@ _OPTION_MAP = {
     "align": "align",
     "formats": "formats",
     "width_mode": "widthMode",
+    "display_mode": "displayMode",
     "rows": "maxRows",
     "max_height": "height",
     "render_cap": "renderCap",
@@ -112,20 +113,49 @@ def _asset_text(fname: str) -> str:
     return resources.files("csv_grid").joinpath("assets", fname).read_text(encoding="utf-8")
 
 
-def _assets_fragment(assets) -> str:
-    """'inline' -> embed css+js; a string -> <link>/<script src> against
-    that base URL; False/None -> '' (already on the page). The iife build
-    is used (not umd): pages rendered by Quarto/Jupyter can carry
-    RequireJS, which hijacks a umd wrapper via define.amd and the global
-    CsvGrid never appears."""
+def _js_str(text: str) -> str:
+    """A JS string literal (double-quoted, JSON-escaped) safe inside a
+    <script>: the `</` -> `<\\/` guard stops an embedded '</script>' in the
+    payload from closing our tag."""
+    return json.dumps(text, ensure_ascii=False).replace("</", "<\\/")
+
+
+def _assets_html(assets) -> str:
+    """The CSS + JS the grid needs, emitted with EVERY grid (no per-kernel
+    state — that was the notebook bug: assets parked in one cell's output
+    vanish when that cell is cleared/re-run, and every grid shares them).
+
+    'inline' (default): a guard that idempotently injects the CSS and the
+    iife into the document <head>. <head> lives outside cell output, so
+    clearing/re-running a cell can't strip the assets, and any grid
+    re-establishes them if missing. The injected <script> sets its code via
+    textContent, so it runs synchronously on insertion — window.CsvGrid is
+    defined before the grid-construction script that follows.
+
+    A base-URL string: plain <link>/<script src> tags (parser-ordered, so
+    they run before construction; the browser caches them, so re-emitting
+    per grid is cheap). False/None: nothing (assets already on the page).
+
+    The iife build is used (not umd): Quarto/Jupyter pages can carry
+    RequireJS, whose define.amd hijacks a umd wrapper so window.CsvGrid
+    never appears."""
+    if not assets:
+        return ""
     if assets == "inline":
-        return (f"<style>\n{_asset_text('csv-grid.css')}\n</style>\n"
-                f"<script>\n{_asset_text('csv-grid.iife.js')}\n</script>")
-    if assets:
-        base = str(assets).rstrip("/")
-        return (f'<link rel="stylesheet" href="{base}/csv-grid.css">\n'
-                f'<script src="{base}/csv-grid.iife.js"></script>')
-    return ""
+        css = _js_str(_asset_text("csv-grid.css"))
+        js = _js_str(_asset_text("csv-grid.iife.js"))
+        body = (
+            "if(!document.getElementById('csvgrid-css')){"
+            "var s=document.createElement('style');s.id='csvgrid-css';"
+            f"s.textContent={css};document.head.appendChild(s);}}"
+            "if(!window.CsvGrid){"
+            "var j=document.createElement('script');j.id='csvgrid-js';"
+            f"j.textContent={js};document.head.appendChild(j);}}"
+        )
+        return f"<script>(function(){{{body}}})();</script>"
+    base = str(assets).rstrip("/")
+    return (f'<link rel="stylesheet" href="{base}/csv-grid.css">\n'
+            f'<script src="{base}/csv-grid.iife.js"></script>')
 
 
 def _dump(obj) -> str:
@@ -134,39 +164,36 @@ def _dump(obj) -> str:
 
 
 def to_html(df, *, name: str | None = None, assets="inline",
-            index: bool = False, **options) -> str:
-    """HTML fragment rendering `df` as a CsvGrid. The first fragment on a
-    page should carry the assets (default 'inline'; or a base URL hosting
-    csv-grid.umd.js + csv-grid.css); pass assets=False for later tables.
-    Options are the grid's, in snake_case (see _OPTION_MAP); `fmt` is an
+            index: bool = False, theme: str = "auto", **options) -> str:
+    """HTML fragment rendering `df` as a CsvGrid, self-contained by default.
+
+    Every fragment carries the assets via an idempotent guard (see
+    ``assets``), so fragments compose freely — no need to mark a "first"
+    one. Options are the grid's, in snake_case (see ``show``); `fmt` is an
     alias for `formats`; `worker` defaults to False (data is inlined).
+    `assets='inline'` embeds the CSS + JS (injected once into <head>); a
+    base-URL string links them; False omits them. `theme` forces the color
+    scheme via ``data-theme`` ('auto' follows prefers-color-scheme).
     """
     opts = _map_options(options)
     opts.setdefault("worker", False)
     div = f"csvgrid-{uuid.uuid4().hex[:12]}"
+    theme_attr = f' data-theme="{theme}"' if theme in ("light", "dark") else ""
     parts = []
-    head = _assets_fragment(assets)
+    head = _assets_html(assets)
     if head:
         parts.append(head)
     parts.append(
-        f'<div id="{div}"></div>\n'
+        f'<div id="{div}"{theme_attr}></div>\n'
         f'<script>new CsvGrid(document.getElementById("{div}"), '
         f'{_dump(payload(df, name, index))}, {_dump(opts)});</script>'
     )
     return "\n".join(parts)
 
 
-_assets_emitted = False
-
-
-def show(df, *, name: str | None = None, assets=None,
-         index: bool = False, **options) -> None:
+def show(df, *, name: str | None = None, assets="inline",
+         index: bool = False, theme: str = "auto", **options) -> None:
     """Display `df` as a CsvGrid in Jupyter / Quarto.
-
-    Assets (the grid's JS + CSS) are emitted once per kernel session (=
-    once per rendered page); ``assets='inline'`` forces re-emission (e.g.
-    after reloading the browser page without restarting the kernel), and a
-    base-URL string loads them from there instead of inlining.
 
     Parameters
     ----------
@@ -176,12 +203,17 @@ def show(df, *, name: str | None = None, assets=None,
         integral float columns -> ints) exactly as the csv-viewer app does.
     name : str, optional
         Label shown in the grid's status line.
-    assets : {None, 'inline', str, False}
-        None (default) inlines on the first call per session, then dedupes;
-        'inline' forces inlining; a base-URL string links the assets from
-        there; False omits them (already on the page).
+    assets : {'inline', str, False}, default 'inline'
+        'inline' embeds the grid's CSS + JS, injected into the document
+        <head> by an idempotent guard emitted with every grid — clearing or
+        re-running a cell can't strip them, and any grid re-establishes them
+        if missing. A base-URL string links the assets from there instead.
+        False emits nothing (use only when the assets are already present).
     index : bool, default False
         Include the DataFrame index as leading column(s).
+    theme : {'auto', 'light', 'dark'}, default 'auto'
+        'auto' follows the host page / OS via prefers-color-scheme; 'light'
+        or 'dark' forces the grid's color scheme (sets ``data-theme``).
 
     Other options (keyword, snake_case; mirror the JS CsvGrid API)
     --------------------------------------------------------------
@@ -203,26 +235,28 @@ def show(df, *, name: str | None = None, assets=None,
                                          with equal probability; coverage =
                                          maximize the count of cells shown
                                          in full.
+    display_mode : {'auto', 'raw'}, default 'auto'
+                                         'auto' = type-aware formatting;
+                                         'raw' = verbatim source text (a view
+                                         lens; types still drive alignment
+                                         and sort).
     rows : int, optional                 cap the scroll viewport to ~N rows
                                          (vertical scroll for the rest).
     max_height : str, optional           raw CSS max-height (e.g. '400px');
                                          overrides ``rows`` when set.
-    render_cap : int, default 2000       rows rendered before "show all".
-    eager_cells : int, default 200000    below this, format everything up
+    render_cap : int, default 2048       rows rendered before "show all".
+    eager_cells : int, default 262144    below this, format everything up
                                          front (else lazy).
     worker : bool, default False         parse worker (off by default here
                                          — the data is inlined, not fetched).
 
-    Dark mode follows the host page automatically (prefers-color-scheme;
-    JupyterLab dark themes included).
+    Dark mode follows the host page automatically unless ``theme`` forces
+    it (prefers-color-scheme; JupyterLab dark themes included).
     """
-    global _assets_emitted
     try:
         from IPython.display import HTML, display
     except ImportError as e:  # pragma: no cover
         raise ImportError("csv_grid.show() needs IPython; "
                           "use to_html() outside Jupyter/Quarto") from e
-    if assets is None:
-        assets = False if _assets_emitted else "inline"
-    _assets_emitted = True
-    display(HTML(to_html(df, name=name, assets=assets, index=index, **options)))
+    display(HTML(to_html(df, name=name, assets=assets, index=index,
+                         theme=theme, **options)))

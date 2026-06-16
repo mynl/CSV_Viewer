@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.3.1 (2026-06-16) — python emitter
+
+Python package (`csv-grid`) only; the app and JS bundle are unchanged.
+
+- **Fixed: grids in JupyterLab randomly lost their styling** (text snapping
+  right-aligned, rows wrapping/growing instead of truncating). Root cause:
+  `show()` emitted the CSS + JS **once per kernel**, parked in a single
+  cell's output and shared by every grid. Re-running or clearing that cell
+  dropped the shared `<style>`, so all grids on the page fell back to
+  JupyterLab's `.jp-RenderedHTMLCommon` table rules at once; a hard reload
+  lost the runtime too. Fix: every grid now carries an **idempotent
+  `<head>` injection guard** instead — assets live outside cell output (so
+  cell churn can't strip them), dedupe by a DOM sentinel, and any grid
+  re-establishes them if missing. The per-kernel `_assets_emitted` flag is
+  gone; `assets` now means `'inline'` (default, head-injected), a base URL
+  (linked tags), or `False` (manual escape hatch). `to_html()` fragments
+  are self-contained and compose freely — no more "first fragment carries
+  the assets" dance.
+- **`theme='auto'|'light'|'dark'`** — force the grid's color scheme (sets
+  `data-theme`), matching the R package; `'auto'` follows
+  `prefers-color-scheme` as before.
+- **`display_mode='auto'|'raw'`** — exposes the grid's raw-vs-inferred lens
+  to Python (it was always in the grid, never wired into the option map),
+  again matching R.
+- `show()` docstring now lists every option.
+
 ## 3.3.0 (2026-06-16)
 
 All of `dev/plan-3.3-bigint-percent-rawmode.md` — Stage D, in three parts.
