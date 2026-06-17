@@ -73,6 +73,76 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-17 — 4.0 dropped; wrote the formatting docs instead
+
+Reconsidered the 4.0 profile plan (config blob: name-rules + inference
+knobs, cross-language). On reflection Steve decided it isn't worth it for a
+primary-user-of-one — the value was an *escape hatch for other people*, not
+for him. **Dropped 4.0.** (`dev/plan-4.0-profile-column-rules.md` stays as a
+record that we thought it through; not deleted.)
+
+Instead, what a forker actually needs: a clear statement of every assumption
+and transformation, with code refs, so they can change it. Wrote two docs:
+
+- **`docs/formatting-algorithm.md`** — detailed, skimmable-summary-first.
+  Maps the whole pipeline (parse → header detect → infer → classify →
+  format → widths) with `file:line` refs into `core.js`/`util.js`. Ends with
+  an override-precedence section and a "forking the opinions" table (which
+  function/line to cut for each rule), flagging the 2⁵³ and leading-zero
+  guards as integrity-not-taste.
+- **`docs/examples.md`** — runnable Python (`csv_grid`) examples mirroring
+  the curated fixtures (number matrix, ratio rule + the `rate_pp` guardrail,
+  dates, big ints, RFC 4180, overrides, width modes). Cross-linked both ways
+  with the algorithm doc.
+
+Named `.md` (not `.qmd`) so Obsidian opens them; light YAML frontmatter,
+plain markdown, Quarto-renderable. Anchor slugs hand-checked for the
+cross-doc links. No code/version change — docs only.
+
+Follow-ups same session:
+
+- `git mv dev/plan-4.0-… → dev/rejected-plan-4.0-…` (keep, marked rejected).
+- Expanded the algorithm doc's format-mini-language section with a Python
+  f-string equivalence table (`x = 1234.56`) and the `.3s` (fixed decimals)
+  vs `eng`/`s` (3 sig figs) distinction; noted no sign/fill/width fields,
+  `,`-only grouping, and the JS-vs-Python tie-rounding caveat.
+- New **`docs/column-width.md`** — derives both squeeze algos from scratch.
+  Equal-risk = quantile/VaR, equalize truncation probability, bisection.
+  Coverage = separable concave resource allocation solved by greedy
+  water-filling on each column's upper concave envelope (least concave
+  majorant); explains why the step CDF must be replaced by its concave hull
+  for greedy to be optimal, the single-trailing-partial-segment caveat, a
+  worked example, and the fairness-vs-utility duality. **References** Steve
+  asked for: Boyd & Vandenberghe §5.5 (water-filling), Ibaraki & Katoh 1988
+  (resource allocation), Fox 1966 (marginal analysis), Dantzig 1957
+  (fractional knapsack), Rockafellar 1970 (concave majorant); VaR side =
+  any QRM text. The coverage solver is Claude's; equal-risk is Steve's.
+- examples.md: added an **Options reference** table for `show()`/`to_html()`
+  straight from the docstring (no new info).
+
+Long offline-ish discussion reframing the coverage solver as **cost-effective
+spend** (fractional knapsack), dropping the swimming-pool metaphor for it
+(pool fits equal-risk only). Reworked column-width.md Mode 2 accordingly;
+added two worked examples (`5,5,5,6` vs `0,5,25,100` budget 15 → 6/9; and a
+**tie** `0,3,3,50,100` showing the two distros merging into one price queue,
+plus the **budget-8** case where a stranded multi-cell bundle makes greedy
+miss the integer optimum by a whole cell — the integrality gap made
+concrete).
+
+New **`hacks/columns-and-capacity.md`** (Steve's main interest, to develop
+offline): reads the coverage solver as an **ex-ante capacity-allocation**
+problem — the "wonderful difference" vs ex-post capital *attribution*
+(Euler/natural allocation). Model: generic **units**, capacity = assets =
+premium + capital, tail drives assets `a_j = ρ_p(L_j)`, **premium = the
+self-funded floor (free cells), capital = insurer's scarce budget**, default
+when loss > assets (the *Pricing Insurance Risk* assets model). Cheapest-first
+= capital-rationing/fractional-knapsack (Lorie–Savage, Weingartner); cutoff
+`λ` = capital hurdle/shadow price; concave majorant = lumpy programs (Everett
+1963); integrality gap = stranded capital. Key caveats captured: separability
+ignores diversification/aggregate ruin (scenario-based vs conjunctive
+objective), and ex-ante you also choose **volume** (outer problem, `λ` as
+price signal). Threads-to-pull list left at the end.
+
 ## 2026-06-16 — Python emitter 3.3.1 (JupyterLab asset bug, theme, display_mode)
 
 Diagnosed a maddening intermittent JupyterLab bug: grids would randomly
