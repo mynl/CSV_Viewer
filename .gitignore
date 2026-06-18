@@ -18,3 +18,5 @@ __pycache__/
 hacks/
 
 CSV-VIEWER.*
+
+.obsidian
