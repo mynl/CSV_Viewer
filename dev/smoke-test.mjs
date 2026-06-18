@@ -33,17 +33,17 @@ check('parse crlf', parseCSV('a,b\r\n1,2\r\n', ','), [['a','b'],['1','2']]);
 check('parse trailing blank lines', parseCSV('a,b\n1,2\n\n\n', ','), [['a','b'],['1','2']]);
 
 // --- numbers
-check('num plain', parseNumber('1234'), { v: 1234, dec: 0 });
-check('num commas+dec', parseNumber('1,234.56'), { v: 1234.56, dec: 2 });
-check('num negative paren', parseNumber('(2,500)'), { v: -2500, dec: 0 });
-check('num percent', parseNumber('12.5%'), { v: 0.125, dec: 3 });
-check('num dollar', parseNumber('$99.50'), { v: 99.5, dec: 2 });
+check('num plain', parseNumber('1234'), { v: 1234, dec: 0, sym: '' });
+check('num commas+dec', parseNumber('1,234.56'), { v: 1234.56, dec: 2, sym: '' });
+check('num negative paren', parseNumber('(2,500)'), { v: -2500, dec: 0, sym: '' });
+check('num percent', parseNumber('12.5%'), { v: 0.125, dec: 3, sym: '' });
+check('num dollar', parseNumber('$99.50'), { v: 99.5, dec: 2, sym: '$' });
 check('num reject text', parseNumber('12 Main St'), null);
 check('num reject date', parseNumber('2024-01-02'), null);
-check('num sci small', parseNumber('1e-03'), { v: 0.001, dec: 3 });
-check('num sci mantissa dec', parseNumber('1.5e-3'), { v: 0.0015, dec: 4 });
-check('num sci big', parseNumber('2.5E+05'), { v: 250000, dec: 0 });
-check('num bare dot', parseNumber('.5'), { v: 0.5, dec: 1 });
+check('num sci small', parseNumber('1e-03'), { v: 0.001, dec: 3, sym: '' });
+check('num sci mantissa dec', parseNumber('1.5e-3'), { v: 0.0015, dec: 4, sym: '' });
+check('num sci big', parseNumber('2.5E+05'), { v: 250000, dec: 0, sym: '' });
+check('num bare dot', parseNumber('.5'), { v: 0.5, dec: 1, sym: '' });
 check('num reject lone e', parseNumber('1e'), null);
 // the 1.4.1 bug: a 1e-03 column must be a number column, right-aligned
 const scicols = inferColumns(['k'], [['1e-03'], ['2.5e-03'], ['1e-02']]);
@@ -66,6 +66,39 @@ check('inf finite cell formats', formatCell('0.78', infcol[0], 0), '0.78');
 check('inf renders literal', formatCell('inf', infcol[0], 2), 'inf');
 check('inf neg renders literal',
       formatCell('-inf', inferColumns(['x'], [['1.5'], ['-inf']])[0], 1), '-inf');
+
+// --- 3.4: currency-aware numbers (battery, sign/paren normalization, retain symbol)
+check('cur dollar', parseNumber('$100'), { v: 100, dec: 0, sym: '$' });
+check('cur pound', parseNumber('£100'), { v: 100, dec: 0, sym: '£' });
+check('cur euro', parseNumber('€100'), { v: 100, dec: 0, sym: '€' });
+check('cur yen', parseNumber('¥100'), { v: 100, dec: 0, sym: '¥' });
+check('cur yen fullwidth', parseNumber('￥100'), { v: 100, dec: 0, sym: '￥' });
+check('cur neg dollar-first', parseNumber('-$100'), { v: -100, dec: 0, sym: '$' });   // the -$100 bug
+check('cur neg sign-after', parseNumber('$-100'), { v: -100, dec: 0, sym: '$' });
+check('cur neg parens', parseNumber('($100)'), { v: -100, dec: 0, sym: '$' });
+check('cur grouped 2dp', parseNumber('$1,234.50'), { v: 1234.5, dec: 2, sym: '$' });
+check('cur bare has no sym', parseNumber('100'), { v: 100, dec: 0, sym: '' });
+// any currency symbol on the values => money (2dp), even with a plain header
+const curcol = inferColumns(['amount'], [['$100'], ['$200.5'], ['$50']]);
+check('cur column is number', curcol[0].type, 'number');
+check('cur column money 2dp',
+      { format: curcol[0].format, dec: curcol[0].dec }, { format: 'float', dec: 2 });
+check('cur column hasCurrency flag', curcol[0].hasCurrency, true);
+check('cur renders with symbol', formatCell('$100', curcol[0], 0), '$100.00');
+check('cur renders neg canonical',
+      formatCell('($100)', inferColumns(['a'], [['($100)']])[0], 0), '-$100.00');
+// a bare cell in a currency column stays bare; mixed columns keep each glyph
+const curmix = inferColumns(['a'], [['$100'], ['200'], ['£300']]);
+check('cur bare cell stays bare', formatCell('200', curmix[0], 1), '200.00');
+check('cur mixed keeps each glyph', formatCell('£300', curmix[0], 2), '£300.00');
+check('cur money beats year header',
+      classifyNumber('year', [100, 200], 0, true), { format: 'float', dec: 2 });
+// an explicit fmt spec suppresses the symbol (the mini-language has no currency)
+const curfmt = inferColumns(['a'], [['$100'], ['$200']]);
+curfmt[0].fmt = parseFormatSpec(',d');
+check('cur explicit fmt suppresses symbol', formatCell('$100', curfmt[0], 0), '100');
+// raw display mode shows the source verbatim (symbol and parens included)
+check('cur raw verbatim', formatCell('($100)', curcol[0], 0, 'raw'), '($100)');
 
 // --- dates
 check('date iso', parseDate('2024-02-18'), { t: new Date(2024,1,18).getTime(), hasTime: false });

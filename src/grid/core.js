@@ -130,7 +130,13 @@ export function parseMarkdownTable(text) {
 
 // --------------------------------------------------------- type inference
 
-const NUM_RE = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/;
+// Currency battery: USD, GBP, EUR, ¥ (yen AND yuan — shared glyph), plus the
+// full-width CJK variant ￥ (U+FFE5). A value carrying any of these is money.
+export const CUR_RE = /[$£€¥￥]/;
+// A number: optional accounting parens, then a sign and a currency symbol in
+// EITHER order (each optional), grouped digits / bare-dot float, optional
+// exponent, optional trailing %. Either-order sign+symbol fixes -$100.
+const NUM_RE = /^\(?(?:[+-]?[$£€¥￥]?|[$£€¥￥][+-]?)(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/;
 // ±infinity, any common spelling: inf / infinity / ∞ / Infinity (JS String()
 // of a float64 inf, via the python payload), optional sign, accounting parens.
 const INF_RE = /^\(?[+-]?(?:inf(?:inity)?|∞)\)?$/i;
@@ -151,9 +157,10 @@ export function isNullToken(s) {
     return NULL_TOKENS.has((s ?? '').trim().toLowerCase());
 }
 
-/* Parse a number: thousands commas, (123) negatives, leading $, trailing %,
- * scientific notation (1e-03), bare leading-dot floats (.5).
- * Returns {v, dec} or null. */
+/* Parse a number: thousands commas, (123) negatives, a currency symbol from
+ * the battery ($£€¥￥, on either side of the sign), trailing %, scientific
+ * notation (1e-03), bare leading-dot floats (.5), and ±infinity.
+ * Returns {v, dec, sym} or null; sym is the currency glyph ('' if none). */
 export function parseNumber(s) {
     s = s.trim();
     // ±∞ is a legitimate float64 value (e.g. an infinite moment); keep it as
@@ -167,9 +174,15 @@ export function parseNumber(s) {
     if (!NUM_RE.test(s)) return null;
     let neg = false;
     if (s.startsWith('(') && s.endsWith(')')) { neg = true; s = s.slice(1, -1); }
+    // capture the currency symbol wherever it sits (before or after the sign)
+    // and strip it; the bare number is parsed below, the symbol returned for
+    // display. The leading sign stays in `s` for parseFloat and dec counting.
+    let sym = '';
+    const cm = CUR_RE.exec(s);
+    if (cm) { sym = cm[0]; s = s.replace(CUR_RE, ''); }
     let pct = false;
     if (s.endsWith('%')) { pct = true; s = s.slice(0, -1); }
-    s = s.replace(/[$,]/g, '');
+    s = s.replace(/,/g, '');
     let v = parseFloat(s);
     if (!isFinite(v)) return null;
     if (neg) v = -v;
@@ -181,7 +194,7 @@ export function parseNumber(s) {
     const dot = mant.indexOf('.');
     let dec = Math.max(0, (dot < 0 ? 0 : mant.length - dot - 1) - exp);
     if (pct) dec += 2;
-    return { v, dec };
+    return { v, dec, sym };
 }
 
 /* True if `s` is an integer-form token whose magnitude exceeds 2^53, so
@@ -197,7 +210,7 @@ export function isUnsafeBigInt(s) {
     s = s.trim();
     if (s.endsWith('%')) return false;                  // a percent is a fraction
     if (s.startsWith('(') && s.endsWith(')')) s = s.slice(1, -1);   // (123) negative
-    s = s.replace(/[$,]/g, '').replace(/^[+-]/, '');
+    s = s.replace(/[$£€¥￥,]/g, '').replace(/^[+-]/, '');
     if (!/^\d+$/.test(s)) return false;                 // not integer-form (has . or e, or junk)
     s = s.replace(/^0+(?=\d)/, '');                     // ignore leading zeros for magnitude
     return s.length > 16 || (s.length === 16 && s > MAX_SAFE_DIGITS);
@@ -327,9 +340,14 @@ const PERCENT_TITLE_RE = /(?<![a-z])(ratio|rate|roe|roa|coc|lr|elr|plr|margin|yi
  *   float — uniform decimals d = clamp(min(maxObservedDecimals,
  *           3 - floor(log10(mean|x| over nonzero))), 0, 6): ~4 significant
  *           digits at the column's typical magnitude, never more precision
- *           than the raw data carried. Money (by header, or by value when
- *           <= 2dp observed and max < 100,000) trumps with exactly 2dp. */
-export function classifyNumber(name, values, maxDec) {
+ *           than the raw data carried. Money (by header, by value when
+ *           <= 2dp observed and max < 100,000, or by a currency symbol on the
+ *           values) trumps with exactly 2dp. */
+export function classifyNumber(name, values, maxDec, hasCurrency = false) {
+    // a currency symbol on the values means money, full stop: 2dp, beating
+    // every header rule below (a $ value is money even if the header says
+    // "year" or looks like an id).
+    if (hasCurrency) return { format: 'float', dec: 2 };
     const xs = values.filter(v => v !== null);
     const allInt = xs.every(v => Number.isInteger(v));
     if (allInt && xs.length) {
@@ -452,15 +470,20 @@ export function inferColumns(headers, rows) {
         // doesn't parse stays null -> renders raw, never demotes the column)
         if (isNum) {
             const numv = new Array(rows.length).fill(null);
-            let maxDec = 0;
+            let maxDec = 0, hasCurrency = false;
             for (let r = 0; r < rows.length; r++) {
                 const raw = (rows[r][c] ?? '').trim();
                 if (raw === '' || isNullToken(raw)) continue;
                 const p = parseNumber(raw);
-                if (p) { numv[r] = p.v; if (p.dec > maxDec) maxDec = p.dec; }
+                if (p) {
+                    numv[r] = p.v;
+                    if (p.dec > maxDec) maxDec = p.dec;
+                    if (p.sym) hasCurrency = true;   // any symbol anywhere -> money column
+                }
             }
-            const cls = classifyNumber(name, numv, maxDec);
-            return { name, type: 'number', format: cls.format, dec: cls.dec, values: numv };
+            const cls = classifyNumber(name, numv, maxDec, hasCurrency);
+            return { name, type: 'number', format: cls.format, dec: cls.dec,
+                     hasCurrency, values: numv };
         }
         if (isDate) {
             // parse month-first; track the day-first signal and whether the

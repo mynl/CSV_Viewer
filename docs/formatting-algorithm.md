@@ -181,12 +181,17 @@ inherently approximate float, which stays a number (`1.23e30` is fine). →
 ## 4. Parsing a number (`parseNumber`, `core.js:154`)
 
 Gate regex `NUM_RE` (`core.js:133`), then: parentheses → negative
-(`(123)` → −123); leading `$` and thousands commas stripped; trailing `%`
-→ divide by 100; scientific notation honored. Returns `{v, dec}` where
-`dec` is the decimal count *implied by the source string* (exponent-aware;
-`%` adds 2). That observed-decimals figure (`maxDec` across the column,
-`core.js:446`) feeds the float decimals rule. **Assumption:** US
-conventions — `,` is the thousands separator, `.` the radix point.
+(`(123)` → −123); a **currency symbol from the battery `$ £ € ¥ ￥`**
+(`CUR_RE`) is captured and stripped — it may sit on **either side** of the
+sign, so both `-$100` and `$-100` parse (and `($100)`); thousands commas
+stripped; trailing `%` → divide by 100; scientific notation honored.
+Returns `{v, dec, sym}` where `dec` is the decimal count *implied by the
+source string* (exponent-aware; `%` adds 2) and `sym` is the currency glyph
+(`''` if none — see §7 for how it's re-attached on display). That
+observed-decimals figure (`maxDec` across the column) feeds the float
+decimals rule. **Assumption:** US conventions — `,` is the thousands
+separator, `.` the radix point. **Also:** `±∞` (`inf`/`infinity`/`∞`/
+`Infinity`) parses to `±Infinity` (v3.3.2).
 
 ## 5. Choosing a number format (`classifyNumber`, `core.js:321`)
 
@@ -195,7 +200,7 @@ The heart of the opinions. Header-name regexes:
 | Regex | `core.js` | Matches (case-insensitive) |
 |---|---|---|
 | `YEAR_TITLE_RE` | 297 | `year, yr, vintage, cohort` |
-| `MONEY_TITLE_RE` | 298 | `amount, amt, balance, price, cost, premium, loss, salary, …` and `$£€` |
+| `MONEY_TITLE_RE` | 298 | `amount, amt, balance, price, cost, premium, loss, salary, …` and `$£€` (header glyphs; the wider **value** battery `$£€¥￥` triggers money too — see §5) |
 | `ID_TITLE_RE` | 302 | `id, no, num, account, code, zip, phone, ssn, invoice, policy, claim, …` |
 | `PERCENT_TITLE_RE` | 309 | `ratio, rate, roe, lr, margin, yield, return, growth, cede, apr, pct, …` |
 
@@ -207,6 +212,14 @@ inside `snake_case`: `Account No` matches the id rule but `account_no` does
 *not* (it would format as an `int` with separators). Use spaces, or widen
 those regexes if you fork. This asymmetry is deliberate for percents
 (snake_case ratio names are common) but is a sharp edge for the rest.
+
+### Currency (value-based money) — wins over everything
+If any value in the column carried a currency symbol (`inferColumns` sets
+`col.hasCurrency`, passed to `classifyNumber`), the column is **money**:
+`float`, exactly 2dp — returned *first*, ahead of the year / identifier /
+percent header rules. A `$` value is money even if the header says "year".
+The symbol itself is **not** part of the format enum; it's re-attached
+per-cell at display time from the source string (§7). → money 2dp.
 
 ### Years vs integers
 All-integer column → `year` if the header is year-ish **or** every value is
@@ -293,7 +306,13 @@ alignment and sort. In `auto` mode:
   literal `inf`/`-inf` (wins over every format — `±∞` reads the same
   regardless). Then, in order: explicit `col.fmt` spec wins; `year`/`plain`
   → bare `String(v)`; `eng` → `engFormat`; `pct` → `value×100` + `%`; else
-  thousands-grouped to `col.dec` decimals.
+  thousands-grouped to `col.dec` decimals. On a **currency** column
+  (`col.hasCurrency`, always 2dp float) the cell's own glyph is read from
+  the source (`CUR_RE.exec(raw)`) and re-attached after any leading `-`, so
+  `($100)`/`-$100` both show `-$100.00` and a mixed column keeps each cell's
+  symbol. A **bare** source cell stays bare — the grid never *adds* a
+  symbol. An explicit `col.fmt` returned earlier, so a spec **suppresses**
+  the symbol (the mini-language has no currency char).
 - **date**: ISO `yyyy-mm-dd`, plus ` HH:MM` only when the column has any
   non-midnight time (`hasTime`). Center-aligned. Date **display** format is
   fixed ISO — there is intentionally no date format spec.

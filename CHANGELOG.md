@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.4.0 (2026-06-18) — currency-aware numbers
+
+The grid now understands a battery of currency symbols and keeps them on
+display, instead of treating `$` as a parse hint to strip and discard.
+
+- **Currency battery `$ £ € ¥ ￥`.** Previously only a leading `$` was
+  recognized; `£100`/`€100`/`¥100` failed to parse, so a non-dollar column
+  inferred as **text** (left-aligned, no numeric sort) and a mixed `$`/`£`
+  column demoted too. All five glyphs now parse (`¥` covers both yen and
+  yuan; `￥` is the full-width CJK variant).
+- **Fixed: `-$100` parsed as text.** The old pattern required the sign to
+  follow the symbol (`$-100` worked, `-$100` didn't). A sign and a symbol
+  are now accepted in **either order**; both `-$100` and `($100)` normalize
+  to a canonical **`-$100.00`** (sign, then symbol, then grouped digits).
+- **A currency symbol on the values means money.** Any such column formats
+  as float with exactly **2 decimals**, regardless of header — a new
+  value-based money trigger alongside the existing header trigger. It beats
+  the year/identifier/percent header rules (a `$` value is money even if the
+  header says "year").
+- **The symbol is retained on display**, per cell: `$1,234.50`, `£1,200.00`.
+  Mixed-currency columns show each cell's own glyph. A **bare** cell in a
+  currency column stays bare (`100` → `100.00`, no symbol) — the grid never
+  *adds* a symbol, only preserves one from the source. Numeric sort and
+  right-alignment are unchanged (the symbol is display-only; no FX
+  conversion). An explicit format spec suppresses the symbol (the
+  mini-language has no currency char).
+
 ## 3.3.2 (2026-06-18) — ±infinity is numeric
 
 Patch fix for a type-inference bug; realigns all four version locations on

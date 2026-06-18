@@ -4,7 +4,7 @@
  * inference) lives in core.js. Everything here must stay side-effect-free.
  */
 
-import { engFormat, parseNumber, parseDate, inferColumns, isNullToken } from './core.js';
+import { engFormat, parseNumber, parseDate, inferColumns, isNullToken, CUR_RE } from './core.js';
 
 // sampleIndices lives in core.js (inference uses it too); re-exported here
 // so existing importers (grid.js, the smoke test) keep their import path.
@@ -99,7 +99,17 @@ export function formatCell(raw, col, r, mode = 'auto') {
         if (col.format === 'year' || col.format === 'plain') return String(v);
         if (col.format === 'eng') return engFormat(v);
         if (col.format === 'pct') return numberFormatter(col.dec).format(v * 100) + '%';
-        return numberFormatter(col.dec).format(v);
+        const out = numberFormatter(col.dec).format(v);
+        // currency column: re-attach the cell's own source glyph, after any
+        // leading '-' (so ($100) and -$100 both render -$100.00). A bare cell
+        // stays bare — the grid never ADDS a symbol, only keeps one that was
+        // in the source. An explicit col.fmt returned earlier, so a spec
+        // suppresses the symbol (the mini-language has no currency).
+        if (col.hasCurrency) {
+            const m = CUR_RE.exec(raw);
+            if (m) return out[0] === '-' ? '-' + m[0] + out.slice(1) : m[0] + out;
+        }
+        return out;
     }
     if (col.type === 'date') {
         const t = col.values[r];

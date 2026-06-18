@@ -73,6 +73,31 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-18 — currency-aware numbers (3.4.0)
+
+Executed `dev/plan-currency.md`. The grid now understands a battery of
+currency symbols and keeps them on display:
+
+- **Battery `$ £ € ¥ ￥`** (¥ = yen & yuan; ￥ = full-width). All parse;
+  non-dollar and mixed columns no longer demote to text.
+- **`-$100` fixed** — sign and symbol accepted in either order; `-$100` and
+  `($100)` both normalize to `-$100.00`.
+- **Value-based money trigger**: any currency symbol on a column ⇒ float
+  2dp, beating year/id/percent header rules. New `col.hasCurrency` flag.
+- **Symbol retained on display**, per cell (mixed columns keep each glyph).
+  A bare cell stays bare — the grid never *adds* a symbol. Explicit `fmt`
+  suppresses it.
+- **Design deviation from the plan (simpler):** dropped the per-cell
+  `Uint8Array` symbol table. `formatCell` already has each cell's `raw`
+  source, so it reads the glyph straight from `raw` (`CUR_RE.exec(raw)`) at
+  render time — no per-row storage, no uniform/mixed branching, mixed
+  columns and "stay bare" both fall out for free. Steve was told and didn't
+  object. Touch points: `CUR_RE`/`NUM_RE`/`parseNumber` (+`sym`)/
+  `isUnsafeBigInt`/`inferColumns`/`classifyNumber` in core.js, `formatCell`
+  in util.js.
+- Smoke test extended, dist + python assets rebuilt, fixtures regenerated,
+  all four versions → **3.4.0**.
+
 ## 2026-06-18 — infinity fix (3.3.2); currency next (3.4.0)
 
 Reviewed the alignment/formatting algo with Steve; surfaced two issues with
