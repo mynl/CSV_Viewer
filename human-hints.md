@@ -73,6 +73,29 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-18 — infinity fix (3.3.2); currency next (3.4.0)
+
+Reviewed the alignment/formatting algo with Steve; surfaced two issues with
+currency and one with `±∞`, written up as `dev/plan-infinity.md` and
+`dev/plan-currency.md`. Executed the **infinity** plan this session:
+
+- A `float64` column with `inf` was inferring as **text** (left-aligned).
+  `±∞` is a real value (infinite moments), but nothing in the parse path
+  knew it — one `inf` demoted the column. Fixed in `src/grid/`: `parseNumber`
+  now reads `inf`/`infinity`/`∞`/`Infinity` (sign + parens) → `±Infinity`;
+  `classifyNumber` takes magnitude stats over **finite values only** (a stray
+  `∞` no longer forces eng format); `formatCell` + `engFormat` display the
+  literal **`inf`/`-inf`** (Steve: the `∞` glyph reads too small). Smoke test
+  extended, dist rebuilt, python fixtures regenerated.
+- **Versions realigned on 3.3.2** across all four locations (`app.js`,
+  `sw.js`, `package.json`, python `__version__` + `pyproject.toml`) and kept
+  aligned going forward — Steve: "always stay aligned!"
+- **Currency (3.4.0) is next**, plan locked: battery `$ £ € ¥ ￥`, fix
+  `-$100`, treat any currency symbol as money (2dp) and **keep the symbol on
+  display** (normalize parens/sign to `-$100.00`); a bare cell stays bare
+  (the grid never *adds* a symbol). Mixed-currency columns get per-cell
+  symbols. Not built yet.
+
 ## 2026-06-17 — 4.0 dropped; wrote the formatting docs instead
 
 Reconsidered the 4.0 profile plan (config blob: name-rules + inference

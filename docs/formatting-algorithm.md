@@ -80,6 +80,10 @@ twice before forking them):
   (`LEADING_ZERO_RE`, `core.js:393`).
 - Null tokens (`NaN`, `NA`, `-`, …) are **missing**, never data
   (`NULL_TOKENS`, `core.js:146`).
+- `±∞` (`inf`/`infinity`/`∞`/`Infinity`, signed or in parens) is a **real
+  numeric value**, kept as `±Infinity` so its column stays number, not text
+  (`parseNumber`, `core.js`). Magnitude stats in `classifyNumber` skip
+  non-finite values; display is the literal `inf`/`-inf` (v3.3.2).
 
 **Column widths** are solved once per load by an equal-risk (Value-at-Risk)
 allocation — every column truncates with the same probability — or a
@@ -285,10 +289,11 @@ verbatim source for any non-blank cell — no rules at all; type still drives
 alignment and sort. In `auto` mode:
 
 - **number**: `null` value → blank if a null token, else the raw string (a
-  stray non-numeric value, never hidden). Then, in order: explicit
-  `col.fmt` spec wins; `year`/`plain` → bare `String(v)`; `eng` →
-  `engFormat`; `pct` → `value×100` + `%`; else thousands-grouped to
-  `col.dec` decimals.
+  stray non-numeric value, never hidden). A non-finite value renders the
+  literal `inf`/`-inf` (wins over every format — `±∞` reads the same
+  regardless). Then, in order: explicit `col.fmt` spec wins; `year`/`plain`
+  → bare `String(v)`; `eng` → `engFormat`; `pct` → `value×100` + `%`; else
+  thousands-grouped to `col.dec` decimals.
 - **date**: ISO `yyyy-mm-dd`, plus ` HH:MM` only when the column has any
   non-midnight time (`hasTime`). Center-aligned. Date **display** format is
   fixed ISO — there is intentionally no date format spec.

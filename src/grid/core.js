@@ -131,6 +131,9 @@ export function parseMarkdownTable(text) {
 // --------------------------------------------------------- type inference
 
 const NUM_RE = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/;
+// ±infinity, any common spelling: inf / infinity / ∞ / Infinity (JS String()
+// of a float64 inf, via the python payload), optional sign, accounting parens.
+const INF_RE = /^\(?[+-]?(?:inf(?:inity)?|∞)\)?$/i;
 const ISO_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/;
 const NUMDATE_RE = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/;
 const DMON_RE = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/;   // 5 Jan 2024, 05-Jan-24
@@ -153,6 +156,14 @@ export function isNullToken(s) {
  * Returns {v, dec} or null. */
 export function parseNumber(s) {
     s = s.trim();
+    // ±∞ is a legitimate float64 value (e.g. an infinite moment); keep it as
+    // the number it is so the column infers numeric, not text. dec: 0 so it
+    // never inflates the column's decimal count.
+    if (INF_RE.test(s)) {
+        let t = s;
+        if (t.startsWith('(') && t.endsWith(')')) t = '-' + t.slice(1, -1);
+        return { v: t.startsWith('-') ? -Infinity : Infinity, dec: 0 };
+    }
     if (!NUM_RE.test(s)) return null;
     let neg = false;
     if (s.startsWith('(') && s.endsWith(')')) { neg = true; s = s.slice(1, -1); }
@@ -338,7 +349,9 @@ export function classifyNumber(name, values, maxDec) {
     // stack), so the percent value-gate and the rules below can share them.
     let nNz = 0, maxAbs = 0, minAbs = Infinity, sum = 0;
     for (const v of xs) {
-        if (v === 0) continue;
+        // finite values only: a stray ±∞ must not make maxAbs Infinity (that
+        // would trip the eng span test and mislabel a normal column).
+        if (v === 0 || !Number.isFinite(v)) continue;
         const a = Math.abs(v);
         nNz++;
         if (a > maxAbs) maxAbs = a;
@@ -369,6 +382,7 @@ export function classifyNumber(name, values, maxDec) {
 const ENG_SUFFIX = { '-9': 'n', '-6': 'µ', '-3': 'm', 0: '', 3: 'k', 6: 'M', 9: 'G', 12: 'T' };
 
 export function engFormat(v) {
+    if (!Number.isFinite(v)) return v > 0 ? 'inf' : '-inf';
     if (v === 0) return '0';
     const a = Math.abs(v);
     let e = Math.floor(Math.log10(a) / 3) * 3;

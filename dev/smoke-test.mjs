@@ -50,6 +50,23 @@ const scicols = inferColumns(['k'], [['1e-03'], ['2.5e-03'], ['1e-02']]);
 check('sci column is number', scicols[0].type, 'number');
 check('sci column renders', formatCell('2.5e-03', scicols[0], 1), '0.0025');
 
+// --- 3.3.2: ±infinity is a legitimate float64 value, not text
+check('inf parses positive', parseNumber('inf').v === Infinity, true);
+check('inf word parses', parseNumber('Infinity').v === Infinity, true);   // python payload, via String()
+check('inf glyph parses', parseNumber('∞').v === Infinity, true);
+check('inf dec is zero', parseNumber('inf').dec, 0);
+check('inf negative', parseNumber('-inf').v === -Infinity, true);
+check('inf paren negative', parseNumber('(inf)').v === -Infinity, true);
+// the bug: a float column with an inf must stay number (right-aligned) and
+// must NOT classify as eng (maxAbs=Infinity would have tripped the span test)
+const infcol = inferColumns(['skew'], [['0.78'], ['0.76'], ['inf']]);
+check('inf column is number', infcol[0].type, 'number');
+check('inf column not eng', infcol[0].format !== 'eng', true);
+check('inf finite cell formats', formatCell('0.78', infcol[0], 0), '0.78');
+check('inf renders literal', formatCell('inf', infcol[0], 2), 'inf');
+check('inf neg renders literal',
+      formatCell('-inf', inferColumns(['x'], [['1.5'], ['-inf']])[0], 1), '-inf');
+
 // --- dates
 check('date iso', parseDate('2024-02-18'), { t: new Date(2024,1,18).getTime(), hasTime: false });
 check('date us', parseDate('2/18/2024'), { t: new Date(2024,1,18).getTime(), hasTime: false });
@@ -163,6 +180,8 @@ check('eng milli', engFormat(0.00123), '1.23m');
 check('eng negative', engFormat(-12345), '-12.3k');
 check('eng zero', engFormat(0), '0');
 check('eng unit range', engFormat(123.4), '123');
+check('eng inf guard', engFormat(Infinity), 'inf');     // belt-and-braces for a forced eng/s spec
+check('eng -inf guard', engFormat(-Infinity), '-inf');
 
 // --- headerless detection + guessed names (bank-export style)
 check('headerless: bank row', looksHeaderless(['2024-01-05', 'STARBUCKS #123', '-4.50']), true);

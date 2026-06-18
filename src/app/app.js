@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.3.0';
+const VERSION = '3.3.2';
 
 const $ = id => document.getElementById(id);
 

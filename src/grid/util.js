@@ -92,6 +92,9 @@ export function formatCell(raw, col, r, mode = 'auto') {
         // unparsed cell in a numeric column: blank a null token (NaN/NA),
         // else show it raw (a stray non-numeric value, never hidden)
         if (v === null) return isNullToken(raw) ? '' : raw;
+        // ±∞ reads the same under every format, and Intl would render '∞';
+        // show the literal text instead. Wins for float/money/pct/eng/year.
+        if (!Number.isFinite(v)) return v > 0 ? 'inf' : '-inf';
         if (col.fmt) return formatWithSpec(v, col.fmt);   // explicit spec wins
         if (col.format === 'year' || col.format === 'plain') return String(v);
         if (col.format === 'eng') return engFormat(v);

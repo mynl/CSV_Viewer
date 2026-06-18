@@ -1,4 +1,4 @@
-/* csv-grid v3.3.0 — built by Vite from src/grid/ of the
+/* csv-grid v3.3.2 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -92,7 +92,7 @@ function s(e) {
 		aligns: r
 	};
 }
-var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, l = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/, u = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, d = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, f = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, p = [
+var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, l = /^\(?[+-]?(?:inf(?:inity)?|∞)\)?$/i, u = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/, d = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, f = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, p = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, m = [
 	"january",
 	"february",
 	"march",
@@ -105,7 +105,7 @@ var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)
 	"october",
 	"november",
 	"december"
-], m = new Set([
+], h = new Set([
 	"nan",
 	"na",
 	"n/a",
@@ -116,11 +116,18 @@ var c = /^\(?\$?-?(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)
 	"--",
 	"."
 ]);
-function h(e) {
-	return m.has((e ?? "").trim().toLowerCase());
-}
 function g(e) {
-	if (e = e.trim(), !c.test(e)) return null;
+	return h.has((e ?? "").trim().toLowerCase());
+}
+function _(e) {
+	if (e = e.trim(), l.test(e)) {
+		let t = e;
+		return t.startsWith("(") && t.endsWith(")") && (t = "-" + t.slice(1, -1)), {
+			v: t.startsWith("-") ? -Infinity : Infinity,
+			dec: 0
+		};
+	}
+	if (!c.test(e)) return null;
 	let t = !1;
 	e.startsWith("(") && e.endsWith(")") && (t = !0, e = e.slice(1, -1));
 	let n = !1;
@@ -128,69 +135,69 @@ function g(e) {
 	let r = parseFloat(e);
 	if (!isFinite(r)) return null;
 	t && (r = -r), n && (r /= 100);
-	let i = /^([^eE]*)[eE]([+-]?\d+)$/.exec(e), a = i ? i[1] : e, o = i ? +i[2] : 0, s = a.indexOf("."), l = Math.max(0, (s < 0 ? 0 : a.length - s - 1) - o);
-	return n && (l += 2), {
+	let i = /^([^eE]*)[eE]([+-]?\d+)$/.exec(e), a = i ? i[1] : e, o = i ? +i[2] : 0, s = a.indexOf("."), u = Math.max(0, (s < 0 ? 0 : a.length - s - 1) - o);
+	return n && (u += 2), {
 		v: r,
-		dec: l
+		dec: u
 	};
 }
-var ee = "9007199254740991";
-function _(e) {
-	return e = e.trim(), e.endsWith("%") || (e.startsWith("(") && e.endsWith(")") && (e = e.slice(1, -1)), e = e.replace(/[$,]/g, "").replace(/^[+-]/, ""), !/^\d+$/.test(e)) ? !1 : (e = e.replace(/^0+(?=\d)/, ""), e.length > 16 || e.length === 16 && e > ee);
+var v = "9007199254740991";
+function y(e) {
+	return e = e.trim(), e.endsWith("%") || (e.startsWith("(") && e.endsWith(")") && (e = e.slice(1, -1)), e = e.replace(/[$,]/g, "").replace(/^[+-]/, ""), !/^\d+$/.test(e)) ? !1 : (e = e.replace(/^0+(?=\d)/, ""), e.length > 16 || e.length === 16 && e > v);
 }
-function v(e) {
-	let t = e.toLowerCase(), n = p.findIndex((e) => e.startsWith(t) || t === "sept" && e === "september");
+function b(e) {
+	let t = e.toLowerCase(), n = m.findIndex((e) => e.startsWith(t) || t === "sept" && e === "september");
 	return n < 0 || t.length < 3 ? null : n + 1;
 }
-function y(e) {
+function x(e) {
 	return e = +e, e < 100 ? e < 50 ? 2e3 + e : 1900 + e : e;
 }
-function b(e, t, n, r = 0, i = 0, a = 0, o = !1) {
+function S(e, t, n, r = 0, i = 0, a = 0, o = !1) {
 	let s = new Date(e, t - 1, n, r, i, a);
 	return s.getFullYear() !== e || s.getMonth() !== t - 1 || s.getDate() !== +n ? null : {
 		t: s.getTime(),
 		hasTime: o
 	};
 }
-function x(e, t = !1) {
+function C(e, t = !1) {
 	e = e.trim();
-	let n = l.exec(e);
+	let n = u.exec(e);
 	if (n) {
 		let [, e, t, r, i, a, o] = n;
-		return b(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), i !== void 0);
+		return S(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), i !== void 0);
 	}
-	if (n = u.exec(e), n) {
+	if (n = d.exec(e), n) {
 		let [, e, , r, i] = n;
-		if (e.length === 4 && i.length <= 2) return b(+e, +r, +i);
+		if (e.length === 4 && i.length <= 2) return S(+e, +r, +i);
 		if (e.length <= 2 && (i.length === 4 || i.length === 2)) {
-			let n = y(i);
-			return +e > 12 && +r <= 12 ? b(n, +r, +e) : +r > 12 && +e <= 12 ? b(n, +e, +r) : t ? b(n, +r, +e) : b(n, +e, +r);
+			let n = x(i);
+			return +e > 12 && +r <= 12 ? S(n, +r, +e) : +r > 12 && +e <= 12 ? S(n, +e, +r) : t ? S(n, +r, +e) : S(n, +e, +r);
 		}
 		return null;
 	}
-	if (n = d.exec(e), n) {
-		let e = v(n[2]);
-		return e ? b(y(n[3]), e, +n[1]) : null;
-	}
 	if (n = f.exec(e), n) {
-		let e = v(n[1]);
-		return e ? b(y(n[3]), e, +n[2]) : null;
+		let e = b(n[2]);
+		return e ? S(x(n[3]), e, +n[1]) : null;
+	}
+	if (n = p.exec(e), n) {
+		let e = b(n[1]);
+		return e ? S(x(n[3]), e, +n[2]) : null;
 	}
 	return null;
 }
-function S(e) {
-	let t = u.exec(e.trim());
+function ee(e) {
+	let t = d.exec(e.trim());
 	if (!t) return null;
 	let n = t[1], r = t[3], i = t[4];
 	return n.length === 4 || !(i.length === 4 || i.length === 2) ? null : +n > 12 && +r <= 12 ? "day" : +r > 12 && +n <= 12 ? "month" : +n <= 12 && +r <= 12 ? "ambiguous" : null;
 }
-function C(e) {
+function te(e) {
 	return e.some((e) => {
 		let t = (e ?? "").trim();
-		return t !== "" && (g(t) !== null || x(t) !== null);
+		return t !== "" && (_(t) !== null || C(t) !== null);
 	});
 }
-function te(e) {
+function ne(e) {
 	let t = (e) => e.type === "date" ? "Date" : e.type === "number" ? e.format === "year" ? "Year" : "Amount" : "Description", n = {}, r = {};
 	e.forEach((e) => {
 		let r = t(e);
@@ -200,10 +207,10 @@ function te(e) {
 		r[i] = (r[i] || 0) + 1, e.name = n[i] > 1 ? `${i} ${r[i]}` : i;
 	});
 }
-var ne = /\b(year|yr|vintage|cohort)\b/i, w = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i, T = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i, E = /(?<![a-z])(ratio|rate|roe|roa|coc|lr|elr|plr|margin|yield|return|growth|retention|cede|ceded|discount|apr|apy|coupon|util|utilization|share|pct|percent|frequency)(?![a-z])/i;
+var re = /\b(year|yr|vintage|cohort)\b/i, w = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i, T = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i, E = /(?<![a-z])(ratio|rate|roe|roa|coc|lr|elr|plr|margin|yield|return|growth|retention|cede|ceded|discount|apr|apy|coupon|util|utilization|share|pct|percent|frequency)(?![a-z])/i;
 function D(e, t, n) {
 	let r = t.filter((e) => e !== null);
-	if (r.every((e) => Number.isInteger(e)) && r.length) return ne.test(e) || r.every((e) => e >= 1800 && e <= 2100) ? {
+	if (r.every((e) => Number.isInteger(e)) && r.length) return re.test(e) || r.every((e) => e >= 1800 && e <= 2100) ? {
 		format: "year",
 		dec: 0
 	} : T.test(e) && !w.test(e) ? {
@@ -218,7 +225,7 @@ function D(e, t, n) {
 	};
 	let i = 0, a = 0, o = Infinity, s = 0;
 	for (let e of r) {
-		if (e === 0) continue;
+		if (e === 0 || !Number.isFinite(e)) continue;
 		let t = Math.abs(e);
 		i++, t > a && (a = t), t < o && (o = t), s += t;
 	}
@@ -255,6 +262,7 @@ var O = {
 	12: "T"
 };
 function k(e) {
+	if (!Number.isFinite(e)) return e > 0 ? "inf" : "-inf";
 	if (e === 0) return "0";
 	let t = Math.abs(e), n = Math.floor(Math.log10(t) / 3) * 3;
 	n = Math.max(-9, Math.min(12, n));
@@ -274,7 +282,7 @@ function N(e, t) {
 		let i = !0, a = !0, o = !1, s = !1, c = 0;
 		for (let e of n) {
 			let n = (t[e][r] ?? "").trim();
-			if (!(n === "" || h(n)) && (c++, i && (g(n) === null ? i = !1 : (!o && M.test(n) && (o = !0), !s && _(n) && (s = !0))), a && x(n, !1) === null && (a = !1), o || s || !i && !a)) break;
+			if (!(n === "" || g(n)) && (c++, i && (_(n) === null ? i = !1 : (!o && M.test(n) && (o = !0), !s && y(n) && (s = !0))), a && C(n, !1) === null && (a = !1), o || s || !i && !a)) break;
 		}
 		if (c === 0 || o || s) return s ? {
 			name: e,
@@ -290,8 +298,8 @@ function N(e, t) {
 			let n = Array(t.length).fill(null), i = 0;
 			for (let e = 0; e < t.length; e++) {
 				let a = (t[e][r] ?? "").trim();
-				if (a === "" || h(a)) continue;
-				let o = g(a);
+				if (a === "" || g(a)) continue;
+				let o = _(a);
 				o && (n[e] = o.v, o.dec > i && (i = o.dec));
 			}
 			let a = D(e, n, i);
@@ -307,18 +315,18 @@ function N(e, t) {
 			let n = !1, i = !1, a = !1, o = !1, s = Array(t.length).fill(null);
 			for (let e = 0; e < t.length; e++) {
 				let c = (t[e][r] ?? "").trim();
-				if (c === "" || h(c)) continue;
-				let l = x(c, !1);
+				if (c === "" || g(c)) continue;
+				let l = C(c, !1);
 				l && (s[e] = l.t, i ||= l.hasTime);
-				let u = S(c);
+				let u = ee(c);
 				u === "day" ? (n = !0, o = !0) : u === "month" ? o = !0 : u === "ambiguous" && (a = !0);
 			}
 			if (n) {
 				s = Array(t.length).fill(null);
 				for (let e = 0; e < t.length; e++) {
 					let n = (t[e][r] ?? "").trim();
-					if (n === "" || h(n)) continue;
-					let i = x(n, !0);
+					if (n === "" || g(n)) continue;
+					let i = C(n, !0);
 					i && (s[e] = i.t);
 				}
 			}
@@ -344,7 +352,7 @@ function P(e, n = null) {
 	} else {
 		let o = r(e, t(e));
 		if (o.length < 2) throw Error("Need a header row and at least one data row.");
-		l = n === null ? C(o[0]) : !n, i = l ? o[0].map((e, t) => `col${t + 1}`) : o[0].map((e, t) => e.trim() || `col${t + 1}`), a = (l ? o : o.slice(1)).map((e) => {
+		l = n === null ? te(o[0]) : !n, i = l ? o[0].map((e, t) => `col${t + 1}`) : o[0].map((e, t) => e.trim() || `col${t + 1}`), a = (l ? o : o.slice(1)).map((e) => {
 			if (e.length === i.length) return e;
 			let t = e.slice(0, i.length);
 			for (; t.length < i.length;) t.push("");
@@ -352,7 +360,7 @@ function P(e, n = null) {
 		});
 	}
 	let u = N(i, a);
-	return l && te(u), c && u.forEach((e, t) => {
+	return l && ne(u), c && u.forEach((e, t) => {
 		c[t] && (e.align = c[t]);
 	}), {
 		headers: u.map((e) => e.name),
@@ -418,7 +426,7 @@ function z(e, t) {
 		}
 	}
 }
-function re(e) {
+function ie(e) {
 	return [...e].map((e) => ({
 		l: "left",
 		r: "right",
@@ -430,11 +438,11 @@ function B(e, t, n, r = "auto") {
 	if (r === "raw") return e;
 	if (t.type === "number") {
 		let r = t.values[n];
-		return r === null ? h(e) ? "" : e : t.fmt ? z(r, t.fmt) : t.format === "year" || t.format === "plain" ? String(r) : t.format === "eng" ? k(r) : t.format === "pct" ? I(t.dec).format(r * 100) + "%" : I(t.dec).format(r);
+		return r === null ? g(e) ? "" : e : Number.isFinite(r) ? t.fmt ? z(r, t.fmt) : t.format === "year" || t.format === "plain" ? String(r) : t.format === "eng" ? k(r) : t.format === "pct" ? I(t.dec).format(r * 100) + "%" : I(t.dec).format(r) : r > 0 ? "inf" : "-inf";
 	}
 	if (t.type === "date") {
 		let r = t.values[n];
-		if (r === null) return h(e) ? "" : e;
+		if (r === null) return g(e) ? "" : e;
 		let i = new Date(r), a = (e) => String(e).padStart(2, "0"), o = `${i.getFullYear()}-${a(i.getMonth() + 1)}-${a(i.getDate())}`;
 		return t.hasTime && (o += ` ${a(i.getHours())}:${a(i.getMinutes())}`), o;
 	}
@@ -517,7 +525,7 @@ function q(e, t, n) {
 	return e.negate && (i = !i), i ? a : -1;
 }
 function J(e, t, n, r = "equal-risk") {
-	return r === "coverage" ? X(e, t, n) : Y(e, t, n);
+	return r === "coverage" ? ae(e, t, n) : Y(e, t, n);
 }
 function Y(e, t, n) {
 	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
@@ -530,13 +538,13 @@ function Y(e, t, n) {
 	}
 	return i(s);
 }
-function X(e, t, n) {
+function ae(e, t, n) {
 	let r = e.map((e, n) => Math.max(t[n], e.length ? e[e.length - 1] : 0)), i = (e) => e.reduce((e, t) => e + t, 0);
 	if (i(r) <= n) return r;
 	if (i(t) >= n) return t.slice();
 	let a = t.slice(), o = n - i(t), s = [];
 	for (let n = 0; n < e.length; n++) {
-		let r = ie(e[n], t[n]);
+		let r = oe(e[n], t[n]);
 		for (let e = 1; e < r.length; e++) {
 			let t = r[e].w - r[e - 1].w, i = r[e].cells - r[e - 1].cells;
 			t > 0 && i > 0 && s.push({
@@ -554,7 +562,7 @@ function X(e, t, n) {
 	}
 	return a;
 }
-function ie(e, t) {
+function oe(e, t) {
 	let n = e.length, r = 0;
 	for (; r < n && e[r] <= t;) r++;
 	let i = [{
@@ -580,15 +588,15 @@ function ie(e, t) {
 	}
 	return a;
 }
-function ae(e, t) {
+function se(e, t) {
 	let n = e.trim();
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
 		let e = t.type === "number" ? (e) => {
-			let t = g(e);
+			let t = _(e);
 			return t ? t.v : NaN;
 		} : (e) => {
-			let t = x(e);
+			let t = C(e);
 			return t ? t.t : NaN;
 		}, r = /^(>=|<=|>|<|=)\s*(.+)$/.exec(n);
 		if (r) {
@@ -619,20 +627,20 @@ function ae(e, t) {
 	let r = n.toLowerCase();
 	return (e, t) => e.toLowerCase().includes(r);
 }
-function Z(e) {
+function X(e) {
 	return e.align ? `col-${e.type} align-${e.align}` : `col-${e.type}`;
 }
-function Q(e) {
+function Z(e) {
 	return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 //#endregion
 //#region src/grid/grid.js
-var oe = 1e6, se = 2048, ce = 1e4;
+var Q = 1e6, ce = 2048, le = 1e4;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var le = class t {
+var ue = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -731,7 +739,7 @@ var le = class t {
 	}
 	_parse(t, n, r) {
 		if (t = e(t), !t.trim()) throw Error("No data found.");
-		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= oe ? this._getWorker() : null;
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= Q ? this._getWorker() : null;
 		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
 			this._pending.set(n, {
 				resolve: e,
@@ -767,7 +775,7 @@ var le = class t {
 	_install(e, t) {
 		let { rows: n, cols: r } = e;
 		if (this.opts.align) {
-			let e = re(this.opts.align);
+			let e = ie(this.opts.align);
 			r.forEach((t, n) => {
 				e[n] && (t.align = e[n]);
 			});
@@ -835,7 +843,7 @@ var le = class t {
 		this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
 	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, se), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, ce), a = [], o = [];
 		for (let t = 0; t < this.cols.length; t++) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -896,7 +904,7 @@ var le = class t {
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + ce);
+			let o = Math.min(t, i + le);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -908,7 +916,7 @@ var le = class t {
 	rebuildView() {
 		let { rows: e, cols: t } = this, n = W(this.globalFilter);
 		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
-		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => ae(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => se(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
 		this.scores = [];
 		for (let t = 0; t < e.length; t++) {
 			let r = 0;
@@ -958,7 +966,7 @@ var le = class t {
 		let n = document.createElement("tr");
 		if (e.forEach((e, t) => {
 			let r = document.createElement("th");
-			r.className = Z(e), this.opts.sortable ? (r.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${Q(e.name)}`, r.title = `${e.name} (${e.type}) — click to sort`, r.addEventListener("click", () => this.onSort(t))) : (r.innerHTML = `<span class="sort-arrow"></span>${Q(e.name)}`, r.title = `${e.name} (${e.type})`, r.classList.add("csvgrid-nosort"));
+			r.className = X(e), this.opts.sortable ? (r.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${Z(e.name)}`, r.title = `${e.name} (${e.type}) — click to sort`, r.addEventListener("click", () => this.onSort(t))) : (r.innerHTML = `<span class="sort-arrow"></span>${Z(e.name)}`, r.title = `${e.name} (${e.type})`, r.classList.add("csvgrid-nosort"));
 			let i = document.createElement("span");
 			i.className = "col-resizer", i.title = "Drag to resize — double-click to fit content", i.addEventListener("mousedown", (e) => this.startColResize(e, t)), i.addEventListener("dblclick", (e) => {
 				e.stopPropagation(), this.fitColumn(t);
@@ -979,7 +987,7 @@ var le = class t {
 		for (let i = 0; i < n; i++) {
 			let n = t[i], a = this.getFormattedRow(n), o = e.map((e, t) => {
 				let n = a[t];
-				return n === "" ? `<td class="${Z(e)} blank">·</td>` : `<td class="${Z(e)}">${Q(n)}</td>`;
+				return n === "" ? `<td class="${X(e)} blank">·</td>` : `<td class="${X(e)}">${Z(n)}</td>`;
 			});
 			r.push(`<tr>${o.join("")}</tr>`);
 		}
@@ -1000,6 +1008,6 @@ var le = class t {
 	}
 };
 //#endregion
-export { le as default };
+export { ue as default };
 
 //# sourceMappingURL=csv-grid.es.js.map

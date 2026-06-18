@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.3.2 (2026-06-18) — ±infinity is numeric
+
+Patch fix for a type-inference bug; realigns all four version locations on
+one number (app trio was 3.3.0, python 3.3.1 — now all 3.3.2).
+
+- **Fixed: a float column containing `inf` rendered as left-aligned text.**
+  `±∞` is a legitimate `float64` value (e.g. an infinite moment), but no
+  part of the parse/inference path understood it: `parseNumber` rejected
+  every spelling, so one `inf` cell demoted the whole column to text.
+  `show()`'s JSON payload emits the bare `Infinity` literal, which reaches
+  the grid as `"Infinity"` via `String()`; loading the `to_csv()` output
+  (literal `inf`) hit the same wall. (NaN was already handled — blanked.)
+  Now `parseNumber` recognizes `inf` / `infinity` / `∞` / `Infinity`
+  (case-insensitive, optional sign, accounting parens) as `±Infinity`, so
+  the column infers **numeric** — right-aligned, sortable, filterable.
+- **`classifyNumber` now computes magnitude stats over finite values only**
+  — a stray `±∞` no longer makes `maxAbs` infinite and mislabels an
+  otherwise-normal column as engineering format.
+- **Non-finite cells display as literal `inf` / `-inf`** (not the `∞`
+  glyph, which reads small); `engFormat` carries the same guard for a
+  forced `eng`/`s` spec.
+
 ## 3.3.1 (2026-06-16) — python emitter
 
 Python package (`csv-grid`) only; the app and JS bundle are unchanged.
