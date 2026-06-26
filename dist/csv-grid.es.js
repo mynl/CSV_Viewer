@@ -1,4 +1,4 @@
-/* csv-grid v3.4.0 — built by Vite from src/grid/ of the
+/* csv-grid v3.5.0 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -663,7 +663,7 @@ var de = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
-		this.root = r, this.opts = {
+		this.root = r, r.csvgrid = this, this.opts = {
 			globalSearch: !0,
 			columnFilters: !0,
 			sortable: !0,
@@ -679,8 +679,11 @@ var de = class t {
 			maxRows: null,
 			height: null,
 			displayMode: "auto",
+			selectable: !1,
+			selectMode: "row",
+			hiddenColumns: null,
 			...n
-		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
+		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
 	}
 	_buildScaffold() {
 		let e = this.opts, t = this.root;
@@ -721,7 +724,7 @@ var de = class t {
 		}), r.addEventListener("mouseover", (e) => {
 			let t = e.target.closest("td, th");
 			t && !t.title && t.scrollWidth > t.clientWidth && (t.title = t.textContent);
-		});
+		}), this.opts.selectable && (t.dataset.selectable = "", a.addEventListener("click", (e) => this._onBodyClick(e)));
 	}
 	setData(e) {
 		let t = ++this.loadGen, n = new Promise((n, r) => {
@@ -799,9 +802,11 @@ var de = class t {
 				e[n] && (t.align = e[n]);
 			});
 		}
-		if (this.opts.formats && r.forEach((e, t) => {
+		this.opts.formats && r.forEach((e, t) => {
 			e.fmt = R(this.opts.formats[t]);
-		}), this.fileName = t || "", this.guessedHeaders = e.headerless, this.ambiguousDateCols = r.filter((e) => e.ambiguousOrder).map((e) => e.name), this.headers = e.headers, this.rows = n, this.cols = r, this.formatted = Array(n.length), this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, n.length * r.length <= this.opts.eagerCells) {
+		}), this.fileName = t || "", this.guessedHeaders = e.headerless, this.ambiguousDateCols = r.filter((e) => e.ambiguousOrder).map((e) => e.name), this.headers = e.headers, this.rows = n, this.cols = r;
+		let i = Array.isArray(this.opts.hiddenColumns) && this.opts.hiddenColumns.length ? new Set(this.opts.hiddenColumns) : null;
+		if (this.visibleCols = r.map((e, t) => t).filter((e) => !i || !i.has(this.headers[e])), this.selected = null, this.formatted = Array(n.length), this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, n.length * r.length <= this.opts.eagerCells) {
 			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
 			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
 		}
@@ -825,7 +830,7 @@ var de = class t {
 		this.els.status && (this.els.status.textContent = e);
 	}
 	destroy() {
-		this.loadGen++, this._pending.clear(), this._worker &&= (this._worker.terminate(), null), this.root.classList.remove("csvgrid"), this.root.replaceChildren();
+		this.loadGen++, this._pending.clear(), this._worker &&= (this._worker.terminate(), null), delete this.root.csvgrid, this.root.classList.remove("csvgrid"), delete this.root.dataset.selectable, this.root.replaceChildren();
 	}
 	setGlobalFilter(e) {
 		this.globalFilter = e, this.refresh();
@@ -863,7 +868,7 @@ var de = class t {
 	}
 	measureLayout() {
 		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = j(this.rows.length, ue), a = [], o = [];
-		for (let t = 0; t < this.cols.length; t++) {
+		for (let t of this.visibleCols) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
 			for (let r of i) {
@@ -983,36 +988,36 @@ var de = class t {
 		let { cols: e } = this, t = this.els.head;
 		t.innerHTML = "";
 		let n = document.createElement("tr");
-		if (e.forEach((e, t) => {
-			let r = document.createElement("th");
-			r.className = X(e), this.opts.sortable ? (r.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${Z(e.name)}`, r.title = `${e.name} (${e.type}) — click to sort`, r.addEventListener("click", () => this.onSort(t))) : (r.innerHTML = `<span class="sort-arrow"></span>${Z(e.name)}`, r.title = `${e.name} (${e.type})`, r.classList.add("csvgrid-nosort"));
-			let i = document.createElement("span");
-			i.className = "col-resizer", i.title = "Drag to resize — double-click to fit content", i.addEventListener("mousedown", (e) => this.startColResize(e, t)), i.addEventListener("dblclick", (e) => {
-				e.stopPropagation(), this.fitColumn(t);
-			}), i.addEventListener("click", (e) => e.stopPropagation()), r.appendChild(i), n.appendChild(r);
+		if (this.visibleCols.forEach((t, r) => {
+			let i = e[t], a = document.createElement("th");
+			a.className = X(i), this.opts.sortable ? (a.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${Z(i.name)}`, a.title = `${i.name} (${i.type}) — click to sort`, a.addEventListener("click", () => this.onSort(t))) : (a.innerHTML = `<span class="sort-arrow"></span>${Z(i.name)}`, a.title = `${i.name} (${i.type})`, a.classList.add("csvgrid-nosort"));
+			let o = document.createElement("span");
+			o.className = "col-resizer", o.title = "Drag to resize — double-click to fit content", o.addEventListener("mousedown", (e) => this.startColResize(e, r)), o.addEventListener("dblclick", (e) => {
+				e.stopPropagation(), this.fitColumn(r);
+			}), o.addEventListener("click", (e) => e.stopPropagation()), a.appendChild(o), n.appendChild(a);
 		}), t.appendChild(n), !this.opts.columnFilters) return;
 		let r = document.createElement("tr");
-		r.className = "filter-row", e.forEach((e, t) => {
-			let n = document.createElement("th"), i = document.createElement("input");
-			i.type = "text", i.className = "csvgrid-filter", i.placeholder = e.type === "text" ? "filter" : "filter, >, .. ", i.value = this.colFilters[t] || "", i.addEventListener("input", () => {
-				this.colFilters[t] = i.value, i.classList.toggle("active-filter", i.value.trim() !== ""), this.refresh();
-			}), i.addEventListener("keydown", (e) => {
-				e.key === "Escape" && (e.preventDefault(), i.value = "", this.colFilters[t] = "", i.classList.remove("active-filter"), i.blur(), this.refresh());
-			}), n.appendChild(i), r.appendChild(n);
+		r.className = "filter-row", this.visibleCols.forEach((t) => {
+			let n = e[t], i = document.createElement("th"), a = document.createElement("input");
+			a.type = "text", a.className = "csvgrid-filter", a.placeholder = n.type === "text" ? "filter" : "filter, >, .. ", a.value = this.colFilters[t] || "", a.addEventListener("input", () => {
+				this.colFilters[t] = a.value, a.classList.toggle("active-filter", a.value.trim() !== ""), this.refresh();
+			}), a.addEventListener("keydown", (e) => {
+				e.key === "Escape" && (e.preventDefault(), a.value = "", this.colFilters[t] = "", a.classList.remove("active-filter"), a.blur(), this.refresh());
+			}), i.appendChild(a), r.appendChild(i);
 		}), t.appendChild(r);
 	}
 	renderBody() {
-		let { cols: e, view: t } = this, n = this.showAll ? t.length : Math.min(t.length, this.opts.renderCap), r = [];
-		for (let i = 0; i < n; i++) {
-			let n = t[i], a = this.getFormattedRow(n), o = e.map((e, t) => {
-				let n = a[t];
-				return n === "" ? `<td class="${X(e)} blank">·</td>` : `<td class="${X(e)}">${Z(n)}</td>`;
+		let { cols: e, view: t } = this, n = this.showAll ? t.length : Math.min(t.length, this.opts.renderCap), r = this.opts.selectable, i = [];
+		for (let a = 0; a < n; a++) {
+			let n = t[a], o = this.getFormattedRow(n), s = this.visibleCols.map((t) => {
+				let n = e[t], r = o[t];
+				return r === "" ? `<td class="${X(n)} blank">·</td>` : `<td class="${X(n)}">${Z(r)}</td>`;
 			});
-			r.push(`<tr>${o.join("")}</tr>`);
+			i.push(`<tr${r ? ` data-r="${n}"` : ""}>${s.join("")}</tr>`);
 		}
-		this.els.body.innerHTML = r.join("");
-		let i = this.els.capNote;
-		t.length > n ? (i.classList.remove("csvgrid-hidden"), this.els.showAllBtn.textContent = `Showing first ${n.toLocaleString()} of ${t.length.toLocaleString()} rows — show all`) : i.classList.add("csvgrid-hidden");
+		this.els.body.innerHTML = i.join(""), r && this._paintSelection();
+		let a = this.els.capNote;
+		t.length > n ? (a.classList.remove("csvgrid-hidden"), this.els.showAllBtn.textContent = `Showing first ${n.toLocaleString()} of ${t.length.toLocaleString()} rows — show all`) : a.classList.add("csvgrid-hidden");
 	}
 	renderStatus() {
 		if (!this.els.status) return;
@@ -1024,6 +1029,76 @@ var de = class t {
 	}
 	onSort(e) {
 		this.sortCol === e ? this.sortDir === 1 ? this.sortDir = -1 : (this.sortCol = null, this.sortDir = 1) : (this.sortCol = e, this.sortDir = 1), this.renderHead(), this.refresh();
+	}
+	static forElement(e) {
+		let t = typeof e == "string" ? document.querySelector(e) : e;
+		return t && t.csvgrid || null;
+	}
+	_rawValue(e, t) {
+		let n = this.cols[t];
+		if (n && n.type === "number") {
+			let t = n.values[e];
+			if (t != null) return t;
+		}
+		return this.rows[e][t] ?? null;
+	}
+	_rowDetail(e, t, n) {
+		let r = this.getFormattedRow(e), i = {}, a = {};
+		return this.headers.forEach((t, n) => {
+			i[t] = this._rawValue(e, n), a[t] = r[n] ?? "";
+		}), {
+			name: this.fileName,
+			rowIndex: e,
+			viewIndex: this.view.indexOf(e),
+			column: this.headers[t],
+			columnIndex: t,
+			value: this._rawValue(e, t),
+			valueText: r[t] ?? "",
+			row: i,
+			rowText: a,
+			originalEvent: n
+		};
+	}
+	_onBodyClick(e) {
+		let t = e.target.closest("td"), n = t && t.parentElement;
+		if (!t || !n || n.dataset.r === void 0) return;
+		let r = +n.dataset.r, i = [...n.children].indexOf(t), a = this.visibleCols[i];
+		if (a === void 0) return;
+		let o = new CustomEvent("csvgrid:cellclick", {
+			detail: this._rowDetail(r, a, e),
+			bubbles: !0,
+			composed: !0,
+			cancelable: !0
+		});
+		this.root.dispatchEvent(o) && this.opts.selectMode !== "none" && (this.selected = {
+			rowIndex: r,
+			columnIndex: a
+		}, this._paintSelection());
+	}
+	_paintSelection() {
+		let e = this.els.body;
+		if (e.querySelectorAll(".csvgrid-selected, .csvgrid-selected-row").forEach((e) => e.classList.remove("csvgrid-selected", "csvgrid-selected-row")), !this.selected || this.opts.selectMode === "none") return;
+		let t = e.querySelector(`tr[data-r="${this.selected.rowIndex}"]`);
+		if (t) if (this.opts.selectMode === "cell") {
+			t.classList.add("csvgrid-selected-row");
+			let e = t.children[this.visibleCols.indexOf(this.selected.columnIndex)];
+			e && e.classList.add("csvgrid-selected");
+		} else t.classList.add("csvgrid-selected");
+	}
+	getSelection() {
+		return this.selected ? this._rowDetail(this.selected.rowIndex, this.selected.columnIndex, null) : null;
+	}
+	clearSelection() {
+		this.selected = null, this.opts.selectable && this._paintSelection();
+	}
+	selectRow(e) {
+		if (!this.opts.selectable) return;
+		this.selected = {
+			rowIndex: e,
+			columnIndex: this.selected ? this.selected.columnIndex : this.visibleCols[0]
+		}, this._paintSelection();
+		let t = this.els.body.querySelector(`tr[data-r="${e}"]`);
+		t && t.scrollIntoView({ block: "nearest" });
 	}
 };
 //#endregion

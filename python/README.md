@@ -58,6 +58,18 @@ html = to_html(df, name="results.df", assets="inline")   # fragment string
   and `index` (include the DataFrame index as leading columns). Dark mode
   follows the host page (`prefers-color-scheme`; JupyterLab dark themes
   included) unless `theme="light"`/`"dark"` forces it.
+- **Clickable rows/cells** (`selectable=True`): a body click fires a
+  bubbling `csvgrid:cellclick` DOM event whose `detail` carries the clicked
+  cell and the whole row keyed by column name (raw + formatted) with the
+  original row index — wire it to HTMX/JS for drill-down. `select_mode`
+  (`'row'`/`'cell'`/`'none'`) controls the highlight; `hidden_columns=[…]`
+  ships a key column in the payload without displaying it. No Python
+  callback — `to_html` stays a pure string emitter.
+
+```python
+to_html(df, name="transactions", selectable=True,
+        select_mode="row", hidden_columns=["trans_id"])
+```
 
 Dates are emitted ISO (`yyyy-mm-dd`, with `hh:mm` only when a column has
 non-midnight times); integral float columns are emitted as integers so

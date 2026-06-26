@@ -40,13 +40,32 @@
  *   headerMode: 'auto'      'auto' | 'first-row' | 'headerless'
  *   displayMode: 'auto'     'auto' (type-aware formatting) | 'raw' (verbatim
  *                           source text); a view lens, no effect on export
+ *   selectable: false       opt-in clickable rows/cells. false = today's
+ *                           behavior exactly (no listener, no data-r, no
+ *                           cursor). true = a body click dispatches a
+ *                           bubbling, cancelable CustomEvent('csvgrid:cellclick')
+ *                           from the grid root; event.detail carries the
+ *                           clicked cell AND the whole row keyed by column
+ *                           name (raw + formatted), with the ORIGINAL row
+ *                           index (stable across sort/filter). The grid takes
+ *                           no action beyond an optional selection highlight.
+ *   selectMode: 'row'       'row' | 'cell' | 'none' — the visual highlight on
+ *                           click ('none' still emits the event). An embedder
+ *                           may preventDefault() the event to manage its own.
+ *   hiddenColumns: null     string[] of header names kept in the data (so
+ *                           they ride in the event payload + export) but not
+ *                           rendered as visible columns; null = show all.
+ *
+ * event: 'csvgrid:cellclick' (when selectable) — see selectable above.
  *
  * methods: setData(data) -> Promise (a superseded load never settles;
  * failures reject AND show in the grid), destroy(),
  * export({scope, format, values}) -> string (CSV / markdown of the view or
- * whole table), setDisplayMode('auto'|'raw'). The viewer app also drives its
- * navbar controls through setGlobalFilter / clearFilters / expand / contract
- * / setWidthMode / applyLayout.
+ * whole table), setDisplayMode('auto'|'raw'), getSelection() / clearSelection()
+ * / selectRow(rowIndex), and the static CsvGrid.forElement(elOrSelector) to
+ * reach an instance built anonymously. The viewer app also drives its navbar
+ * controls through setGlobalFilter / clearFilters / expand / contract /
+ * setWidthMode / applyLayout.
  *
  * Multiple instances per page work: no module-global state, no element
  * ids, no document-level listeners (the transient drag-resize
@@ -74,12 +93,15 @@ export default class CsvGrid {
         const root = typeof target === 'string' ? document.querySelector(target) : target;
         if (!root) throw new Error('CsvGrid: target element not found.');
         this.root = root;
+        root.csvgrid = this;     // instance handle on its own element (no ids, no globals)
         this.opts = {
             globalSearch: true, columnFilters: true, sortable: true,
             statusBar: true, expandButtons: true, align: null, formats: null,
             renderCap: 2048, eagerCells: 262144, worker: true,
             headerMode: 'auto', widthMode: 'equal-risk',
-            maxRows: null, height: null, displayMode: 'auto', ...options,
+            maxRows: null, height: null, displayMode: 'auto',
+            // opt-in clickable rows/cells (default off = today's behavior exactly)
+            selectable: false, selectMode: 'row', hiddenColumns: null, ...options,
         };
         // 'auto' = type-aware formatting; 'raw' = verbatim source (the lens).
         // A view preference, independent of the export raw/formatted choice.
@@ -107,6 +129,8 @@ export default class CsvGrid {
         this.globalFilter = '';
         this.colFilters = [];
         this.showAll = false;
+        this.visibleCols = [];   // real column indices to render (hiddenColumns excluded)
+        this.selected = null;    // {rowIndex, columnIndex} (original indices) when selectable
 
         this._worker = undefined;   // lazy; null = unavailable -> synchronous
         this._pending = new Map();  // load gen -> {resolve, reject} awaiting the worker
@@ -192,6 +216,15 @@ export default class CsvGrid {
                 cell.title = cell.textContent;
             }
         });
+
+        // opt-in clickable rows/cells: ONE delegated listener on THIS
+        // instance's own <tbody> (per-instance — complies with the no
+        // document-level listeners rule). Off = no listener, no data-r,
+        // no cursor: a true no-op.
+        if (this.opts.selectable) {
+            root.dataset.selectable = '';
+            body.addEventListener('click', e => this._onBodyClick(e));
+        }
     }
 
     // ------------------------------------------------------------ data in
@@ -307,6 +340,14 @@ export default class CsvGrid {
         this.headers = d.headers;
         this.rows = rows;
         this.cols = cols;
+        // hiddenColumns (by header name) stay in the data — carried in the
+        // click payload and export — but are excluded from the rendered
+        // table. visibleCols is the identity list when none are hidden, so
+        // every geometry path below reduces to its pre-feature behavior.
+        const hide = Array.isArray(this.opts.hiddenColumns) && this.opts.hiddenColumns.length
+            ? new Set(this.opts.hiddenColumns) : null;
+        this.visibleCols = cols.map((_, c) => c).filter(c => !hide || !hide.has(this.headers[c]));
+        this.selected = null;
         this.formatted = new Array(rows.length);
         this.searchRaw = null;
         this.searchLow = null;
@@ -362,7 +403,9 @@ export default class CsvGrid {
         this.loadGen++;             // abandon pending parses and index builds
         this._pending.clear();
         if (this._worker) { this._worker.terminate(); this._worker = null; }
+        delete this.root.csvgrid;
         this.root.classList.remove('csvgrid');
+        delete this.root.dataset.selectable;
         this.root.replaceChildren();
     }
 
@@ -464,7 +507,9 @@ export default class CsvGrid {
         // sampled, not exhaustive: quantiles from ~2K rows per column (2.0.0)
         const sample = sampleIndices(this.rows.length, WIDTH_SAMPLE);
         const arrays = [], floors = [];
-        for (let c = 0; c < this.cols.length; c++) {
+        // arrays/floors are indexed by VISIBLE position (parallel to the
+        // rendered colgroup); hidden columns are skipped entirely.
+        for (const c of this.visibleCols) {
             ctx.font = `bold ${font}`;
             // 14px ≈ the sort-arrow slot in the header
             floors.push(Math.max(MIN_COL,
@@ -483,12 +528,14 @@ export default class CsvGrid {
 
     /* Drag-resize: a handle on each header's right edge. Drag sets a manual
      * width override (kept across re-solves until the next file load);
-     * double-click fits the column to its content (Excel-style). */
-    startColResize(e, c) {
+     * double-click fits the column to its content (Excel-style). `p` is the
+     * VISIBLE column position (= the colgroup / layout index, which excludes
+     * hidden columns); manualWidths is keyed the same way. */
+    startColResize(e, p) {
         e.preventDefault();
         e.stopPropagation();
         const table = this.els.table;
-        const col = table.querySelectorAll('colgroup col')[c];
+        const col = table.querySelectorAll('colgroup col')[p];
         if (!col) return;
         const startX = e.clientX;
         const startW = parseFloat(col.style.width);
@@ -500,7 +547,7 @@ export default class CsvGrid {
         };
         const move = ev => {
             const w = Math.max(24, Math.round(startW + ev.clientX - startX));
-            this.manualWidths.set(c, w);
+            this.manualWidths.set(p, w);
             col.style.width = w + 'px';
             setTableWidth();
         };
@@ -513,10 +560,10 @@ export default class CsvGrid {
         document.addEventListener('mouseup', up);
     }
 
-    fitColumn(c) {
+    fitColumn(p) {   // p = visible column position (layout / colgroup index)
         const { arrays, floors } = this.layout;
-        const natural = Math.max(floors[c], arrays[c].length ? arrays[c][arrays[c].length - 1] : 0);
-        this.manualWidths.set(c, natural);
+        const natural = Math.max(floors[p], arrays[p].length ? arrays[p][arrays[p].length - 1] : 0);
+        this.manualWidths.set(p, natural);
         this.applyLayout();
     }
 
@@ -659,8 +706,12 @@ export default class CsvGrid {
         const head = this.els.head;
         head.innerHTML = '';
 
+        // iterate VISIBLE columns; c = real column index (sort/filter engine
+        // stays on real indices), p = visible position (colgroup / width
+        // geometry). Identical to a plain cols.forEach when nothing is hidden.
         const hr = document.createElement('tr');
-        cols.forEach((col, c) => {
+        this.visibleCols.forEach((c, p) => {
+            const col = cols[c];
             const th = document.createElement('th');
             th.className = cellClass(col);
             if (this.opts.sortable) {
@@ -676,8 +727,8 @@ export default class CsvGrid {
             const grip = document.createElement('span');
             grip.className = 'col-resizer';
             grip.title = 'Drag to resize — double-click to fit content';
-            grip.addEventListener('mousedown', e => this.startColResize(e, c));
-            grip.addEventListener('dblclick', e => { e.stopPropagation(); this.fitColumn(c); });
+            grip.addEventListener('mousedown', e => this.startColResize(e, p));
+            grip.addEventListener('dblclick', e => { e.stopPropagation(); this.fitColumn(p); });
             grip.addEventListener('click', e => e.stopPropagation());
             th.appendChild(grip);
             hr.appendChild(th);
@@ -687,7 +738,8 @@ export default class CsvGrid {
         if (!this.opts.columnFilters) return;
         const fr = document.createElement('tr');
         fr.className = 'filter-row';
-        cols.forEach((col, c) => {
+        this.visibleCols.forEach((c) => {
+            const col = cols[c];
             const th = document.createElement('th');
             const inp = document.createElement('input');
             inp.type = 'text';
@@ -718,18 +770,22 @@ export default class CsvGrid {
     renderBody() {
         const { cols, view } = this;
         const cap = this.showAll ? view.length : Math.min(view.length, this.opts.renderCap);
+        const sel = this.opts.selectable;
         const parts = [];
         for (let i = 0; i < cap; i++) {
             const r = view[i];
             const frow = this.getFormattedRow(r);
-            const cells = cols.map((col, c) => {
+            const cells = this.visibleCols.map(c => {
+                const col = cols[c];
                 const text = frow[c];
                 if (text === '') return `<td class="${cellClass(col)} blank">·</td>`;
                 return `<td class="${cellClass(col)}">${escapeHtml(text)}</td>`;
             });
-            parts.push(`<tr>${cells.join('')}</tr>`);
+            // data-r = ORIGINAL row index (survives sort/filter/show-all), only when on
+            parts.push(`<tr${sel ? ` data-r="${r}"` : ''}>${cells.join('')}</tr>`);
         }
         this.els.body.innerHTML = parts.join('');
+        if (sel) this._paintSelection();   // selection survives the re-render
 
         const note = this.els.capNote;
         if (view.length > cap) {
@@ -773,5 +829,110 @@ export default class CsvGrid {
         }
         this.renderHead();
         this.refresh();
+    }
+
+    // ------------------------------------------------- selection / click
+
+    /* Find the CsvGrid instance on a root element (or selector), or null —
+     * the documented way to reach a grid that to_html/show built anonymously
+     * (also `event.target.closest('.csvgrid').csvgrid`). */
+    static forElement(elOrSelector) {
+        const el = typeof elOrSelector === 'string'
+            ? document.querySelector(elOrSelector) : elOrSelector;
+        return el ? (el.csvgrid || null) : null;
+    }
+
+    /* The clicked cell's value: the typed number where the grid has one
+     * (so consumers get a number, not "$1,234"), else the raw source string,
+     * else null for a blank. */
+    _rawValue(r, c) {
+        const col = this.cols[c];
+        if (col && col.type === 'number') {
+            const v = col.values[r];
+            if (v !== null && v !== undefined) return v;
+        }
+        return this.rows[r][c] ?? null;
+    }
+
+    /* Build the event/selection detail for original row r, clicked column c.
+     * `row`/`rowText` cover EVERY column by name — including hiddenColumns —
+     * so identity travels in the payload and survives sort/filter. */
+    _rowDetail(r, c, originalEvent) {
+        const frow = this.getFormattedRow(r);
+        const row = {}, rowText = {};
+        this.headers.forEach((h, i) => {
+            row[h] = this._rawValue(r, i);
+            rowText[h] = frow[i] ?? '';
+        });
+        return {
+            name: this.fileName,
+            rowIndex: r,
+            viewIndex: this.view.indexOf(r),
+            column: this.headers[c],
+            columnIndex: c,
+            value: this._rawValue(r, c),
+            valueText: frow[c] ?? '',
+            row, rowText, originalEvent,
+        };
+    }
+
+    _onBodyClick(e) {
+        const td = e.target.closest('td');
+        const tr = td && td.parentElement;
+        if (!td || !tr || tr.dataset.r === undefined) return;
+        const r = +tr.dataset.r;                          // original row index
+        const p = [...tr.children].indexOf(td);           // visible position
+        const c = this.visibleCols[p];                    // real column index
+        if (c === undefined) return;
+        const ev = new CustomEvent('csvgrid:cellclick',
+            { detail: this._rowDetail(r, c, e), bubbles: true, composed: true, cancelable: true });
+        // dispatch first; an embedder may preventDefault() to manage its own
+        // highlight, in which case we skip the built-in selection.
+        const proceed = this.root.dispatchEvent(ev);
+        if (proceed && this.opts.selectMode !== 'none') {
+            this.selected = { rowIndex: r, columnIndex: c };
+            this._paintSelection();
+        }
+    }
+
+    /* Re-apply the selection highlight to the current DOM (called after every
+     * renderBody so selection survives sort/filter/expand). Cheap no-op when
+     * nothing is selected or the selected row isn't currently rendered. */
+    _paintSelection() {
+        const body = this.els.body;
+        body.querySelectorAll('.csvgrid-selected, .csvgrid-selected-row')
+            .forEach(el => el.classList.remove('csvgrid-selected', 'csvgrid-selected-row'));
+        if (!this.selected || this.opts.selectMode === 'none') return;
+        const tr = body.querySelector(`tr[data-r="${this.selected.rowIndex}"]`);
+        if (!tr) return;
+        if (this.opts.selectMode === 'cell') {
+            tr.classList.add('csvgrid-selected-row');
+            const td = tr.children[this.visibleCols.indexOf(this.selected.columnIndex)];
+            if (td) td.classList.add('csvgrid-selected');
+        } else {
+            tr.classList.add('csvgrid-selected');
+        }
+    }
+
+    /* The current selection in the same shape as the event detail, or null. */
+    getSelection() {
+        if (!this.selected) return null;
+        return this._rowDetail(this.selected.rowIndex, this.selected.columnIndex, null);
+    }
+
+    clearSelection() {
+        this.selected = null;
+        if (this.opts.selectable) this._paintSelection();
+    }
+
+    /* Programmatically select an original row index and scroll it into view —
+     * e.g. to mirror the row a detail panel is showing. No-op if the row is
+     * filtered out of the current view. */
+    selectRow(rowIndex) {
+        if (!this.opts.selectable) return;
+        this.selected = { rowIndex, columnIndex: this.selected ? this.selected.columnIndex : this.visibleCols[0] };
+        this._paintSelection();
+        const tr = this.els.body.querySelector(`tr[data-r="${rowIndex}"]`);
+        if (tr) tr.scrollIntoView({ block: 'nearest' });
     }
 }

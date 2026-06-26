@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CsvGrid select test — clickable rows/cells</title>
+    <!-- Canary for the selectable feature (3.5.0): clickable rows/cells emit
+         csvgrid:cellclick, selection highlight, hiddenColumns, instance
+         handle. Runs against the dist ES bundle, so REBUILD FIRST:
+             npm run build
+         then serve the repo root and open /dev/select-test.html (module
+         scripts do not load from file://).
+
+         What to verify by hand:
+         - Click any cell: the log shows rowIndex (ORIGINAL), column, value,
+           and the whole row by name including the hidden `trans_id` column.
+         - Sort or filter, THEN click: rowIndex must still be the source row
+           (detail.row.trans_id matches the cell you clicked).
+         - Grid A (selectMode:'row') highlights the row; Grid B
+           (selectMode:'cell') outlines the cell; selection survives sorting.
+         - `trans_id` is NOT a visible column in either grid but rides in
+           detail.row.
+         - CsvGrid.forElement('#grid-a').getSelection() returns the last
+           selection; the toggle button flips to OS dark theme. -->
+    <link rel="stylesheet" href="../dist/csv-grid.css">
+    <style>
+        body { margin: 2rem; background: #f4f4f4; font-family: system-ui, sans-serif; }
+        .pane { max-width: 760px; margin-bottom: 2rem; }
+        #log { max-width: 760px; font: 12px ui-monospace, monospace; white-space: pre-wrap;
+               background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 8px;
+               max-height: 240px; overflow: auto; }
+        h2 { font-size: 1rem; margin: 0 0 .5rem; }
+    </style>
+</head>
+<body>
+
+<h1 style="font-size:1.3rem">CsvGrid select test — clickable rows/cells</h1>
+
+<div class="pane">
+    <h2>Grid A — selectMode: 'row', hidden trans_id</h2>
+    <div id="grid-a"></div>
+</div>
+
+<div class="pane">
+    <h2>Grid B — selectMode: 'cell', hidden trans_id</h2>
+    <div id="grid-b"></div>
+</div>
+
+<p><strong>event.detail log</strong> (newest first):</p>
+<div id="log"></div>
+
+<script type="module">
+import CsvGrid from '../dist/csv-grid.es.js';
+
+const csv = `trans_id,date,payee,category,amount
+T-1001,2024-01-05,Acme Coffee,Dining,-4.50
+T-1002,2024-01-06,Paycheck,Income,3200.00
+T-1003,2024-01-09,Power Co,Utilities,-118.27
+T-1004,2024-01-12,Bookshop,Shopping,-42.00
+T-1005,2024-01-15,Transfer,Savings,-500.00`;
+
+new CsvGrid('#grid-a', { csv, name: 'transactions' },
+    { selectable: true, selectMode: 'row', hiddenColumns: ['trans_id'] });
+
+new CsvGrid('#grid-b', { csv, name: 'transactions' },
+    { selectable: true, selectMode: 'cell', hiddenColumns: ['trans_id'] });
+
+const log = document.getElementById('log');
+// ONE document listener — in the EMBEDDER's page, not the grid (the grid
+// attaches only its own per-instance tbody listener).
+document.addEventListener('csvgrid:cellclick', e => {
+    const d = e.detail;
+    const line = `[${d.name}] row#${d.rowIndex} (view ${d.viewIndex})  `
+        + `${d.column}=${JSON.stringify(d.value)}  trans_id=${d.row.trans_id}`;
+    log.textContent = line + '\n' + log.textContent;
+});
+</script>
+</body>
+</html>

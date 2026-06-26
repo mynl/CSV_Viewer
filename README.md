@@ -182,14 +182,48 @@ or arrays; null/NaN → blank), `{url: string}`; plus optional `name` and
 `'coverage'` to maximize the count of fully-shown cells), `displayMode`
 (`'auto'` default = type-aware formatting, or `'raw'` = verbatim source),
 `maxRows` / `height` (bounded-height scroll viewport), `renderCap`,
-`eagerCells`, `worker`, `headerMode`. Methods: `setData(data)` (returns a
-promise), `setWidthMode(mode)`, `setDisplayMode('auto'|'raw')`, `destroy()`.
+`eagerCells`, `worker`, `headerMode`, and `selectable` / `selectMode`
+(`'row'`/`'cell'`/`'none'`) / `hiddenColumns` (clickable rows/cells — see
+below). Methods: `setData(data)` (returns a
+promise), `setWidthMode(mode)`, `setDisplayMode('auto'|'raw')`,
+`getSelection()` / `clearSelection()` / `selectRow(i)`, `destroy()`, and the
+static `CsvGrid.forElement(elOrSelector)`.
 Dark mode follows the OS
 (`prefers-color-scheme`) and can be forced with
 `data-theme="dark"|"light"` on the grid element. Multiple grids per page
 work; types and formatting are inferred from the data exactly as in the
 app. As an npm dependency: `"csv-grid": "file:path/to/csv-viewer"`
 resolves the `exports` map.
+
+#### Clickable rows & cells
+
+With `selectable: true`, a body click dispatches a bubbling, cancelable
+`csvgrid:cellclick` from the grid element. `event.detail` carries the
+clicked cell **and the whole row keyed by column name** (raw + formatted),
+with the **original** row index — stable across sort/filter — so identity
+travels in the event and nothing is reconstructed from DOM position. The
+grid takes no action beyond an optional highlight (`selectMode`); the
+embedder wires behavior to the event. `hiddenColumns` carries a key column
+in the payload without displaying it.
+
+```html
+<script>
+new CsvGrid('#grid', { csv, name: 'transactions' },
+    { selectable: true, selectMode: 'row', hiddenColumns: ['trans_id'] });
+
+document.addEventListener('csvgrid:cellclick', e => {
+    const d = e.detail;                       // {name, rowIndex, column, value,
+    if (d.name !== 'transactions') return;    //  valueText, row, rowText, …}
+    openDetail(d.row.trans_id);               // identity from the payload
+});
+</script>
+```
+
+`detail` fields: `name`, `rowIndex` (original), `viewIndex`, `column`,
+`columnIndex`, `value` (typed number where the grid has one, else raw
+string, else null), `valueText` (as displayed), `row` / `rowText` (whole
+row by column name, including `hiddenColumns`), `originalEvent`. The
+fixture `dev/select-test.html` exercises it.
 
 ### Python: csv_grid
 

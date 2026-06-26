@@ -1,5 +1,50 @@
 # Changelog
 
+## 3.5.0 (2026-06-26) — clickable rows & cells
+
+All of `dev/plan-grid-spec.md` (a downstream embedder's request) — an
+**additive, opt-in** way to make a grid's rows/cells clickable and receive
+which row/cell was clicked as data, with enough identity to look the source
+record back up. Default off is a true no-op (no listener, no DOM attrs, no
+cost); the viewer app is unchanged.
+
+- **`selectable` option (default false).** When on, one delegated click
+  listener on the instance's own `<tbody>` (per-instance — no document
+  listeners) dispatches a bubbling, cancelable
+  **`CustomEvent('csvgrid:cellclick')`** from the grid root. `event.detail`
+  carries `name`, `rowIndex` (the **original** source-row index, stable
+  across sort/filter), `viewIndex`, `column`/`columnIndex`,
+  `value`/`valueText`, and **`row`/`rowText` — the whole row keyed by column
+  name** (raw + formatted), so identity rides in the event and nothing is
+  reconstructed from DOM position. `value` is the typed number where the grid
+  has one, else the raw string, else null for a blank. An embedder can
+  `preventDefault()` to manage its own highlight. The grid itself takes no
+  action on click beyond an optional selection.
+- **`selectMode` (`'row'` | `'cell'` | `'none'`, default `'row'`)** — the
+  visual highlight only (`'none'` still emits the event). Selection is
+  per-instance, tracked by original index, and **survives re-render**
+  (sort/filter/expand); it reads clearly in light and dark themes.
+- **Instance handle** — `root.csvgrid` is set on the grid's own element, and
+  static **`CsvGrid.forElement(elOrSelector)`** returns it (or null) — the
+  documented way to reach a grid that `to_html`/`show` built anonymously.
+  New methods `getSelection()` / `clearSelection()` / `selectRow(i)`.
+- **`hiddenColumns` (string[] of header names, default null)** — columns
+  kept in the data (so they ride in the event payload **and** export) but
+  not rendered, e.g. ship a `trans_id` key without an ugly id column.
+  Implemented as a `visibleCols` mask that only the render/measure/layout
+  geometry walks; sort/filter/event stay on real column indices. With none
+  hidden the mask is the identity list, so every geometry path is byte-for-
+  byte today's behavior.
+- **Python**: `selectable` / `select_mode` / `hidden_columns` flow through
+  `show` / `to_html` (snake_case → camelCase); docstrings + READMEs updated.
+  No Python callback — `to_html` stays a pure string emitter; behavior is
+  wired to the DOM event (HTMX-friendly).
+- **CSS**: `.csvgrid-selected` / `.csvgrid-selected-row` + a
+  `--csvgrid-selected-bg` token (light + dark); the pointer cursor shows
+  only when `selectable`. New fixture `dev/select-test.html` (two grids,
+  row + cell modes, hidden key column, event log — verifies identity after
+  sort/filter). `dist/` rebuilt + python embedded assets refreshed.
+
 ## 3.4.0 (2026-06-18) — currency-aware numbers
 
 The grid now understands a battery of currency symbols and keeps them on

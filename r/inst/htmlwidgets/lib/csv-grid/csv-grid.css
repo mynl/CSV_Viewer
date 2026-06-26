@@ -21,6 +21,7 @@
     --csvgrid-grip-hover: rgba(13, 110, 253, 0.3);
     --csvgrid-blank: #adb5bd;
     --csvgrid-filter-active-bg: #e7f1ff;
+    --csvgrid-selected-bg: rgba(13, 110, 253, 0.12);
     --csvgrid-error-fg: #842029;
     --csvgrid-error-bg: #f8d7da;
     --csvgrid-error-border: #f5c2c7;
@@ -45,6 +46,7 @@
         --csvgrid-grip-hover: rgba(110, 168, 254, 0.4);
         --csvgrid-blank: #6c757d;
         --csvgrid-filter-active-bg: #2b3a55;
+        --csvgrid-selected-bg: rgba(110, 168, 254, 0.22);
         --csvgrid-error-fg: #ea868f;
         --csvgrid-error-bg: #2c0b0e;
         --csvgrid-error-border: #842029;
@@ -62,6 +64,7 @@
     --csvgrid-grip-hover: rgba(110, 168, 254, 0.4);
     --csvgrid-blank: #6c757d;
     --csvgrid-filter-active-bg: #2b3a55;
+    --csvgrid-selected-bg: rgba(110, 168, 254, 0.22);
     --csvgrid-error-fg: #ea868f;
     --csvgrid-error-bg: #2c0b0e;
     --csvgrid-error-border: #842029;
@@ -207,6 +210,17 @@ body.csvgrid-resizing { cursor: col-resize; user-select: none; }
 .csvgrid .csvgrid-table .align-center { text-align: center; }
 .csvgrid .csvgrid-table .align-right { text-align: right; }
 .csvgrid .csvgrid-table td.blank { color: var(--csvgrid-blank); }
+
+/* Clickable rows/cells (opt-in selectable option). The cursor affordance
+ * shows only when on; selection rules sit after the hover rule so a selected
+ * row stays visibly selected even while hovered. Reads in light and dark. */
+.csvgrid[data-selectable] .csvgrid-table tbody tr { cursor: pointer; }
+.csvgrid .csvgrid-table tbody tr.csvgrid-selected td,
+.csvgrid .csvgrid-table tbody tr.csvgrid-selected-row td { background: var(--csvgrid-selected-bg); }
+.csvgrid .csvgrid-table tbody td.csvgrid-selected {
+    outline: 2px solid var(--csvgrid-accent);
+    outline-offset: -2px;
+}
 
 /* "Showing first N — show all" note below the table */
 .csvgrid-capnote {

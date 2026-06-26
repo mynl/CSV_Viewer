@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.4.0"
+__version__ = "3.5.0"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
@@ -37,6 +37,9 @@ _OPTION_MAP = {
     "render_cap": "renderCap",
     "eager_cells": "eagerCells",
     "worker": "worker",
+    "selectable": "selectable",
+    "select_mode": "selectMode",
+    "hidden_columns": "hiddenColumns",
 }
 _CAMEL = set(_OPTION_MAP.values())
 
@@ -249,6 +252,23 @@ def show(df, *, name: str | None = None, assets="inline",
                                          front (else lazy).
     worker : bool, default False         parse worker (off by default here
                                          — the data is inlined, not fetched).
+    selectable : bool, default False     emit a bubbling, cancelable
+                                         ``csvgrid:cellclick`` DOM event on a
+                                         body click (off = no event, no cost).
+                                         ``event.detail`` carries the clicked
+                                         cell and the whole row keyed by column
+                                         name (raw + formatted) with the
+                                         original row index, so an embedder
+                                         (HTMX, JS) can drill down. The grid
+                                         takes no action beyond an optional
+                                         highlight; no Python callback.
+    select_mode : {'row', 'cell', 'none'}, default 'row'
+                                         the visual highlight on click ('none'
+                                         still emits the event).
+    hidden_columns : list[str], optional header names carried in the event
+                                         payload (and export) but not shown as
+                                         columns — e.g. ship a key column
+                                         without displaying it.
 
     Dark mode follows the host page automatically unless ``theme`` forces
     it (prefers-color-scheme; JupyterLab dark themes included).

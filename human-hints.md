@@ -73,6 +73,38 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-26 — clickable rows & cells (3.5.0)
+
+Housekeeping first: moved the now-shipped `plan-infinity.md` (3.3.2) and
+`plan-currency.md` (3.4.0) into `dev/done/`; saved a memory rule to move a
+plan to `dev/done/` once it ships (commit + CHANGELOG), not wait to be asked.
+
+Executed `dev/plan-grid-spec.md` — a downstream embedder (fiscus, server-side
+`to_html` + HTMX) asked for clickable rows/cells. Reviewed it as clear and
+well-aligned with our constraints; flagged that Phase 3 (`hiddenColumns`) was
+the one genuinely-involved part (ripples through the positional `<colgroup>`
+width solver + sort/filter indexing, beyond the plan's ~30–40 line estimate).
+Steve said build all three phases.
+
+What landed, all opt-in (`selectable:false` default = byte-for-byte no-op):
+- `csvgrid:cellclick` CustomEvent from the grid root (one delegated tbody
+  listener, per-instance — honors no-document-listeners). `detail` carries
+  the clicked cell + the whole row by column name (raw + formatted) with the
+  ORIGINAL row index, so identity survives sort/filter.
+- `selectMode` row/cell/none highlight; survives re-render; light+dark CSS.
+- `root.csvgrid` handle + static `CsvGrid.forElement`; `getSelection` /
+  `clearSelection` / `selectRow`.
+- `hiddenColumns`: a `visibleCols` mask that ONLY the render/measure/layout
+  geometry walks (sort/filter/event keep real indices). Identity list when
+  unused → geometry reduces to prior behavior. Hidden cols still ride in the
+  payload AND export (per the plan's "no change to export").
+- Python `selectable`/`select_mode`/`hidden_columns` option-map + docstrings;
+  no Python callback (pure string emitter). Fixture `dev/select-test.html`.
+  Smoke test is DOM-free so the event path is fixture-verified, not unit-
+  tested (same boundary as drag-resize/render). Versions all → 3.5.0; dist +
+  python assets rebuilt. NOT yet committed (Steve commits); plan stays in
+  `dev/` until shipped.
+
 ## 2026-06-18 — currency-aware numbers (3.4.0)
 
 Executed `dev/plan-currency.md`. The grid now understands a battery of
