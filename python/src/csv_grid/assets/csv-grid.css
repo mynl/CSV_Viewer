@@ -138,6 +138,15 @@
 }
 .csvgrid .csvgrid-table tbody tr:hover td { background: var(--csvgrid-row-hover); }
 
+/* Windowed-render spacer rows: reserve off-screen height only — no padding,
+ * border, hover or selection chrome (they're not real rows). */
+.csvgrid .csvgrid-table tbody tr.csvgrid-spacer td,
+.csvgrid .csvgrid-table tbody tr.csvgrid-spacer:hover td {
+    padding: 0;
+    border: 0;
+    background: none;
+}
+
 .csvgrid .csvgrid-table thead th {
     position: sticky;
     top: 0;

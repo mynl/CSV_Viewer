@@ -33,7 +33,10 @@
  *                           scroll for the rest); null = unbounded
  *   height: null            raw CSS max-height for the scroll viewport
  *                           (e.g. '400px'); overrides maxRows when set
- *   renderCap: 2048         rows rendered before "show all"
+ *   renderCap: 2048         rows rendered before "show all" — only when the
+ *                           scroll container is UNBOUNDED (the page scrolls);
+ *                           a bounded scroller virtualizes instead (windowed
+ *                           body, every row reachable). Also caps formatted export.
  *   eagerCells: 262144      below this, format + index everything at load
  *   worker: true            parse worker for csv >= ~1 MB; false = always
  *                           synchronous; or an explicit worker URL
@@ -81,6 +84,7 @@ import { parseFormatSpec, parseAlignSpec, formatCell, normalizeRecords,
 const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
 const WIDTH_SAMPLE = 2048;        // rows sampled per column for width percentiles
 const INDEX_CHUNK = 10000;        // rows per chunk when building the search index
+const RENDER_BUFFER = 10;         // rows rendered above/below the viewport (windowed body)
 
 function el(tag, cls) {
     const e = document.createElement(tag);
@@ -131,6 +135,14 @@ export default class CsvGrid {
         this.showAll = false;
         this.visibleCols = [];   // real column indices to render (hiddenColumns excluded)
         this.selected = null;    // {rowIndex, columnIndex} (original indices) when selectable
+        // windowed (virtualized) body render — render only the on-screen slice
+        // framed by two spacer rows; see renderBody. Geometry recomputed on
+        // filter/sort/resize, the slice re-rendered on scroll.
+        this._rowH = 0;          // measured data-row height (0 = not yet measured)
+        this._winStart = 0;      // first view index currently in the DOM
+        this._winEnd = 0;        // one past the last view index in the DOM
+        this._windowed = false;  // true = virtualized slice; false = capped (unbounded container)
+        this._scrollRaf = 0;     // pending rAF id coalescing scroll-driven re-windows
 
         this._worker = undefined;   // lazy; null = unavailable -> synchronous
         this._pending = new Map();  // load gen -> {resolve, reject} awaiting the worker
@@ -183,6 +195,9 @@ export default class CsvGrid {
             root.appendChild(tb);
         }
         const wrap = el('div', 'csvgrid-scroll');
+        // windowed render: re-slice on scroll (per-instance listener — complies
+        // with the no document-level listeners rule). rAF-coalesced in _onScroll.
+        wrap.addEventListener('scroll', () => this._onScroll());
         const table = el('table', 'csvgrid-table');
         const head = el('thead'), body = el('tbody');
         table.append(head, body);
@@ -367,6 +382,10 @@ export default class CsvGrid {
         this.colFilters = new Array(cols.length).fill('');
         this.manualWidths = new Map();
         this.showAll = false;
+        // re-measure row height + reset the window for the new data
+        this._rowH = 0;
+        this._winStart = this._winEnd = 0;
+        this._windowed = false;
         if (this.els.search) this.els.search.value = '';
         this.els.error.classList.add('csvgrid-hidden');
         this.renderHead();
@@ -382,12 +401,22 @@ export default class CsvGrid {
      * No-op (unbounded) when neither is set — the host may still cap it. */
     _applyHeight() {
         const o = this.opts;
-        if (o.height) { this.els.scroll.style.maxHeight = o.height; return; }
-        if (o.maxRows && this.els.body.rows.length) {
-            const headH = this.els.head.offsetHeight;
-            const rowH = this.els.body.rows[0].offsetHeight;
-            this.els.scroll.style.maxHeight = Math.ceil(headH + rowH * o.maxRows + 2) + 'px';
+        let bounded = false;
+        if (o.height) {
+            this.els.scroll.style.maxHeight = o.height;
+            bounded = true;
+        } else if (o.maxRows) {
+            // measure a real data row (skip spacer rows of the windowed body)
+            const dataRow = this.els.body.querySelector('tr:not(.csvgrid-spacer)');
+            const rowH = this._rowH || (dataRow ? dataRow.offsetHeight : 0);
+            if (rowH) {
+                const headH = this.els.head.offsetHeight;
+                this.els.scroll.style.maxHeight = Math.ceil(headH + rowH * o.maxRows + 2) + 'px';
+                bounded = true;
+            }
         }
+        // capping the viewport changes clientHeight, so re-window against it
+        if (bounded) this.renderBody();
     }
 
     _showError(msg) {
@@ -402,6 +431,7 @@ export default class CsvGrid {
     destroy() {
         this.loadGen++;             // abandon pending parses and index builds
         this._pending.clear();
+        if (this._scrollRaf) { cancelAnimationFrame(this._scrollRaf); this._scrollRaf = 0; }
         if (this._worker) { this._worker.terminate(); this._worker = null; }
         delete this.root.csvgrid;
         this.root.classList.remove('csvgrid');
@@ -587,6 +617,11 @@ export default class CsvGrid {
         table.prepend(cg);
         table.style.tableLayout = 'fixed';
         table.style.width = widths.reduce((a, b) => a + b, 0) + 'px';
+        // The viewport may have just become visible (the app reveals the table
+        // AFTER setData, then calls applyLayout) or changed size (resize /
+        // expand). Re-window against the now-known geometry. Skipped before the
+        // first render (the during-_install call has no view yet) to avoid churn.
+        if (this.view.length) this.renderBody();
     }
 
     // ----------------------------------------------- lazy format / index
@@ -767,12 +802,72 @@ export default class CsvGrid {
         head.appendChild(fr);
     }
 
+    /* (Re)build the body for the current view. Windowed: only the rows in the
+     * scroll viewport (+ a buffer) are in the DOM, framed by two zero-content
+     * spacer rows that reserve the off-screen height so the scrollbar and the
+     * sticky header behave. Cost is O(viewport), independent of view.length.
+     *
+     * Windowing needs a bounded scroller (one that clips + scrolls internally).
+     * When the container is unbounded (the default embed — the page scrolls,
+     * not the container — so scrollTop never moves), we fall back to today's
+     * renderCap + "show all" path so there's no blank gap. */
     renderBody() {
+        const { view } = this;
+        const body = this.els.body, scroll = this.els.scroll;
+        if (!view.length) {
+            body.innerHTML = '';
+            this._winStart = this._winEnd = 0;
+            this._windowed = false;
+            this._updateCapNote();
+            return;
+        }
+        // Row height drives the geometry; measure it once from a real data row.
+        // Needs a visible DOM (offsetHeight is 0 while hidden) — the app loads
+        // with the table hidden and reveals it afterwards via applyLayout(),
+        // which re-enters here. Until then, render the capped set as a safe
+        // fallback (matches pre-3.7 behavior for any never-revealed embed).
+        if (!this._rowH) {
+            this._renderSlice(0, Math.min(view.length, 60), 0, 0);   // probe
+            const tr = body.querySelector('tr:not(.csvgrid-spacer)');
+            this._rowH = tr ? tr.offsetHeight : 0;
+            if (!this._rowH) {
+                const cap = Math.min(view.length, this.opts.renderCap);
+                this._renderSlice(0, cap, 0, 0);
+                this._winStart = 0; this._winEnd = cap; this._windowed = false;
+                this._updateCapNote();
+                return;
+            }
+        }
+        const h = this._rowH;
+        const win = this._computeWindow();
+        this._renderSlice(win.start, win.end, win.start * h, (view.length - win.end) * h);
+        // Does the container actually clip? The spacers now reserve the full
+        // height, so a bounded scroller has clientHeight < scrollHeight.
+        if (scroll.scrollHeight - scroll.clientHeight > 1) {
+            this._windowed = true;
+            this._winStart = win.start; this._winEnd = win.end;
+        } else {
+            // unbounded: windowing can't engage. Render up to the cap (or all,
+            // if the user pressed "show all"); no spacers.
+            this._windowed = false;
+            const cap = this.showAll ? view.length : Math.min(view.length, this.opts.renderCap);
+            this._renderSlice(0, cap, 0, 0);
+            this._winStart = 0; this._winEnd = cap;
+        }
+        this._updateCapNote();
+    }
+
+    /* Render view[start, end) into <tbody>, framed by top/bottom spacer rows of
+     * `topH`/`botH` px (0 = omitted). The spacer's td spans every visible
+     * column so the table's horizontal extent is preserved when the slice is
+     * sparse. data-r (original row index) rides only on real data rows. */
+    _renderSlice(start, end, topH, botH) {
         const { cols, view } = this;
-        const cap = this.showAll ? view.length : Math.min(view.length, this.opts.renderCap);
         const sel = this.opts.selectable;
+        const ncol = this.visibleCols.length;
         const parts = [];
-        for (let i = 0; i < cap; i++) {
+        if (topH > 0) parts.push(`<tr class="csvgrid-spacer"><td colspan="${ncol}" style="height:${topH}px"></td></tr>`);
+        for (let i = start; i < end; i++) {
             const r = view[i];
             const frow = this.getFormattedRow(r);
             const cells = this.visibleCols.map(c => {
@@ -781,17 +876,52 @@ export default class CsvGrid {
                 if (text === '') return `<td class="${cellClass(col)} blank">·</td>`;
                 return `<td class="${cellClass(col)}">${escapeHtml(text)}</td>`;
             });
-            // data-r = ORIGINAL row index (survives sort/filter/show-all), only when on
             parts.push(`<tr${sel ? ` data-r="${r}"` : ''}>${cells.join('')}</tr>`);
         }
+        if (botH > 0) parts.push(`<tr class="csvgrid-spacer"><td colspan="${ncol}" style="height:${botH}px"></td></tr>`);
         this.els.body.innerHTML = parts.join('');
         if (sel) this._paintSelection();   // selection survives the re-render
+    }
 
+    /* The [start, end) view slice that covers the current scroll viewport plus
+     * a buffer above and below. */
+    _computeWindow() {
+        const { view, _rowH: h } = this;
+        const scroll = this.els.scroll;
+        const total = view.length;
+        const vh = scroll.clientHeight || (total * h);
+        const visible = Math.max(1, Math.ceil(vh / h));
+        const start = Math.max(0, Math.floor(scroll.scrollTop / h) - RENDER_BUFFER);
+        const end = Math.min(total, start + visible + 2 * RENDER_BUFFER);
+        return { start, end };
+    }
+
+    /* Scroll-driven re-slice: rAF-coalesced (one render per frame on a fling),
+     * and a no-op when the window hasn't moved by a whole row. Inert unless the
+     * body is actually windowed (the capped fallback has every row in the DOM). */
+    _onScroll() {
+        if (!this._windowed || this._scrollRaf) return;
+        this._scrollRaf = requestAnimationFrame(() => {
+            this._scrollRaf = 0;
+            if (!this._windowed) return;
+            const { start, end } = this._computeWindow();
+            if (start === this._winStart && end === this._winEnd) return;
+            this._winStart = start; this._winEnd = end;
+            this._renderSlice(start, end, start * this._rowH, (this.view.length - end) * this._rowH);
+        });
+    }
+
+    /* The "showing first N — show all" note: only meaningful in the capped
+     * (unbounded-container) fallback. When windowed, every row is reachable by
+     * scrolling, so the note stays hidden. */
+    _updateCapNote() {
         const note = this.els.capNote;
-        if (view.length > cap) {
+        if (!note) return;
+        const total = this.view.length;
+        if (!this._windowed && this._winEnd < total) {
             note.classList.remove('csvgrid-hidden');
             this.els.showAllBtn.textContent =
-                `Showing first ${cap.toLocaleString()} of ${view.length.toLocaleString()} rows — show all`;
+                `Showing first ${this._winEnd.toLocaleString()} of ${total.toLocaleString()} rows — show all`;
         } else {
             note.classList.add('csvgrid-hidden');
         }
@@ -802,11 +932,12 @@ export default class CsvGrid {
         const fmt = n => n.toLocaleString();
         const total = this.rows.length;
         const shown = this.view.length;
-        const cap = this.showAll ? shown : Math.min(shown, this.opts.renderCap);
         let s = this.fileName ? this.fileName + ' — ' : '';
         s += shown === total ? `${fmt(total)} rows` : `${fmt(shown)} of ${fmt(total)} rows`;
         s += ` × ${this.cols.length} cols`;
-        if (cap < shown) s += ` — showing rows 1–${fmt(cap)}`;
+        // windowed: every row is scroll-reachable; only the capped fallback
+        // (unbounded container) limits what's rendered, and says so.
+        if (!this._windowed && this._winEnd < shown) s += ` — showing rows 1–${fmt(this._winEnd)}`;
         if (this.guessedHeaders) s += ' (headers guessed)';
         if (this.indexing !== null) s += ` — indexing search ${Math.round(this.indexing * 100)}%`;
         this.els.status.textContent = s;
@@ -931,6 +1062,19 @@ export default class CsvGrid {
     selectRow(rowIndex) {
         if (!this.opts.selectable) return;
         this.selected = { rowIndex, columnIndex: this.selected ? this.selected.columnIndex : this.visibleCols[0] };
+        const vi = this.view.indexOf(rowIndex);   // position in the current view
+        if (vi < 0) { this._paintSelection(); return; }   // filtered out of the view
+        if (this._windowed && this._rowH) {
+            // the target row may be outside the rendered window: scroll by its
+            // computed offset, then re-window so its <tr> exists to paint.
+            const h = this._rowH, scroll = this.els.scroll;
+            const top = vi * h;
+            if (top < scroll.scrollTop || top + h > scroll.scrollTop + scroll.clientHeight) {
+                scroll.scrollTop = Math.max(0, top - h * RENDER_BUFFER);
+            }
+            this.renderBody();   // re-slices at the new offset and repaints
+            return;
+        }
         this._paintSelection();
         const tr = this.els.body.querySelector(`tr[data-r="${rowIndex}"]`);
         if (tr) tr.scrollIntoView({ block: 'nearest' });

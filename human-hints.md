@@ -73,6 +73,29 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-29 — windowed (virtualized) body render (3.7.0)
+
+Executed `plan-3.7-windowed-render.md`. `renderBody` now renders only the
+on-screen slice (`⌈viewport/rowH⌉ + 10·2` rows) framed by two spacer `<tr>`s
+that reserve the off-screen height; a per-instance rAF-coalesced scroll listener
+re-slices on scroll. Refresh cost is now O(viewport), not O(view.length) — a
+35k-row filter re-renders ~50 rows. New helpers: `_renderSlice`,
+`_computeWindow`, `_onScroll`, `_updateCapNote`; new state `_rowH/_winStart/
+_winEnd/_windowed/_scrollRaf`. Row height measured once from a real data row
+(spacer-safe), deferred while the table is hidden — the app loads hidden and
+reveals via `applyLayout()`, which now re-windows; `_applyHeight` re-windows too
+(capping the viewport changes clientHeight). **One design call (asked Steve, he
+chose "keep cap as fallback"):** windowing needs a *bounded* scroller; the plan
+proposed dropping `renderCap`, but an unbounded default-embed container (page
+scrolls, `scrollTop` never moves) would show a blank gap. So windowing engages
+only when the container actually clips (`scrollHeight−clientHeight>1`); otherwise
+fall back to the prior `renderCap` + "show all". `renderCap` stays functional
+(unbounded cap + formatted-export threshold), not the no-op the plan suggested.
+In the app the "showing first 2048" note now never shows. `selectRow` offset-
+scrolls a far row into the window before painting. Built dist + py/R assets;
+smoke test untouched + green. **Perf still to be eyeballed in-browser by Steve;
+plan stays in `dev/` until he calls it done.**
+
 ## 2026-06-29 — reverted the 3.6 debounce; windowed render is the real fix (3.6.2)
 
 Steve loaded a 35k-row frame and filtering went translucent / locked up —

@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.7.0 (2026-06-29) — windowed (virtualized) body rendering
+
+The real fix for large-file sluggishness (the 3.6 debounce, reverted in 3.6.2,
+could only delay a heavy render — never make it cheap). Rows are uniform-height
+(`nowrap` + ellipsis), so only `⌈viewport/rowHeight⌉ + buffer` rows are ever
+visible (~30–60). The body now renders just that **window** — the on-screen
+slice framed by two zero-content spacer rows that reserve the off-screen height
+— so a refresh costs **O(viewport), not O(view.length)**: a 35k-row filter/sort
+re-renders ~50 rows instead of 2048. A per-instance scroll listener
+(rAF-coalesced) re-slices as you scroll; geometry recomputes on filter / sort /
+resize / reveal.
+
+Windowing engages only for a **bounded scroller** (one that clips and scrolls
+internally — the app always is; embeds with `height`/`maxRows` or a flex-bounded
+container are too). An **unbounded** container (the default embed, where the
+*page* scrolls) can't drive `scrollTop`, so it falls back to the prior
+`renderCap` + "show all" path — no blank gap. `renderCap` therefore stays
+meaningful (the unbounded cap, and the formatted-export threshold). In the app
+the "showing first 2048" note now simply never appears — every row is reachable
+by scrolling.
+
+Grid-only change (`src/grid/grid.js` + `grid.css`); `dist/` and the python/R
+embedded assets rebuilt. No logic change — the smoke test is untouched; perf is
+verified in-browser.
+
 ## 3.6.2 (2026-06-29) — revert the 3.6.0 filter debounce
 
 Backed out the self-calibrating filter debounce from 3.6.0 — it made large

@@ -1,4 +1,4 @@
-/* csv-grid v3.6.2 — built by Vite from src/grid/ of the
+/* csv-grid v3.7.0 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -210,8 +210,8 @@ function ne(e) {
 		r[i] = (r[i] || 0) + 1, e.name = n[i] > 1 ? `${i} ${r[i]}` : i;
 	});
 }
-var re = /\b(year|yr|vintage|cohort)\b/i, T = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i, E = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i, D = /(?<![a-z])(ratio|rate|roe|roa|coc|lr|elr|plr|margin|yield|return|growth|retention|cede|ceded|discount|apr|apy|coupon|util|utilization|share|pct|percent|frequency)(?![a-z])/i;
-function O(e, t, n, r = !1) {
+var re = /\b(year|yr|vintage|cohort)\b/i, T = /\b(amount|amt|balance|bal|price|cost|fee|fees|charge|paid|payment|debit|credit|total|premium|loss|salary|wage|income|expense|revenue|usd|gbp|eur|cad)\b|[$£€]/i, ie = /\b(id|no|num|number|account|acct|code|zip|postal|phone|fax|ssn|ein|tin|invoice|inv|ref|reference|sku|upc|isbn|order|customer|cust|member|policy|claim|seq)\b/i, E = /(?<![a-z])(ratio|rate|roe|roa|coc|lr|elr|plr|margin|yield|return|growth|retention|cede|ceded|discount|apr|apy|coupon|util|utilization|share|pct|percent|frequency)(?![a-z])/i;
+function D(e, t, n, r = !1) {
 	if (r) return {
 		format: "float",
 		dec: 2
@@ -220,7 +220,7 @@ function O(e, t, n, r = !1) {
 	if (i.every((e) => Number.isInteger(e)) && i.length) return re.test(e) || i.every((e) => e >= 1800 && e <= 2100) ? {
 		format: "year",
 		dec: 0
-	} : E.test(e) && !T.test(e) ? {
+	} : ie.test(e) && !T.test(e) ? {
 		format: "plain",
 		dec: 0
 	} : T.test(e) ? {
@@ -240,7 +240,7 @@ function O(e, t, n, r = !1) {
 		format: "float",
 		dec: Math.min(n, 6)
 	};
-	if (D.test(e) && o <= 2) return {
+	if (E.test(e) && o <= 2) return {
 		format: "pct",
 		dec: Math.max(1, Math.min(4, n - 2))
 	};
@@ -258,7 +258,7 @@ function O(e, t, n, r = !1) {
 		dec: Math.max(0, Math.min(n, 3 - Math.floor(Math.log10(l)), 6))
 	};
 }
-var k = {
+var O = {
 	"-9": "n",
 	"-6": "µ",
 	"-3": "m",
@@ -268,28 +268,28 @@ var k = {
 	9: "G",
 	12: "T"
 };
-function A(e) {
+function k(e) {
 	if (!Number.isFinite(e)) return e > 0 ? "inf" : "-inf";
 	if (e === 0) return "0";
 	let t = Math.abs(e), n = Math.floor(Math.log10(t) / 3) * 3;
 	n = Math.max(-9, Math.min(12, n));
 	let r = t / 10 ** n;
-	return (e < 0 ? "-" : "") + Number(r.toPrecision(3)) + k[n];
+	return (e < 0 ? "-" : "") + Number(r.toPrecision(3)) + O[n];
 }
-function j(e, t) {
+function A(e, t) {
 	if (e <= t) return Array.from({ length: e }, (e, t) => t);
 	let n = Array(t), r = e / t;
 	for (let e = 0; e < t; e++) n[e] = Math.floor(e * r);
 	return n;
 }
-var M = 2048, N = /^-?0\d/;
-function P(e, t) {
-	let n = j(t.length, M);
+var j = 2048, M = /^-?0\d/;
+function N(e, t) {
+	let n = A(t.length, j);
 	return e.map((e, r) => {
 		let i = !0, a = !0, o = !1, s = !1, c = 0;
 		for (let e of n) {
 			let n = (t[e][r] ?? "").trim();
-			if (!(n === "" || _(n)) && (c++, i && (v(n) === null ? i = !1 : (!o && N.test(n) && (o = !0), !s && ee(n) && (s = !0))), a && C(n, !1) === null && (a = !1), o || s || !i && !a)) break;
+			if (!(n === "" || _(n)) && (c++, i && (v(n) === null ? i = !1 : (!o && M.test(n) && (o = !0), !s && ee(n) && (s = !0))), a && C(n, !1) === null && (a = !1), o || s || !i && !a)) break;
 		}
 		if (c === 0 || o || s) return s ? {
 			name: e,
@@ -309,7 +309,7 @@ function P(e, t) {
 				let s = v(o);
 				s && (n[e] = s.v, s.dec > i && (i = s.dec), s.sym && (a = !0));
 			}
-			let o = O(e, n, i, a);
+			let o = D(e, n, i, a);
 			return {
 				name: e,
 				type: "number",
@@ -353,7 +353,7 @@ function P(e, t) {
 		};
 	});
 }
-function F(e, n = null) {
+function P(e, n = null) {
 	let i, a, c = null, l;
 	if (o(e)) {
 		if ({headers: i, rows: a, aligns: c} = s(e), l = n === !1, l && (a = [i, ...a], i = i.map((e, t) => `col${t + 1}`)), !a.length) throw Error("Markdown table has no data rows.");
@@ -367,7 +367,7 @@ function F(e, n = null) {
 			return t;
 		});
 	}
-	let u = P(i, a);
+	let u = N(i, a);
 	return l && ne(u), c && u.forEach((e, t) => {
 		c[t] && (e.align = c[t]);
 	}), {
@@ -379,15 +379,15 @@ function F(e, n = null) {
 }
 //#endregion
 //#region src/grid/util.js
-var I = /* @__PURE__ */ new Map();
-function L(e) {
-	let t = I.get(e);
+var F = /* @__PURE__ */ new Map();
+function I(e) {
+	let t = F.get(e);
 	return t || (t = new Intl.NumberFormat("en-US", {
 		minimumFractionDigits: e,
 		maximumFractionDigits: e
-	}), I.set(e, t)), t;
+	}), F.set(e, t)), t;
 }
-function R(e) {
+function L(e) {
 	if (e == null || e === "") return null;
 	if (e === "year" || e === "eng") return { kind: e };
 	let t = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(e);
@@ -398,7 +398,7 @@ function R(e) {
 		dec: t[2] === void 0 ? null : +t[2]
 	};
 }
-var z = [
+var R = [
 	[0xe8d4a51000, "T"],
 	[1e9, "G"],
 	[1e6, "M"],
@@ -408,51 +408,51 @@ var z = [
 	[1e-6, "µ"],
 	[1e-9, "n"]
 ];
-function B(e, t) {
+function z(e, t) {
 	switch (t.kind) {
 		case "year": return String(e);
-		case "eng": return A(e);
+		case "eng": return k(e);
 		case "d": {
 			let n = Math.round(e);
-			return t.comma ? L(0).format(n) : String(n);
+			return t.comma ? I(0).format(n) : String(n);
 		}
 		case "f": {
 			let n = t.dec ?? 2;
-			return t.comma ? L(n).format(e) : e.toFixed(n);
+			return t.comma ? I(n).format(e) : e.toFixed(n);
 		}
 		case "%": {
 			let n = t.dec ?? 0, r = e * 100;
-			return (t.comma ? L(n).format(r) : r.toFixed(n)) + "%";
+			return (t.comma ? I(n).format(r) : r.toFixed(n)) + "%";
 		}
 		case "e": return e.toExponential(t.dec ?? 2);
 		case "s": {
-			if (t.dec === null || t.dec === void 0) return A(e);
+			if (t.dec === null || t.dec === void 0) return k(e);
 			if (e === 0) return 0 .toFixed(t.dec);
 			let n = Math.abs(e);
-			for (let [r, i] of z) if (n >= r) return (e / r).toFixed(t.dec) + i;
+			for (let [r, i] of R) if (n >= r) return (e / r).toFixed(t.dec) + i;
 			return (e / 1e-9).toFixed(t.dec) + "n";
 		}
 	}
 }
-function V(e) {
+function B(e) {
 	return [...e].map((e) => ({
 		l: "left",
 		r: "right",
 		c: "center"
 	})[e] ?? null);
 }
-function ie(e, t, n, r = "auto") {
+function V(e, t, n, r = "auto") {
 	if (e = (e ?? "").trim(), e === "") return "";
 	if (r === "raw") return e;
 	if (t.type === "number") {
 		let r = t.values[n];
 		if (r === null) return _(e) ? "" : e;
 		if (!Number.isFinite(r)) return r > 0 ? "inf" : "-inf";
-		if (t.fmt) return B(r, t.fmt);
+		if (t.fmt) return z(r, t.fmt);
 		if (t.format === "year" || t.format === "plain") return String(r);
-		if (t.format === "eng") return A(r);
-		if (t.format === "pct") return L(t.dec).format(r * 100) + "%";
-		let i = L(t.dec).format(r);
+		if (t.format === "eng") return k(r);
+		if (t.format === "pct") return I(t.dec).format(r * 100) + "%";
+		let i = I(t.dec).format(r);
 		if (t.hasCurrency) {
 			let t = c.exec(e);
 			if (t) return i[0] === "-" ? "-" + t[0] + i.slice(1) : t[0] + i;
@@ -467,24 +467,24 @@ function ie(e, t, n, r = "auto") {
 	}
 	return e;
 }
-function H(e, t) {
+function ae(e, t) {
 	let n = (e) => (e = (e ?? "") + "", /[",\r\n]/.test(e) ? "\"" + e.replace(/"/g, "\"\"") + "\"" : e), r = (e) => e.map(n).join(","), i = [r(e)];
 	for (let e of t) i.push(r(e));
 	return i.join("\r\n");
 }
-function U(e, t, n = []) {
+function H(e, t, n = []) {
 	let r = (e) => ((e ?? "") + "").replace(/\|/g, "\\|").replace(/\s*\r?\n\s*/g, " "), i = (e) => e === "right" ? "---:" : e === "center" ? ":--:" : e === "left" ? ":---" : "---", a = (e) => "| " + e.map(r).join(" | ") + " |", o = "|" + e.map((e, t) => i(n[t])).join("|") + "|", s = [a(e), o];
 	for (let e of t) s.push(a(e));
 	return s.join("\n");
 }
-function W(e, t) {
+function U(e, t) {
 	if (!Array.isArray(e)) throw Error("CsvGrid: records must be an array.");
 	let n = (e) => e == null || typeof e == "number" && Number.isNaN(e) ? "" : String(e), r, i;
 	if (e.length && Array.isArray(e[0])) {
 		if (!t) throw Error("CsvGrid: columns are required with array-of-arrays records.");
 		r = t.map(String), i = e.map((e) => r.map((t, r) => n(e[r])));
 	} else r = (t ?? Object.keys(e[0] ?? {})).map(String), i = e.map((e) => r.map((t) => n(e[t])));
-	let a = P(r, i);
+	let a = N(r, i);
 	return {
 		headers: r,
 		rows: i,
@@ -492,7 +492,7 @@ function W(e, t) {
 		headerless: !1
 	};
 }
-function G(e) {
+function W(e) {
 	let t = [];
 	for (let n of e.trim().split(/\s+/)) {
 		if (!n) continue;
@@ -504,8 +504,8 @@ function G(e) {
 	}
 	return t;
 }
-var K = /[\s_\-\/\\.,:;()[\]{}"']/;
-function q(e, t) {
+var G = /[\s_\-\/\\.,:;()[\]{}"']/;
+function K(e, t) {
 	let n = t.length, r = e.length;
 	if (r === 0) return 0;
 	if (r > n) return -1;
@@ -521,10 +521,10 @@ function q(e, t) {
 	let s = 100 - 3 * (a - o + 1 - r) - Math.min(o, 20);
 	i = 0;
 	let c = !1;
-	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || K.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
+	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || G.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
 	return s;
 }
-function J(e, t, n) {
+function q(e, t, n) {
 	let r = e.cs ? n : t, i, a = 0;
 	switch (e.kind) {
 		case "exact":
@@ -537,16 +537,16 @@ function J(e, t, n) {
 			i = r.endsWith(e.str);
 			break;
 		default: {
-			let t = q(e.str, r);
+			let t = K(e.str, r);
 			i = t >= 0, a = t;
 		}
 	}
 	return e.negate && (i = !i), i ? a : -1;
 }
-function Y(e, t, n, r = "equal-risk") {
-	return r === "coverage" ? oe(e, t, n) : ae(e, t, n);
+function J(e, t, n, r = "equal-risk") {
+	return r === "coverage" ? se(e, t, n) : oe(e, t, n);
 }
-function ae(e, t, n) {
+function oe(e, t, n) {
 	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
 	if (a(o) <= n) return o;
 	if (a(i(0)) >= n) return i(0);
@@ -557,13 +557,13 @@ function ae(e, t, n) {
 	}
 	return i(s);
 }
-function oe(e, t, n) {
+function se(e, t, n) {
 	let r = e.map((e, n) => Math.max(t[n], e.length ? e[e.length - 1] : 0)), i = (e) => e.reduce((e, t) => e + t, 0);
 	if (i(r) <= n) return r;
 	if (i(t) >= n) return t.slice();
 	let a = t.slice(), o = n - i(t), s = [];
 	for (let n = 0; n < e.length; n++) {
-		let r = se(e[n], t[n]);
+		let r = ce(e[n], t[n]);
 		for (let e = 1; e < r.length; e++) {
 			let t = r[e].w - r[e - 1].w, i = r[e].cells - r[e - 1].cells;
 			t > 0 && i > 0 && s.push({
@@ -581,7 +581,7 @@ function oe(e, t, n) {
 	}
 	return a;
 }
-function se(e, t) {
+function ce(e, t) {
 	let n = e.length, r = 0;
 	for (; r < n && e[r] <= t;) r++;
 	let i = [{
@@ -607,7 +607,7 @@ function se(e, t) {
 	}
 	return a;
 }
-function ce(e, t) {
+function le(e, t) {
 	let n = e.trim();
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
@@ -646,20 +646,20 @@ function ce(e, t) {
 	let r = n.toLowerCase();
 	return (e, t) => e.toLowerCase().includes(r);
 }
-function X(e) {
+function Y(e) {
 	return e.align ? `col-${e.type} align-${e.align}` : `col-${e.type}`;
 }
-function Z(e) {
+function X(e) {
 	return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 //#endregion
 //#region src/grid/grid.js
-var le = 1e6, ue = 2048, Q = 1e4;
+var ue = 1e6, de = 2048, Z = 1e4, Q = 10;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var de = class t {
+var fe = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -683,7 +683,7 @@ var de = class t {
 			selectMode: "row",
 			hiddenColumns: null,
 			...n
-		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
+		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._rowH = 0, this._winStart = 0, this._winEnd = 0, this._windowed = !1, this._scrollRaf = 0, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
 	}
 	_buildScaffold() {
 		let e = this.opts, t = this.root;
@@ -703,7 +703,9 @@ var de = class t {
 			}
 			t.appendChild(n);
 		}
-		let n = $("div", "csvgrid-scroll"), r = $("table", "csvgrid-table"), i = $("thead"), a = $("tbody");
+		let n = $("div", "csvgrid-scroll");
+		n.addEventListener("scroll", () => this._onScroll());
+		let r = $("table", "csvgrid-table"), i = $("thead"), a = $("tbody");
 		r.append(i, a), n.appendChild(r), t.appendChild(n);
 		let o = $("div", "csvgrid-capnote csvgrid-hidden"), s = $("button", "csvgrid-btn");
 		s.type = "button", s.addEventListener("click", () => {
@@ -754,14 +756,14 @@ var de = class t {
 			};
 		}
 		if (e.records !== void 0) return {
-			d: W(e.records, e.columns),
+			d: U(e.records, e.columns),
 			name: e.name ?? ""
 		};
 		throw Error("CsvGrid: data must be {csv}, {records[, columns]}, or {url}.");
 	}
 	_parse(t, n, r) {
 		if (t = e(t), !t.trim()) throw Error("No data found.");
-		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= le ? this._getWorker() : null;
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= ue ? this._getWorker() : null;
 		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
 			this._pending.set(n, {
 				resolve: e,
@@ -771,7 +773,7 @@ var de = class t {
 				text: t,
 				headerOverride: i
 			});
-		})) : F(t, i);
+		})) : P(t, i);
 	}
 	_getWorker() {
 		if (this._worker === void 0) {
@@ -797,31 +799,32 @@ var de = class t {
 	_install(e, t) {
 		let { rows: n, cols: r } = e;
 		if (this.opts.align) {
-			let e = V(this.opts.align);
+			let e = B(this.opts.align);
 			r.forEach((t, n) => {
 				e[n] && (t.align = e[n]);
 			});
 		}
 		this.opts.formats && r.forEach((e, t) => {
-			e.fmt = R(this.opts.formats[t]);
+			e.fmt = L(this.opts.formats[t]);
 		}), this.fileName = t || "", this.guessedHeaders = e.headerless, this.ambiguousDateCols = r.filter((e) => e.ambiguousOrder).map((e) => e.name), this.headers = e.headers, this.rows = n, this.cols = r;
 		let i = Array.isArray(this.opts.hiddenColumns) && this.opts.hiddenColumns.length ? new Set(this.opts.hiddenColumns) : null;
 		if (this.visibleCols = r.map((e, t) => t).filter((e) => !i || !i.has(this.headers[e])), this.selected = null, this.formatted = Array(n.length), this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, n.length * r.length <= this.opts.eagerCells) {
 			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
 			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
 		}
-		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
+		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this._rowH = 0, this._winStart = this._winEnd = 0, this._windowed = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
 	}
 	_applyHeight() {
-		let e = this.opts;
-		if (e.height) {
-			this.els.scroll.style.maxHeight = e.height;
-			return;
+		let e = this.opts, t = !1;
+		if (e.height) this.els.scroll.style.maxHeight = e.height, t = !0;
+		else if (e.maxRows) {
+			let n = this.els.body.querySelector("tr:not(.csvgrid-spacer)"), r = this._rowH || (n ? n.offsetHeight : 0);
+			if (r) {
+				let n = this.els.head.offsetHeight;
+				this.els.scroll.style.maxHeight = Math.ceil(n + r * e.maxRows + 2) + "px", t = !0;
+			}
 		}
-		if (e.maxRows && this.els.body.rows.length) {
-			let t = this.els.head.offsetHeight, n = this.els.body.rows[0].offsetHeight;
-			this.els.scroll.style.maxHeight = Math.ceil(t + n * e.maxRows + 2) + "px";
-		}
+		t && this.renderBody();
 	}
 	_showError(e) {
 		this.els.error.textContent = e, this.els.error.classList.remove("csvgrid-hidden");
@@ -830,7 +833,7 @@ var de = class t {
 		this.els.status && (this.els.status.textContent = e);
 	}
 	destroy() {
-		this.loadGen++, this._pending.clear(), this._worker &&= (this._worker.terminate(), null), delete this.root.csvgrid, this.root.classList.remove("csvgrid"), delete this.root.dataset.selectable, this.root.replaceChildren();
+		this.loadGen++, this._pending.clear(), this._scrollRaf &&= (cancelAnimationFrame(this._scrollRaf), 0), this._worker &&= (this._worker.terminate(), null), delete this.root.csvgrid, this.root.classList.remove("csvgrid"), delete this.root.dataset.selectable, this.root.replaceChildren();
 	}
 	setGlobalFilter(e) {
 		this.globalFilter = e, this.refresh();
@@ -848,9 +851,9 @@ var de = class t {
 		let r = e === "all" ? this.rows.map((e, t) => t) : this.view, i = n === "formatted" && r.length <= this.opts.renderCap, a = r.map((e) => i ? this.getFormattedRow(e) : this.cols.map((t, n) => this.rows[e][n] ?? ""));
 		if (t === "md") {
 			let e = this.cols.map((e) => e.align || (e.type === "number" ? "right" : e.type === "date" ? "center" : "left"));
-			return U(this.headers, a, e);
+			return H(this.headers, a, e);
 		}
-		return H(this.headers, a);
+		return ae(this.headers, a);
 	}
 	setWidthMode(e) {
 		this.opts.widthMode = e === "coverage" ? "coverage" : "equal-risk", this.applyLayout();
@@ -867,7 +870,7 @@ var de = class t {
 		this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
 	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = j(this.rows.length, ue), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, de), a = [], o = [];
 		for (let t of this.visibleCols) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -909,7 +912,7 @@ var de = class t {
 		if (!this.layout) return;
 		let e = this.els.table, t = this.expandAll ? Infinity : e.parentElement.clientWidth;
 		if (!t) return;
-		let n = Y(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
+		let n = J(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
 		for (let [e, t] of this.manualWidths) e < n.length && (n[e] = t);
 		let r = e.querySelector("colgroup");
 		r && r.remove(), r = document.createElement("colgroup");
@@ -917,18 +920,18 @@ var de = class t {
 			let t = document.createElement("col");
 			t.style.width = e + "px", r.appendChild(t);
 		}
-		e.prepend(r), e.style.tableLayout = "fixed", e.style.width = n.reduce((e, t) => e + t, 0) + "px";
+		e.prepend(r), e.style.tableLayout = "fixed", e.style.width = n.reduce((e, t) => e + t, 0) + "px", this.view.length && this.renderBody();
 	}
 	getFormattedRow(e) {
 		let t = this.formatted[e];
-		return t || (t = this.cols.map((t, n) => ie(this.rows[e][n], t, e, this.displayMode)), this.formatted[e] = t), t;
+		return t || (t = this.cols.map((t, n) => V(this.rows[e][n], t, e, this.displayMode)), this.formatted[e] = t), t;
 	}
 	buildSearchIndexChunked() {
 		let e = this.loadGen, t = this.rows.length, n = Array(t), r = Array(t), i = 0;
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + Q);
+			let o = Math.min(t, i + Z);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -938,16 +941,16 @@ var de = class t {
 		a();
 	}
 	rebuildView() {
-		let { rows: e, cols: t } = this, n = G(this.globalFilter);
+		let { rows: e, cols: t } = this, n = W(this.globalFilter);
 		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
-		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => ce(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => le(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
 		this.scores = [];
 		for (let t = 0; t < e.length; t++) {
 			let r = 0;
 			if (a) {
 				let a = !0;
 				for (let e of n) {
-					let n = J(e, this.searchLow[t], this.searchRaw[t]);
+					let n = q(e, this.searchLow[t], this.searchRaw[t]);
 					if (n < 0) {
 						a = !1;
 						break;
@@ -990,7 +993,7 @@ var de = class t {
 		let n = document.createElement("tr");
 		if (this.visibleCols.forEach((t, r) => {
 			let i = e[t], a = document.createElement("th");
-			a.className = X(i), this.opts.sortable ? (a.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${Z(i.name)}`, a.title = `${i.name} (${i.type}) — click to sort`, a.addEventListener("click", () => this.onSort(t))) : (a.innerHTML = `<span class="sort-arrow"></span>${Z(i.name)}`, a.title = `${i.name} (${i.type})`, a.classList.add("csvgrid-nosort"));
+			a.className = Y(i), this.opts.sortable ? (a.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${X(i.name)}`, a.title = `${i.name} (${i.type}) — click to sort`, a.addEventListener("click", () => this.onSort(t))) : (a.innerHTML = `<span class="sort-arrow"></span>${X(i.name)}`, a.title = `${i.name} (${i.type})`, a.classList.add("csvgrid-nosort"));
 			let o = document.createElement("span");
 			o.className = "col-resizer", o.title = "Drag to resize — double-click to fit content", o.addEventListener("mousedown", (e) => this.startColResize(e, r)), o.addEventListener("dblclick", (e) => {
 				e.stopPropagation(), this.fitColumn(r);
@@ -1007,22 +1010,65 @@ var de = class t {
 		}), t.appendChild(r);
 	}
 	renderBody() {
-		let { cols: e, view: t } = this, n = this.showAll ? t.length : Math.min(t.length, this.opts.renderCap), r = this.opts.selectable, i = [];
-		for (let a = 0; a < n; a++) {
-			let n = t[a], o = this.getFormattedRow(n), s = this.visibleCols.map((t) => {
-				let n = e[t], r = o[t];
-				return r === "" ? `<td class="${X(n)} blank">·</td>` : `<td class="${X(n)}">${Z(r)}</td>`;
-			});
-			i.push(`<tr${r ? ` data-r="${n}"` : ""}>${s.join("")}</tr>`);
+		let { view: e } = this, t = this.els.body, n = this.els.scroll;
+		if (!e.length) {
+			t.innerHTML = "", this._winStart = this._winEnd = 0, this._windowed = !1, this._updateCapNote();
+			return;
 		}
-		this.els.body.innerHTML = i.join(""), r && this._paintSelection();
-		let a = this.els.capNote;
-		t.length > n ? (a.classList.remove("csvgrid-hidden"), this.els.showAllBtn.textContent = `Showing first ${n.toLocaleString()} of ${t.length.toLocaleString()} rows — show all`) : a.classList.add("csvgrid-hidden");
+		if (!this._rowH) {
+			this._renderSlice(0, Math.min(e.length, 60), 0, 0);
+			let n = t.querySelector("tr:not(.csvgrid-spacer)");
+			if (this._rowH = n ? n.offsetHeight : 0, !this._rowH) {
+				let t = Math.min(e.length, this.opts.renderCap);
+				this._renderSlice(0, t, 0, 0), this._winStart = 0, this._winEnd = t, this._windowed = !1, this._updateCapNote();
+				return;
+			}
+		}
+		let r = this._rowH, i = this._computeWindow();
+		if (this._renderSlice(i.start, i.end, i.start * r, (e.length - i.end) * r), n.scrollHeight - n.clientHeight > 1) this._windowed = !0, this._winStart = i.start, this._winEnd = i.end;
+		else {
+			this._windowed = !1;
+			let t = this.showAll ? e.length : Math.min(e.length, this.opts.renderCap);
+			this._renderSlice(0, t, 0, 0), this._winStart = 0, this._winEnd = t;
+		}
+		this._updateCapNote();
+	}
+	_renderSlice(e, t, n, r) {
+		let { cols: i, view: a } = this, o = this.opts.selectable, s = this.visibleCols.length, c = [];
+		n > 0 && c.push(`<tr class="csvgrid-spacer"><td colspan="${s}" style="height:${n}px"></td></tr>`);
+		for (let n = e; n < t; n++) {
+			let e = a[n], t = this.getFormattedRow(e), r = this.visibleCols.map((e) => {
+				let n = i[e], r = t[e];
+				return r === "" ? `<td class="${Y(n)} blank">·</td>` : `<td class="${Y(n)}">${X(r)}</td>`;
+			});
+			c.push(`<tr${o ? ` data-r="${e}"` : ""}>${r.join("")}</tr>`);
+		}
+		r > 0 && c.push(`<tr class="csvgrid-spacer"><td colspan="${s}" style="height:${r}px"></td></tr>`), this.els.body.innerHTML = c.join(""), o && this._paintSelection();
+	}
+	_computeWindow() {
+		let { view: e, _rowH: t } = this, n = this.els.scroll, r = e.length, i = n.clientHeight || r * t, a = Math.max(1, Math.ceil(i / t)), o = Math.max(0, Math.floor(n.scrollTop / t) - Q);
+		return {
+			start: o,
+			end: Math.min(r, o + a + 2 * Q)
+		};
+	}
+	_onScroll() {
+		!this._windowed || this._scrollRaf || (this._scrollRaf = requestAnimationFrame(() => {
+			if (this._scrollRaf = 0, !this._windowed) return;
+			let { start: e, end: t } = this._computeWindow();
+			e === this._winStart && t === this._winEnd || (this._winStart = e, this._winEnd = t, this._renderSlice(e, t, e * this._rowH, (this.view.length - t) * this._rowH));
+		}));
+	}
+	_updateCapNote() {
+		let e = this.els.capNote;
+		if (!e) return;
+		let t = this.view.length;
+		!this._windowed && this._winEnd < t ? (e.classList.remove("csvgrid-hidden"), this.els.showAllBtn.textContent = `Showing first ${this._winEnd.toLocaleString()} of ${t.toLocaleString()} rows — show all`) : e.classList.add("csvgrid-hidden");
 	}
 	renderStatus() {
 		if (!this.els.status) return;
-		let e = (e) => e.toLocaleString(), t = this.rows.length, n = this.view.length, r = this.showAll ? n : Math.min(n, this.opts.renderCap), i = this.fileName ? this.fileName + " — " : "";
-		i += n === t ? `${e(t)} rows` : `${e(n)} of ${e(t)} rows`, i += ` × ${this.cols.length} cols`, r < n && (i += ` — showing rows 1–${e(r)}`), this.guessedHeaders && (i += " (headers guessed)"), this.indexing !== null && (i += ` — indexing search ${Math.round(this.indexing * 100)}%`), this.els.status.textContent = i;
+		let e = (e) => e.toLocaleString(), t = this.rows.length, n = this.view.length, r = this.fileName ? this.fileName + " — " : "";
+		r += n === t ? `${e(t)} rows` : `${e(n)} of ${e(t)} rows`, r += ` × ${this.cols.length} cols`, !this._windowed && this._winEnd < n && (r += ` — showing rows 1–${e(this._winEnd)}`), this.guessedHeaders && (r += " (headers guessed)"), this.indexing !== null && (r += ` — indexing search ${Math.round(this.indexing * 100)}%`), this.els.status.textContent = r;
 	}
 	refresh() {
 		this.rebuildView(), this.renderBody(), this.renderStatus();
@@ -1096,12 +1142,23 @@ var de = class t {
 		this.selected = {
 			rowIndex: e,
 			columnIndex: this.selected ? this.selected.columnIndex : this.visibleCols[0]
-		}, this._paintSelection();
-		let t = this.els.body.querySelector(`tr[data-r="${e}"]`);
-		t && t.scrollIntoView({ block: "nearest" });
+		};
+		let t = this.view.indexOf(e);
+		if (t < 0) {
+			this._paintSelection();
+			return;
+		}
+		if (this._windowed && this._rowH) {
+			let e = this._rowH, n = this.els.scroll, r = t * e;
+			(r < n.scrollTop || r + e > n.scrollTop + n.clientHeight) && (n.scrollTop = Math.max(0, r - e * Q)), this.renderBody();
+			return;
+		}
+		this._paintSelection();
+		let n = this.els.body.querySelector(`tr[data-r="${e}"]`);
+		n && n.scrollIntoView({ block: "nearest" });
 	}
 };
 //#endregion
-export { de as default };
+export { fe as default };
 
 //# sourceMappingURL=csv-grid.es.js.map
