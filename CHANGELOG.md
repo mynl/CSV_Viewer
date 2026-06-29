@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.6.2 (2026-06-29) — revert the 3.6.0 filter debounce
+
+Backed out the self-calibrating filter debounce from 3.6.0 — it made large
+files **worse**, not snappier (a 35k-row frame went translucent / unresponsive
+while filtering). Root cause: the controller set its window from
+`performance.now()` around `refresh()`, which measures the JS (rebuild +
+`innerHTML` string build + parse) but **not layout/paint** — the dominant term
+on a 2048-row × wide table. So the window was calibrated to a fiction, never
+coalesced, and merely relocated each heavy synchronous render onto a timer
+that, during a global-search index build, contended with the build's own
+chunks while re-rendering the unfiltered view per keystroke. Filtering is back
+to 3.6.1 behavior (immediate `refresh()` per input). The real fix — making each
+render cheap and size-independent via **windowed rendering** — is planned
+separately (`dev/plan-3.7-windowed-render.md`). The 3.6.1 filename-in-title
+feature is unaffected.
+
+## 3.6.1 (2026-06-29) — filename in the window title
+
+The loaded file's name now shows in the **window/tab title bar** (the bar
+at the very top — most useful for the installed PWA, where it's the window
+title): `<filename> — CSV Viewer` once a file is on screen, back to plain
+`CSV Viewer` on the ingest screen. App-only (`src/app/app.js`); the grid is
+untouched.
+
 ## 3.6.0 (2026-06-29) — self-calibrating filter debounce
 
 Typing and (worst of all) backspacing in the global fzf search or a column

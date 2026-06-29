@@ -73,6 +73,30 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-29 — reverted the 3.6 debounce; windowed render is the real fix (3.6.2)
+
+Steve loaded a 35k-row frame and filtering went translucent / locked up —
+"opposite of snappy." Investigated: measured the pure-logic hot paths (fuzzy
+score all rows 9–47 ms, column predicate 4–6 ms, render string build ~30 ms)
+— all cheap. The freeze is the **DOM render**: `renderBody` replacing a
+2048×N `<tbody>` via `innerHTML` (300 ms–1 s on wide/long-text rows). The 3.6
+debounce measured `refresh()` JS time but NOT layout/paint, so its window was
+calibrated to a fiction and never coalesced; worse, it relocated the heavy
+render onto a timer that contends with the global-search index build. A
+trailing debounce can't make a render cheap — it only delays feedback.
+Decision: **revert 3.6 now** (3.6.2 — keep 3.6.1 title), then do **windowed
+rendering** (render only the viewport's rows, re-render on scroll) so filter
+cost is independent of row count. Plan: `dev/plan-3.7-windowed-render.md`.
+
+## 2026-06-29 — filename in window title (3.6.1)
+
+Small app-only ask: show the loaded file's name in the window/tab title bar
+(`<file> — CSV Viewer`, plain `CSV Viewer` on ingest) — most useful for the
+installed PWA where it's the OS window title. Set `document.title` in
+`loadText` success + reset in `showIngest`. No grid change; rebuilt dist only
+to re-stamp the es banner to 3.6.1 (keeps versions aligned). Moved
+`plan-3.6-search-debounce.md` into `dev/done/` (Steve called 3.6 done).
+
 ## 2026-06-29 — self-calibrating filter debounce (3.6.0)
 
 Executed `plan-3.6-search-debounce.md`. Large files lagged while

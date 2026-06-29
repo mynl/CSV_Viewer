@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.6.0';
+const VERSION = '3.6.2';
 
 const $ = id => document.getElementById(id);
 
@@ -38,6 +38,8 @@ function loadText(text, fileName, headerOverride = null) {
         .then(() => {
             rawText = cleanCsvText(text);         // kept for the header toggle
             loadedFileName = fileName || '';
+            // surface the file in the window/tab title bar (PWA + browser)
+            document.title = loadedFileName ? `${loadedFileName} — CSV Viewer` : 'CSV Viewer';
             guessedHeaders = grid.guessedHeaders;
             $('global-filter').value = '';
             $('ingest-error').classList.add('d-none');
@@ -66,6 +68,7 @@ function showError(msg) {
 }
 
 function showIngest() {
+    document.title = 'CSV Viewer';   // no file on screen — back to the bare title
     $('table-view').classList.add('d-none');
     $('toolbar').classList.add('d-none');
     $('status-bar').classList.add('d-none');
@@ -120,7 +123,7 @@ function initEvents() {
         }
     });
 
-    $('global-filter').addEventListener('input', e => grid.setGlobalFilterDeferred(e.target.value));
+    $('global-filter').addEventListener('input', e => grid.setGlobalFilter(e.target.value));
     $('global-filter').addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             e.preventDefault();

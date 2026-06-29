@@ -1,5 +1,13 @@
 # plan 3.6 — self-calibrating filter debounce
 
+> **REVERTED in 3.6.2 (2026-06-29).** Shipped in 3.6.0, then backed out: it
+> made large files worse, not better. The window was measured from
+> `performance.now()` around `refresh()`, which excludes layout/paint — the
+> dominant cost on a big table — so it never coalesced and merely relocated the
+> heavy render onto a timer (which then contended with the global-search index
+> build). A trailing debounce can't make a render cheap. Superseded by
+> `dev/plan-3.7-windowed-render.md`. Kept here as the record of what was tried.
+
 ## Problem
 
 On large files, global fzf search and per-column filters feel sluggish
