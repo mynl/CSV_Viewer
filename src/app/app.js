@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.5.0';
+const VERSION = '3.6.0';
 
 const $ = id => document.getElementById(id);
 
@@ -120,7 +120,7 @@ function initEvents() {
         }
     });
 
-    $('global-filter').addEventListener('input', e => grid.setGlobalFilter(e.target.value));
+    $('global-filter').addEventListener('input', e => grid.setGlobalFilterDeferred(e.target.value));
     $('global-filter').addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             e.preventDefault();

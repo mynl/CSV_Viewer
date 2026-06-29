@@ -81,6 +81,8 @@ import { parseFormatSpec, parseAlignSpec, formatCell, normalizeRecords,
 const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
 const WIDTH_SAMPLE = 2048;        // rows sampled per column for width percentiles
 const INDEX_CHUNK = 10000;        // rows per chunk when building the search index
+const REFRESH_DELAY_SEED = 100;   // filter-debounce window before any measurement (ms)
+const REFRESH_DELAY_MAX = 300;    // ceiling: huge files queue one pending refresh, no freeze
 
 function el(tag, cls) {
     const e = document.createElement(tag);
@@ -135,6 +137,13 @@ export default class CsvGrid {
         this._worker = undefined;   // lazy; null = unavailable -> synchronous
         this._pending = new Map();  // load gen -> {resolve, reject} awaiting the worker
 
+        // self-calibrating filter debounce: window tracks the last measured
+        // refresh() wall-clock, so small files refresh every keystroke (window
+        // -> ~0) and large files coalesce a typing/backspacing burst into one
+        // trailing refresh. See dev/done/plan-3.6-search-debounce.md.
+        this._refreshDelay = REFRESH_DELAY_SEED;
+        this._refreshTimer = null;
+
         this._buildScaffold();
         if (data) this.setData(data);
     }
@@ -154,7 +163,11 @@ export default class CsvGrid {
                 inp.placeholder = "fzf search: term 'exact !not ^pre fix$";
                 inp.title = "Space-separated terms AND together. Fuzzy by default; "
                     + "'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.";
-                inp.addEventListener('input', () => this.setGlobalFilter(inp.value));
+                // state updates immediately; only the view rebuild is debounced
+                inp.addEventListener('input', () => {
+                    this.globalFilter = inp.value;
+                    this._scheduleRefresh();
+                });
                 inp.addEventListener('keydown', e => {
                     if (e.key === 'Escape') {
                         e.preventDefault();
@@ -367,6 +380,9 @@ export default class CsvGrid {
         this.colFilters = new Array(cols.length).fill('');
         this.manualWidths = new Map();
         this.showAll = false;
+        // drop any trailing refresh queued against the outgoing file (avoids a
+        // stray render flash); the new load does its own refresh() below
+        if (this._refreshTimer !== null) { clearTimeout(this._refreshTimer); this._refreshTimer = null; }
         if (this.els.search) this.els.search.value = '';
         this.els.error.classList.add('csvgrid-hidden');
         this.renderHead();
@@ -401,6 +417,7 @@ export default class CsvGrid {
 
     destroy() {
         this.loadGen++;             // abandon pending parses and index builds
+        if (this._refreshTimer !== null) { clearTimeout(this._refreshTimer); this._refreshTimer = null; }
         this._pending.clear();
         if (this._worker) { this._worker.terminate(); this._worker = null; }
         delete this.root.csvgrid;
@@ -414,6 +431,36 @@ export default class CsvGrid {
     setGlobalFilter(q) {
         this.globalFilter = q;
         this.refresh();
+    }
+
+    /* Debounced sibling of setGlobalFilter for the live input path (the app
+     * navbar box, mirroring the grid's own box). State updates immediately;
+     * the view rebuild rides the self-calibrating trailing window so a typing
+     * or backspacing burst on a large file coalesces to one refresh.
+     * setGlobalFilter stays synchronous — the programmatic contract is
+     * unchanged. */
+    setGlobalFilterDeferred(q) {
+        this.globalFilter = q;
+        this._scheduleRefresh();
+    }
+
+    /* Trailing debounce around refresh(). Window == last measured refresh
+     * wall-clock (clamped [0, REFRESH_DELAY_MAX]); at <= 0 (small files) we
+     * run synchronously so there's no timer churn or perceptible lag. */
+    _scheduleRefresh() {
+        if (this._refreshTimer !== null) clearTimeout(this._refreshTimer);
+        if (this._refreshDelay <= 0) { this._refreshTimer = null; this._runRefresh(); return; }
+        this._refreshTimer = setTimeout(() => this._runRefresh(), this._refreshDelay);
+    }
+
+    /* The deferred refresh: time it and feed the measurement back as the next
+     * window, so the debounce tracks the plant (service time). */
+    _runRefresh() {
+        this._refreshTimer = null;
+        const t0 = performance.now();
+        this.refresh();
+        const measured = performance.now() - t0;
+        this._refreshDelay = Math.max(0, Math.min(REFRESH_DELAY_MAX, measured));
     }
 
     clearFilters() {
@@ -749,7 +796,7 @@ export default class CsvGrid {
             inp.addEventListener('input', () => {
                 this.colFilters[c] = inp.value;
                 inp.classList.toggle('active-filter', inp.value.trim() !== '');
-                this.refresh();
+                this._scheduleRefresh();
             });
             inp.addEventListener('keydown', e => {
                 if (e.key === 'Escape') {

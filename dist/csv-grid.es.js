@@ -1,4 +1,4 @@
-/* csv-grid v3.5.0 — built by Vite from src/grid/ of the
+/* csv-grid v3.6.0 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -654,12 +654,12 @@ function Z(e) {
 }
 //#endregion
 //#region src/grid/grid.js
-var le = 1e6, ue = 2048, Q = 1e4;
+var le = 1e6, ue = 2048, Q = 1e4, de = 100, fe = 300;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var de = class t {
+var pe = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -683,7 +683,7 @@ var de = class t {
 			selectMode: "row",
 			hiddenColumns: null,
 			...n
-		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
+		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._refreshDelay = de, this._refreshTimer = null, this._buildScaffold(), t && this.setData(t);
 	}
 	_buildScaffold() {
 		let e = this.opts, t = this.root;
@@ -691,7 +691,9 @@ var de = class t {
 			let n = $("div", "csvgrid-toolbar");
 			if (e.globalSearch) {
 				let e = $("input", "csvgrid-search");
-				e.type = "text", e.placeholder = "fzf search: term 'exact !not ^pre fix$", e.title = "Space-separated terms AND together. Fuzzy by default; 'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.", e.addEventListener("input", () => this.setGlobalFilter(e.value)), e.addEventListener("keydown", (t) => {
+				e.type = "text", e.placeholder = "fzf search: term 'exact !not ^pre fix$", e.title = "Space-separated terms AND together. Fuzzy by default; 'exact, !exclude, ^prefix, suffix$. Uppercase = case-sensitive.", e.addEventListener("input", () => {
+					this.globalFilter = e.value, this._scheduleRefresh();
+				}), e.addEventListener("keydown", (t) => {
 					t.key === "Escape" && (t.preventDefault(), e.value = "", e.blur(), this.setGlobalFilter(""));
 				}), n.appendChild(e), this.els.search = e;
 			}
@@ -810,7 +812,7 @@ var de = class t {
 			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
 			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
 		}
-		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
+		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this._refreshTimer !== null && (clearTimeout(this._refreshTimer), this._refreshTimer = null), this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
 	}
 	_applyHeight() {
 		let e = this.opts;
@@ -830,10 +832,27 @@ var de = class t {
 		this.els.status && (this.els.status.textContent = e);
 	}
 	destroy() {
-		this.loadGen++, this._pending.clear(), this._worker &&= (this._worker.terminate(), null), delete this.root.csvgrid, this.root.classList.remove("csvgrid"), delete this.root.dataset.selectable, this.root.replaceChildren();
+		this.loadGen++, this._refreshTimer !== null && (clearTimeout(this._refreshTimer), this._refreshTimer = null), this._pending.clear(), this._worker &&= (this._worker.terminate(), null), delete this.root.csvgrid, this.root.classList.remove("csvgrid"), delete this.root.dataset.selectable, this.root.replaceChildren();
 	}
 	setGlobalFilter(e) {
 		this.globalFilter = e, this.refresh();
+	}
+	setGlobalFilterDeferred(e) {
+		this.globalFilter = e, this._scheduleRefresh();
+	}
+	_scheduleRefresh() {
+		if (this._refreshTimer !== null && clearTimeout(this._refreshTimer), this._refreshDelay <= 0) {
+			this._refreshTimer = null, this._runRefresh();
+			return;
+		}
+		this._refreshTimer = setTimeout(() => this._runRefresh(), this._refreshDelay);
+	}
+	_runRefresh() {
+		this._refreshTimer = null;
+		let e = performance.now();
+		this.refresh();
+		let t = performance.now() - e;
+		this._refreshDelay = Math.max(0, Math.min(fe, t));
 	}
 	clearFilters() {
 		this.globalFilter = "", this.colFilters = this.colFilters.map(() => ""), this.els.search && (this.els.search.value = ""), this.renderHead(), this.refresh();
@@ -1000,7 +1019,7 @@ var de = class t {
 		r.className = "filter-row", this.visibleCols.forEach((t) => {
 			let n = e[t], i = document.createElement("th"), a = document.createElement("input");
 			a.type = "text", a.className = "csvgrid-filter", a.placeholder = n.type === "text" ? "filter" : "filter, >, .. ", a.value = this.colFilters[t] || "", a.addEventListener("input", () => {
-				this.colFilters[t] = a.value, a.classList.toggle("active-filter", a.value.trim() !== ""), this.refresh();
+				this.colFilters[t] = a.value, a.classList.toggle("active-filter", a.value.trim() !== ""), this._scheduleRefresh();
 			}), a.addEventListener("keydown", (e) => {
 				e.key === "Escape" && (e.preventDefault(), a.value = "", this.colFilters[t] = "", a.classList.remove("active-filter"), a.blur(), this.refresh());
 			}), i.appendChild(a), r.appendChild(i);
@@ -1102,6 +1121,6 @@ var de = class t {
 	}
 };
 //#endregion
-export { de as default };
+export { pe as default };
 
 //# sourceMappingURL=csv-grid.es.js.map

@@ -73,6 +73,23 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-29 — self-calibrating filter debounce (3.6.0)
+
+Executed `plan-3.6-search-debounce.md`. Large files lagged while
+typing/backspacing in the global fzf box or a column filter — no debounce,
+so every keystroke ran a full `refresh()`. Framed as queue stability
+(keystrokes arrive faster than refreshes drain) and fixed with a **trailing
+debounce whose window == the last measured `refresh()` time** (seed 100 ms,
+clamp `[0, 300]`). Small files measure ~0 → refresh every keystroke
+synchronously (unchanged feel); large files coalesce a burst into one
+trailing refresh. No size threshold. Scope: both global search and column
+filters, inside the grid (`_scheduleRefresh`/`_runRefresh`); filter state
+updates immediately, only the rebuild defers. New `setGlobalFilterDeferred`
+for the app navbar's `input`; public `setGlobalFilter`/`clearFilters` stay
+synchronous. `destroy` + fresh `setData` cancel the pending timer; per-
+instance, multi-instance safe. Plan stays out of `dev/done/` until Steve
+calls it done.
+
 ## 2026-06-26 — clickable rows & cells (3.5.0)
 
 Housekeeping first: moved the now-shipped `plan-infinity.md` (3.3.2) and

@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.6.0 (2026-06-29) — self-calibrating filter debounce
+
+Typing and (worst of all) backspacing in the global fzf search or a column
+filter felt sluggish on large files: there was **no debounce**, so every
+input event ran a full `refresh()` (rebuild + render + status) back-to-back.
+A single pasted query was already fast; the lag was doing that work N times
+in a burst. Framed as queue stability — keystrokes arriving faster than
+refreshes drain — the fix is a **self-calibrating trailing debounce**:
+
+- The window equals the **last measured `refresh()` wall-clock**, seeded at
+  100 ms and clamped to `[0, 300]` ms. Small files measure ~0 → the window
+  collapses and we refresh every keystroke synchronously (today's instant
+  feel, no timer churn). Large files grow the window to span a burst,
+  coalescing it into one trailing refresh. No size threshold, no per-file
+  tuning — the controller tracks the plant.
+- **Scope:** both the global search and per-column filters, **inside the
+  grid**, so the app navbar box, the grid's own box, and embedders all
+  benefit. Filter **state** (query text, active-filter styling, Escape-clear)
+  still updates immediately; only the view rebuild is deferred.
+- New `setGlobalFilterDeferred(q)` is the debounced entry the app navbar uses
+  on `input`. Public **`setGlobalFilter(q)` / `clearFilters()` stay
+  synchronous** — the programmatic contract is unchanged.
+- `destroy()` and a fresh `setData` load cancel any pending trailing timer
+  (no refresh firing on a dead/replaced grid). Timer + window are
+  per-instance — multi-instance safe.
+
 ## 3.5.0 (2026-06-26) — clickable rows & cells
 
 All of `dev/plan-grid-spec.md` (a downstream embedder's request) — an
