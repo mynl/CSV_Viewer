@@ -79,7 +79,7 @@
 import { cleanCsvText, processData } from './core.js';
 import { parseFormatSpec, parseAlignSpec, formatCell, normalizeRecords,
          parseQuery, termScore, solveWidths, sampleIndices, makeColPredicate,
-         cellClass, escapeHtml, toCSV, toMarkdown, CELL_PAD, MIN_COL } from './util.js';
+         makeSortKey, cellClass, escapeHtml, toCSV, toMarkdown, CELL_PAD, MIN_COL } from './util.js';
 
 const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
 const WIDTH_SAMPLE = 2048;        // rows sampled per column for width percentiles
@@ -122,6 +122,9 @@ export default class CsvGrid {
         this.indexing = null;    // build progress 0..1 while chunking, else null
         this.loadGen = 0;        // bumped per load; abandons stale parses + index builds
         this.scores = [];        // fuzzy match score per row (current query)
+        this.sortedOrder = null;  // all row indices in current sort order, filter-
+                                  // independent; rebuilt only when the sort changes
+                                  // so filtering never re-sorts (see rebuildView)
         this.layout = null;      // {arrays, floors} from measureLayout, frozen per load
         this.expandAll = false;  // bypass the squeeze: natural widths + h-scroll (sticky)
         this.manualWidths = new Map();   // col index -> px, set by drag-resize
@@ -378,6 +381,7 @@ export default class CsvGrid {
         }
         this.sortCol = null;
         this.sortDir = 1;
+        this.sortedOrder = null;   // rebuilt lazily by rebuildView for the new data
         this.globalFilter = '';
         this.colFilters = new Array(cols.length).fill('');
         this.manualWidths = new Map();
@@ -673,6 +677,39 @@ export default class CsvGrid {
 
     // ------------------------------------------------------ filter + sort
 
+    /* Build sortedOrder: every row index in the current column-sort order,
+     * filter-independent. Done ONCE per sort change (onSort / new data), so
+     * filtering — which preserves order — never re-sorts. sortCol === null is
+     * the identity (original file order). Text columns sort by a precomputed
+     * natural-order key (primitive compares, no per-pair Intl.Collator); blanks
+     * last regardless of direction, exactly as the old collator path. */
+    _buildSortOrder() {
+        const n = this.rows.length;
+        const order = new Array(n);
+        for (let i = 0; i < n; i++) order[i] = i;
+        const sc = this.sortCol;
+        if (sc !== null) {
+            const col = this.cols[sc], dir = this.sortDir;
+            if (col.type === 'text') {
+                const keys = new Array(n);
+                for (let i = 0; i < n; i++) keys[i] = makeSortKey(this.rows[i][sc]);
+                order.sort((a, b) => {
+                    const x = keys[a], y = keys[b];
+                    if (x === '' || y === '') return x === y ? 0 : (x === '' ? 1 : -1);
+                    return x < y ? -dir : x > y ? dir : 0;
+                });
+            } else {
+                const v = col.values;
+                order.sort((a, b) => {
+                    const x = v[a], y = v[b];
+                    if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
+                    return dir * (x - y);
+                });
+            }
+        }
+        this.sortedOrder = order;
+    }
+
     rebuildView() {
         const { rows, cols } = this;
         let terms = parseQuery(this.globalFilter);
@@ -685,52 +722,40 @@ export default class CsvGrid {
         const hasFuzzy = terms.some(t => t.kind === 'fuzzy' && !t.negate);
         const preds = this.colFilters.map((f, c) => makeColPredicate(f || '', cols[c]));
         const active = preds.some(p => p) || terms.length;
+        // fuzzy match scores only matter for relevance ranking — i.e. when there
+        // is NO explicit column sort; otherwise we skip scoring entirely.
+        const rank = hasFuzzy && this.sortCol === null;
 
-        let idx = [];
-        this.scores = [];
-        for (let r = 0; r < rows.length; r++) {
-            let score = 0;
-            if (active) {
-                let ok = true;
-                for (const t of terms) {
-                    const s = termScore(t, this.searchLow[r], this.searchRaw[r]);
-                    if (s < 0) { ok = false; break; }
-                    score += s;
-                }
-                if (ok) {
-                    for (let c = 0; c < preds.length; c++) {
-                        if (preds[c] && !preds[c]((rows[r][c] ?? ''), r)) { ok = false; break; }
-                    }
-                }
-                if (!ok) continue;
+        if (!this.sortedOrder || this.sortedOrder.length !== rows.length) this._buildSortOrder();
+        const order = this.sortedOrder;
+
+        // No filter: the whole sorted order IS the view (sliced so callers can't
+        // mutate the cached order). This is the common refresh after a sort.
+        if (!active) { this.view = order.slice(); return; }
+
+        // Filter in sorted order — the survivors stay sorted, so there is no
+        // per-keystroke re-sort (the win). Relevance ranking is the one case
+        // that still sorts, and only over the matched subset.
+        const idx = [];
+        if (rank) this.scores = [];
+        for (let oi = 0; oi < order.length; oi++) {
+            const r = order[oi];
+            let ok = true, score = 0;
+            for (const t of terms) {
+                const s = termScore(t, this.searchLow[r], this.searchRaw[r]);
+                if (s < 0) { ok = false; break; }
+                score += s;
             }
-            this.scores[r] = score;
+            if (ok) {
+                for (let c = 0; c < preds.length; c++) {
+                    if (preds[c] && !preds[c]((rows[r][c] ?? ''), r)) { ok = false; break; }
+                }
+            }
+            if (!ok) continue;
+            if (rank) this.scores[r] = score;
             idx.push(r);
         }
-
-        const sc = this.sortCol;
-        if (sc === null && hasFuzzy) {
-            // no explicit sort: best fuzzy matches first, original order on ties
-            idx.sort((a, b) => (this.scores[b] - this.scores[a]) || (a - b));
-        } else if (sc !== null) {
-            const col = this.cols[sc];
-            const dir = this.sortDir;
-            if (col.type === 'text') {
-                const coll = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
-                idx.sort((a, b) => {
-                    const x = (this.rows[a][sc] ?? '').trim();
-                    const y = (this.rows[b][sc] ?? '').trim();
-                    if (x === '' || y === '') return x === y ? 0 : (x === '' ? 1 : -1);
-                    return dir * coll.compare(x, y);
-                });
-            } else {
-                idx.sort((a, b) => {
-                    const x = col.values[a], y = col.values[b];
-                    if (x === null || y === null) return x === y ? 0 : (x === null ? 1 : -1);
-                    return dir * (x - y);
-                });
-            }
-        }
+        if (rank) idx.sort((a, b) => (this.scores[b] - this.scores[a]) || (a - b));
         this.view = idx;
     }
 
@@ -958,6 +983,7 @@ export default class CsvGrid {
         } else {
             this.sortCol = c; this.sortDir = 1;
         }
+        this._buildSortOrder();   // the only place the order actually changes
         this.renderHead();
         this.refresh();
     }

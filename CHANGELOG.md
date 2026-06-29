@@ -1,5 +1,33 @@
 # Changelog
 
+## 3.7.1 (2026-06-29) — decouple sort from filter; natural-key text sort
+
+Follow-on perf tuning to 3.7.0. A Playwright probe against the 250k-row frame
+showed windowing had made render flat (~3 ms) — the residual per-keystroke cost
+was entirely **`rebuildView`**, which re-sorted the whole match set on *every*
+keystroke. Worst case: filtering while a **text** sort was active paid an
+`Intl.Collator` sort of ~250k rows — **~930 ms per keystroke**.
+
+Two structural fixes, both behavior-preserving:
+
+- **Decouple sort from filter.** A filter-independent `sortedOrder` (all rows in
+  the current sort order) is built **once per sort change**; filtering walks it
+  and keeps matches, which are therefore already sorted — no per-keystroke
+  re-sort. Filtering-while-text-sorted dropped from ~930 ms to **~43 ms/
+  keystroke** (~20×).
+- **Natural-order text sort key.** Text columns now sort by a precomputed
+  primitive key (`makeSortKey`: case/accent-folded, with embedded integers
+  encoded so a lexical compare is numeric) instead of an `Intl.Collator` call
+  per pair. The one-time sort-on-click dropped from ~930 ms to **~390 ms**
+  (2.4×). Verified **order-identical** to the live collator on every text column
+  tested (250k / 1000 / 250 / 6 rows; 0 divergences).
+
+Net: typing in a filter stays snappy on a 250k file even with a column sort
+active. Unchanged paths (unsorted filtering, fuzzy relevance ranking, numeric
+sort) behave exactly as before; 10k files were already instant and are
+untouched. Grid-only (`src/grid/grid.js`, `util.js`); `dist/` + python/R assets
+rebuilt; smoke test untouched + green.
+
 ## 3.7.0 (2026-06-29) — windowed (virtualized) body rendering
 
 The real fix for large-file sluggishness (the 3.6 debounce, reverted in 3.6.2,

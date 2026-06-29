@@ -1,4 +1,4 @@
-/* csv-grid v3.7.0 — built by Vite from src/grid/ of the
+/* csv-grid v3.7.1 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -543,10 +543,13 @@ function q(e, t, n) {
 	}
 	return e.negate && (i = !i), i ? a : -1;
 }
-function J(e, t, n, r = "equal-risk") {
-	return r === "coverage" ? se(e, t, n) : oe(e, t, n);
+function J(e) {
+	return e = (e ?? "").trim(), e === "" ? "" : (e = e.toLowerCase().normalize("NFKD").replace(/\p{Diacritic}/gu, ""), e.replace(/\d+/g, (e) => (e = e.replace(/^0+(?=\d)/, ""), "" + String.fromCharCode(e.length) + e)));
 }
-function oe(e, t, n) {
+function oe(e, t, n, r = "equal-risk") {
+	return r === "coverage" ? ce(e, t, n) : se(e, t, n);
+}
+function se(e, t, n) {
 	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
 	if (a(o) <= n) return o;
 	if (a(i(0)) >= n) return i(0);
@@ -557,13 +560,13 @@ function oe(e, t, n) {
 	}
 	return i(s);
 }
-function se(e, t, n) {
+function ce(e, t, n) {
 	let r = e.map((e, n) => Math.max(t[n], e.length ? e[e.length - 1] : 0)), i = (e) => e.reduce((e, t) => e + t, 0);
 	if (i(r) <= n) return r;
 	if (i(t) >= n) return t.slice();
 	let a = t.slice(), o = n - i(t), s = [];
 	for (let n = 0; n < e.length; n++) {
-		let r = ce(e[n], t[n]);
+		let r = le(e[n], t[n]);
 		for (let e = 1; e < r.length; e++) {
 			let t = r[e].w - r[e - 1].w, i = r[e].cells - r[e - 1].cells;
 			t > 0 && i > 0 && s.push({
@@ -581,7 +584,7 @@ function se(e, t, n) {
 	}
 	return a;
 }
-function ce(e, t) {
+function le(e, t) {
 	let n = e.length, r = 0;
 	for (; r < n && e[r] <= t;) r++;
 	let i = [{
@@ -607,7 +610,7 @@ function ce(e, t) {
 	}
 	return a;
 }
-function le(e, t) {
+function ue(e, t) {
 	let n = e.trim();
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
@@ -654,12 +657,12 @@ function X(e) {
 }
 //#endregion
 //#region src/grid/grid.js
-var ue = 1e6, de = 2048, Z = 1e4, Q = 10;
+var de = 1e6, Z = 2048, fe = 1e4, Q = 10;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var fe = class t {
+var pe = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -683,7 +686,7 @@ var fe = class t {
 			selectMode: "row",
 			hiddenColumns: null,
 			...n
-		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._rowH = 0, this._winStart = 0, this._winEnd = 0, this._windowed = !1, this._scrollRaf = 0, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
+		}, this.displayMode = this.opts.displayMode === "raw" ? "raw" : "auto", this.fileName = "", this.headers = [], this.rows = [], this.cols = [], this.formatted = [], this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, this.loadGen = 0, this.scores = [], this.sortedOrder = null, this.layout = null, this.expandAll = !1, this.manualWidths = /* @__PURE__ */ new Map(), this.guessedHeaders = !1, this.ambiguousDateCols = [], this.view = [], this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = [], this.showAll = !1, this.visibleCols = [], this.selected = null, this._rowH = 0, this._winStart = 0, this._winEnd = 0, this._windowed = !1, this._scrollRaf = 0, this._worker = void 0, this._pending = /* @__PURE__ */ new Map(), this._buildScaffold(), t && this.setData(t);
 	}
 	_buildScaffold() {
 		let e = this.opts, t = this.root;
@@ -763,7 +766,7 @@ var fe = class t {
 	}
 	_parse(t, n, r) {
 		if (t = e(t), !t.trim()) throw Error("No data found.");
-		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= ue ? this._getWorker() : null;
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= de ? this._getWorker() : null;
 		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
 			this._pending.set(n, {
 				resolve: e,
@@ -812,7 +815,7 @@ var fe = class t {
 			for (let e = 0; e < n.length; e++) this.getFormattedRow(e);
 			this.searchRaw = this.formatted.map((e, t) => e.join(" ") + " " + n[t].join(" ")), this.searchLow = this.searchRaw.map((e) => e.toLowerCase()), this.searchReady = !0;
 		}
-		this.sortCol = null, this.sortDir = 1, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this._rowH = 0, this._winStart = this._winEnd = 0, this._windowed = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
+		this.sortCol = null, this.sortDir = 1, this.sortedOrder = null, this.globalFilter = "", this.colFilters = Array(r.length).fill(""), this.manualWidths = /* @__PURE__ */ new Map(), this.showAll = !1, this._rowH = 0, this._winStart = this._winEnd = 0, this._windowed = !1, this.els.search && (this.els.search.value = ""), this.els.error.classList.add("csvgrid-hidden"), this.renderHead(), this.layout = this.measureLayout(), this.applyLayout(), this.refresh(), this._applyHeight();
 	}
 	_applyHeight() {
 		let e = this.opts, t = !1;
@@ -870,7 +873,7 @@ var fe = class t {
 		this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
 	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, de), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, Z), a = [], o = [];
 		for (let t of this.visibleCols) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -912,7 +915,7 @@ var fe = class t {
 		if (!this.layout) return;
 		let e = this.els.table, t = this.expandAll ? Infinity : e.parentElement.clientWidth;
 		if (!t) return;
-		let n = J(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
+		let n = oe(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
 		for (let [e, t] of this.manualWidths) e < n.length && (n[e] = t);
 		let r = e.querySelector("colgroup");
 		r && r.remove(), r = document.createElement("colgroup");
@@ -931,7 +934,7 @@ var fe = class t {
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + Z);
+			let o = Math.min(t, i + fe);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -940,52 +943,60 @@ var fe = class t {
 		};
 		a();
 	}
+	_buildSortOrder() {
+		let e = this.rows.length, t = Array(e);
+		for (let n = 0; n < e; n++) t[n] = n;
+		let n = this.sortCol;
+		if (n !== null) {
+			let r = this.cols[n], i = this.sortDir;
+			if (r.type === "text") {
+				let r = Array(e);
+				for (let t = 0; t < e; t++) r[t] = J(this.rows[t][n]);
+				t.sort((e, t) => {
+					let n = r[e], a = r[t];
+					return n === "" || a === "" ? n === a ? 0 : n === "" ? 1 : -1 : n < a ? -i : n > a ? i : 0;
+				});
+			} else {
+				let e = r.values;
+				t.sort((t, n) => {
+					let r = e[t], a = e[n];
+					return r === null || a === null ? r === a ? 0 : r === null ? 1 : -1 : i * (r - a);
+				});
+			}
+		}
+		this.sortedOrder = t;
+	}
 	rebuildView() {
 		let { rows: e, cols: t } = this, n = W(this.globalFilter);
 		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
-		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => le(e || "", t[n])), a = i.some((e) => e) || n.length, o = [];
-		this.scores = [];
-		for (let t = 0; t < e.length; t++) {
-			let r = 0;
-			if (a) {
-				let a = !0;
-				for (let e of n) {
-					let n = q(e, this.searchLow[t], this.searchRaw[t]);
-					if (n < 0) {
-						a = !1;
-						break;
-					}
-					r += n;
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => ue(e || "", t[n])), a = i.some((e) => e) || n.length, o = r && this.sortCol === null;
+		(!this.sortedOrder || this.sortedOrder.length !== e.length) && this._buildSortOrder();
+		let s = this.sortedOrder;
+		if (!a) {
+			this.view = s.slice();
+			return;
+		}
+		let c = [];
+		o && (this.scores = []);
+		for (let t = 0; t < s.length; t++) {
+			let r = s[t], a = !0, l = 0;
+			for (let e of n) {
+				let t = q(e, this.searchLow[r], this.searchRaw[r]);
+				if (t < 0) {
+					a = !1;
+					break;
 				}
-				if (a) {
-					for (let n = 0; n < i.length; n++) if (i[n] && !i[n](e[t][n] ?? "", t)) {
-						a = !1;
-						break;
-					}
-				}
-				if (!a) continue;
+				l += t;
 			}
-			this.scores[t] = r, o.push(t);
+			if (a) {
+				for (let t = 0; t < i.length; t++) if (i[t] && !i[t](e[r][t] ?? "", r)) {
+					a = !1;
+					break;
+				}
+			}
+			a && (o && (this.scores[r] = l), c.push(r));
 		}
-		let s = this.sortCol;
-		if (s === null && r) o.sort((e, t) => this.scores[t] - this.scores[e] || e - t);
-		else if (s !== null) {
-			let e = this.cols[s], t = this.sortDir;
-			if (e.type === "text") {
-				let e = new Intl.Collator("en", {
-					sensitivity: "base",
-					numeric: !0
-				});
-				o.sort((n, r) => {
-					let i = (this.rows[n][s] ?? "").trim(), a = (this.rows[r][s] ?? "").trim();
-					return i === "" || a === "" ? i === a ? 0 : i === "" ? 1 : -1 : t * e.compare(i, a);
-				});
-			} else o.sort((n, r) => {
-				let i = e.values[n], a = e.values[r];
-				return i === null || a === null ? i === a ? 0 : i === null ? 1 : -1 : t * (i - a);
-			});
-		}
-		this.view = o;
+		o && c.sort((e, t) => this.scores[t] - this.scores[e] || e - t), this.view = c;
 	}
 	renderHead() {
 		let { cols: e } = this, t = this.els.head;
@@ -1074,7 +1085,7 @@ var fe = class t {
 		this.rebuildView(), this.renderBody(), this.renderStatus();
 	}
 	onSort(e) {
-		this.sortCol === e ? this.sortDir === 1 ? this.sortDir = -1 : (this.sortCol = null, this.sortDir = 1) : (this.sortCol = e, this.sortDir = 1), this.renderHead(), this.refresh();
+		this.sortCol === e ? this.sortDir === 1 ? this.sortDir = -1 : (this.sortCol = null, this.sortDir = 1) : (this.sortCol = e, this.sortDir = 1), this._buildSortOrder(), this.renderHead(), this.refresh();
 	}
 	static forElement(e) {
 		let t = typeof e == "string" ? document.querySelector(e) : e;
@@ -1159,6 +1170,6 @@ var fe = class t {
 	}
 };
 //#endregion
-export { fe as default };
+export { pe as default };
 
 //# sourceMappingURL=csv-grid.es.js.map

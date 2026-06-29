@@ -73,6 +73,30 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-29 — decouple sort from filter + natural-key text sort (3.7.1)
+
+Data-driven follow-on to windowing. Built a Playwright probe (ephemeral
+`uv run --with playwright`, NOT added to the python project; headless-shell into
+the shared ms-playwright cache; scripts in scratchpad) and measured the live
+250k-row grid. Findings: render flat at ~3 ms (windowing did its job); the whole
+residual per-keystroke cost was `rebuildView`. Decomposition — fuzzy keystroke
+~140 ms vs exact ~26 ms (Steve's "less sprightly" = exact-vs-fuzzy, confirmed);
+**text sort ~930–1040 ms** for 250k via `Intl.Collator` (numeric sort only
+~82 ms), and `rebuildView` re-sorted on *every* keystroke, so filtering while
+text-sorted cost ~930 ms/keystroke. Two fixes: **(1)** filter-independent
+`sortedOrder` built once per sort change (`_buildSortOrder`, called from
+`onSort`/lazily in `rebuildView`); filtering preserves order → no per-keystroke
+re-sort; `rank` (fuzzy-relevance, sortCol null) is the only path that still
+sorts, over matches only. **(2)** `makeSortKey` in util.js — natural-order
+primitive key (case/accent fold + integer runs encoded so lexical==numeric),
+replacing per-pair collator. Probe results: filtering-while-text-sorted ~930 →
+**43 ms/keystroke** (~20×); one-time text-sort-click 927 → **389 ms** (2.4×);
+key order **identical to the collator, 0 divergences** across 250k/1000/250/6-row
+files. Version → 3.7.1 (app.js/sw.js/package.json; python stays 3.5.0 per
+CLAUDE.md — note: the "four versions aligned" memory disagrees with repo reality,
+flag to Steve). dist + py/R rebuilt; smoke green. Possible **#3** (small fuzzy-
+only debounce) still on the table if fuzzy keystrokes feel heavy; not done.
+
 ## 2026-06-29 — windowed (virtualized) body render (3.7.0)
 
 Executed `plan-3.7-windowed-render.md`. `renderBody` now renders only the
