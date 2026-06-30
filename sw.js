@@ -4,7 +4,7 @@
 
 'use strict';
 
-const CACHE = 'csv-viewer-v3.7.1';   // bump with VERSION to invalidate
+const CACHE = 'csv-viewer-v3.8.0';   // bump with VERSION to invalidate
 
 const SHELL = [
     './',

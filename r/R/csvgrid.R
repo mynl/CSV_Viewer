@@ -135,8 +135,12 @@ conv_col <- function(x) {
         return(format(x, "%Y-%m-%d"))
     }
     if (inherits(x, "POSIXt")) {
-        midnight <- is.na(x) | format(x, "%H:%M:%S") == "00:00:00"
-        return(format(x, if (all(midnight)) "%Y-%m-%d" else "%Y-%m-%d %H:%M"))
+        # Emit FULL precision (HH:MM:SS, plus 3-digit ms when any value
+        # carries a sub-second fraction); the grid owns the finest-present
+        # collapse uniformly (all-midnight -> date-only, whole-second -> :SS,
+        # etc.), so we no longer special-case midnight here.
+        subsec <- any(!is.na(x) & (as.numeric(x) %% 1) != 0)
+        return(format(x, if (subsec) "%Y-%m-%d %H:%M:%OS3" else "%Y-%m-%d %H:%M:%S"))
     }
     if (is.factor(x))  return(as.character(x))
     if (is.logical(x)) return(as.character(x))   # "TRUE"/"FALSE" as text

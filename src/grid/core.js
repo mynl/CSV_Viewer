@@ -140,7 +140,7 @@ const NUM_RE = /^\(?(?:[+-]?[$£€¥￥]?|[$£€¥￥][+-]?)(?:[0-9][0-9,]*(?:
 // ±infinity, any common spelling: inf / infinity / ∞ / Infinity (JS String()
 // of a float64 inf, via the python payload), optional sign, accounting parens.
 const INF_RE = /^\(?[+-]?(?:inf(?:inity)?|∞)\)?$/i;
-const ISO_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/;
+const ISO_RE = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?Z?)?$/;
 const NUMDATE_RE = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/;
 const DMON_RE = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/;   // 5 Jan 2024, 05-Jan-24
 const MOND_RE = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/; // Jan 5, 2024
@@ -225,8 +225,8 @@ function monthNum(word) {
 /* Two-digit year pivot: <50 → 20xx, else 19xx. */
 function fixYear(y) { y = +y; return y < 100 ? (y < 50 ? 2000 + y : 1900 + y) : y; }
 
-function makeDate(y, mo, d, h = 0, mi = 0, se = 0, hasTime = false) {
-    const t = new Date(y, mo - 1, d, h, mi, se);
+function makeDate(y, mo, d, h = 0, mi = 0, se = 0, ms = 0, hasTime = false) {
+    const t = new Date(y, mo - 1, d, h, mi, se, ms);
     if (t.getFullYear() !== y || t.getMonth() !== mo - 1 || t.getDate() !== +d) return null;
     return { t: t.getTime(), hasTime };
 }
@@ -239,8 +239,11 @@ export function parseDate(s, dayFirst = false) {
     s = s.trim();
     let m = ISO_RE.exec(s);
     if (m) {
-        const [, y, mo, d, h, mi, se] = m;
-        const r = makeDate(+y, +mo, +d, +(h || 0), +(mi || 0), +(se || 0), h !== undefined);
+        const [, y, mo, d, h, mi, se, frac] = m;
+        // fraction -> ms (storage is Date, ms resolution): '.5' -> 500, '.125'
+        // -> 125; sub-ms (µs/ns log stamps) rounds to the nearest ms.
+        const ms = frac ? Math.round(+('0.' + frac) * 1000) : 0;
+        const r = makeDate(+y, +mo, +d, +(h || 0), +(mi || 0), +(se || 0), ms, h !== undefined);
         return r;
     }
     m = NUMDATE_RE.exec(s);
@@ -510,9 +513,31 @@ export function inferColumns(headers, rows) {
                     if (p) datev[r] = p.t;
                 }
             }
+            // Finest-present display precision, decided once over the parsed
+            // column (analogous to the number columns' uniform per-column
+            // decimals). Read the LOCAL time-of-day — makeDate builds local
+            // dates, so epoch-ms modulo would misfire off-UTC (local midnight
+            // is a nonzero epoch-ms remainder). level: day if nothing carries
+            // a time, minute if some time but no seconds/finer, else second
+            // with a uniform fractional width F in {0..3} (max present).
+            let anySubDay = false, anySubMin = false, fracDigits = 0;
+            for (let r = 0; r < datev.length; r++) {
+                const t = datev[r];
+                if (t === null) continue;
+                const dt = new Date(t), ms = dt.getMilliseconds();
+                if (dt.getHours() || dt.getMinutes() || dt.getSeconds() || ms) anySubDay = true;
+                if (dt.getSeconds() || ms) anySubMin = true;
+                if (ms) {
+                    const f = ms % 100 === 0 ? 1 : ms % 10 === 0 ? 2 : 3;
+                    if (f > fracDigits) fracDigits = f;
+                }
+            }
+            const level = !anySubDay ? 'day' : !anySubMin ? 'minute' : 'second';
+            const timePrec = { level, frac: level === 'second' ? fracDigits : 0 };
             // ambiguous iff we saw an unknowable all-numeric value and nothing
             // anywhere in the column pinned the order
-            return { name, type: 'date', hasTime, ambiguousOrder: sawAmbiguous && !forced, values: datev };
+            return { name, type: 'date', hasTime, timePrec,
+                     ambiguousOrder: sawAmbiguous && !forced, values: datev };
         }
         return { name, type: 'text', values: null };
     });

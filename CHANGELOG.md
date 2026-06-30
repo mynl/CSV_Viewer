@@ -1,5 +1,37 @@
 # Changelog
 
+## 3.8.0 (2026-06-30) — adaptive (finest-present) date/time precision + explicit date formats
+
+Date columns now display exactly the resolution their data carries, and no
+finer — decided once per column during inference (the existing all-rows date
+pass, no extra work), by direct analogy with the number columns' uniform
+per-column decimals.
+
+- **Finest-present auto precision.** A column with no time-of-day shows
+  `YYYY-MM-DD`; with minutes but no seconds, `… HH:MM`; with seconds, `… :SS`
+  plus a **uniform per-column** fractional width `F∈{0..3}` taken from the
+  finest milliseconds present (`.5` in an `F=3` column reads `.500`). Built for
+  log displays — a burst within a second shows ms. Precision is read from the
+  **local** time-of-day (matching how cells render), not epoch-ms modulo, so it
+  is correct off-UTC.
+- **Midnight fix.** An all-`00:00:00` column collapses to date-only — the
+  dangling ` 00:00` is gone (falls out of the day-level rule for free).
+- **Sub-second parsing.** `ISO_RE` now captures the fraction; `parseDate`
+  converts it to milliseconds (storage stays a JS `Date`; sub-ms rounds).
+- **Explicit per-column date format** (a strftime pattern in `fmt`/`formats`)
+  always outranks the auto rule. Tokens: `%Y %y %m %d %H %M %S %f %%`, where
+  `%f` is **3-digit milliseconds** (diverges from Python's 6-digit microsecond
+  `%f` — we cap at ms; documented). A number spec on a date column (or vice
+  versa) is now an explicit error.
+- **Python emitter** emits **full precision** (`%Y-%m-%d %H:%M:%S`, plus 3-dp ms
+  when any sub-second is present) and no longer special-cases midnight — the
+  grid owns the collapse uniformly. Date `fmt` patterns are now documented.
+
+Grid logic (`src/grid/core.js`, `util.js`); `dist/` + python assets rebuilt;
+python fixtures regenerated; smoke test extended (finest-present levels, `F`
+widths, midnight regression, explicit-format override, cross-type errors,
+sub-second round-trip) and green.
+
 ## 3.7.1 (2026-06-29) — decouple sort from filter; natural-key text sort
 
 Follow-on perf tuning to 3.7.0. A Playwright probe against the 250k-row frame

@@ -48,8 +48,15 @@ html = to_html(df, name="results.df", assets="inline")   # fragment string
   if you want to ship data yourself.
 - Options mirror the JS API in snake_case: `global_search`,
   `column_filters`, `sortable`, `status_bar`, `expand_buttons`, `align`
-  (`'llrcr…'`), `formats`/`fmt` (per-column `[,][.N](f|d|%|e|s)`,
-  `'year'`, `'eng'`, None = auto), `width_mode` (`'equal-risk'` default,
+  (`'llrcr…'`), `formats`/`fmt` (per-column: a **number** spec
+  `[,][.N](f|d|%|e|s)` / `'year'` / `'eng'`, or on a **date** column a
+  strftime pattern `%Y %y %m %d %H %M %S %f` — `%f` is 3-digit
+  **milliseconds** here, not Python's 6-digit microseconds — and `%%` is a
+  literal `%`; None = auto). Date columns auto-show their finest present
+  resolution: date-only when no times are present, `HH:MM` when minutes
+  are, `:SS[.fff]` down to milliseconds otherwise, with a uniform
+  fractional width per column. An explicit date pattern overrides the auto
+  rule. `width_mode` (`'equal-risk'` default,
   or `'coverage'` to maximize the count of fully-shown cells),
   `display_mode` (`'auto'` formatted / `'raw'` verbatim), `rows`
   (cap the viewport to ~N rows, vertical scroll for the rest) /

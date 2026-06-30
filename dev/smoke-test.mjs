@@ -256,6 +256,64 @@ check('uk column day-first', formatCell('05/01/2024', ukcols[0], 0), '2024-01-05
 const uscols = inferColumns(['when'], [['05/01/2024'], ['12/01/2024']]);
 check('us column month-first', formatCell('05/01/2024', uscols[0], 0), '2024-05-01');
 
+// --- 3.8 adaptive (finest-present) date/time precision -----------------
+// parseDate now captures sub-second fraction -> ms (storage is Date)
+check('date iso ms .5', parseDate('2024-01-01 09:00:00.5'),
+      { t: new Date(2024,0,1,9,0,0,500).getTime(), hasTime: true });
+check('date iso ms .125', parseDate('2024-01-01 09:00:00.125'),
+      { t: new Date(2024,0,1,9,0,0,125).getTime(), hasTime: true });
+check('date iso sub-ms rounds', parseDate('2024-01-01 09:00:00.0005'),
+      { t: new Date(2024,0,1,9,0,0,1).getTime(), hasTime: true });
+
+// finest-present level + uniform fractional width, decided per column
+const tpDay = inferColumns(['d'], [['2024-01-01 00:00:00'], ['2024-01-02 00:00:00']])[0];
+check('all-midnight -> day level', tpDay.timePrec, { level: 'day', frac: 0 });
+check('all-midnight -> date only', formatCell('2024-01-01 00:00:00', tpDay, 0), '2024-01-01');
+
+const tpMin = inferColumns(['d'], [['2024-01-01 09:30'], ['2024-01-01 00:00']])[0];
+check('minutes only -> minute level', tpMin.timePrec, { level: 'minute', frac: 0 });
+check('minute renders HH:MM', formatCell('2024-01-01 09:30', tpMin, 0), '2024-01-01 09:30');
+
+const tpSec = inferColumns(['d'], [['2024-01-01 09:30:15'], ['2024-01-01 09:30:00']])[0];
+check('whole seconds -> F=0', tpSec.timePrec, { level: 'second', frac: 0 });
+check('second renders :SS no frac', formatCell('2024-01-01 09:30:15', tpSec, 0), '2024-01-01 09:30:15');
+
+// .5/.25/.125 in one column -> F=3, every value padded to 3 dp
+const tpFrac = inferColumns(['d'],
+    [['2024-01-01 09:00:00.5'], ['2024-01-01 09:00:00.25'], ['2024-01-01 09:00:00.125']])[0];
+check('mixed fraction -> F=3', tpFrac.timePrec, { level: 'second', frac: 3 });
+check('.5 pads to .500', formatCell('2024-01-01 09:00:00.5', tpFrac, 0), '2024-01-01 09:00:00.500');
+check('.125 full ms', formatCell('2024-01-01 09:00:00.125', tpFrac, 2), '2024-01-01 09:00:00.125');
+
+// .5 only -> F=1
+const tpF1 = inferColumns(['d'], [['2024-01-01 09:00:00.5'], ['2024-01-01 09:00:01']])[0];
+check('half-seconds only -> F=1', tpF1.timePrec, { level: 'second', frac: 1 });
+check('F=1 renders one dp', formatCell('2024-01-01 09:00:00.5', tpF1, 0), '2024-01-01 09:00:00.5');
+
+// burst within a second: distinct ms shown
+const tpBurst = inferColumns(['d'],
+    [['2024-01-01 09:00:00.001'], ['2024-01-01 09:00:00.002']])[0];
+check('ms burst -> F=3', tpBurst.timePrec, { level: 'second', frac: 3 });
+check('ms burst renders', formatCell('2024-01-01 09:00:00.002', tpBurst, 1), '2024-01-01 09:00:00.002');
+
+// explicit date format overrides the auto level
+const dfCol = inferColumns(['d'], [['2024-01-01 09:00:00.5'], ['2024-01-01 09:00:01']])[0];
+dfCol.fmt = parseFormatSpec('%H:%M:%S', 'date');
+check('datefmt spec parses', dfCol.fmt, { kind: 'datefmt', pattern: '%H:%M:%S' });
+check('explicit datefmt overrides auto', formatCell('2024-01-01 09:00:00.5', dfCol, 0), '09:00:00');
+const dfCol2 = inferColumns(['d'], [['2024-06-12 13:45:09.5']])[0];
+dfCol2.fmt = parseFormatSpec('%Y/%m/%d %H:%M:%S.%f', 'date');
+check('datefmt %f = 3-digit ms', formatCell('2024-06-12 13:45:09.5', dfCol2, 0), '2024/06/12 13:45:09.500');
+check('datefmt literal %% ', formatCell('2024-06-12 13:45:09.5',
+      Object.assign(inferColumns(['d'], [['2024-06-12 13:45:09']])[0], { fmt: parseFormatSpec('%y%%', 'date') }), 0), '24%');
+// cross-type spec errors
+check('number spec on date errors',
+      (() => { try { parseFormatSpec(',.2f', 'date'); return false; } catch { return true; } })(), true);
+check('date spec on number errors',
+      (() => { try { parseFormatSpec('%Y-%m-%d', 'number'); return false; } catch { return true; } })(), true);
+check('percent spec still number on date col errors',
+      (() => { try { parseFormatSpec('.2%', 'date'); return false; } catch { return true; } })(), true);
+
 // --- 3.2 Stage A: inference quality ------------------------------------
 
 // A1 — null tokens don't demote a numeric column; they render blank
@@ -485,14 +543,21 @@ check('records arrays need columns',
 // -> the grid's records normalization -> inference + auto formatting
 const py = JSON.parse(readFileSync(new URL('./python-payload.json', import.meta.url), 'utf8'));
 const pyd = normalizeRecords(py.records, py.columns);
-check('py columns', pyd.headers, ['line', 'premium', 'loss_ratio', 'year', 'written', 'rate']);
+check('py columns', pyd.headers, ['line', 'premium', 'loss_ratio', 'year', 'written', 'rate', 'stamp']);
 check('py types re-inferred', pyd.cols.map(c => c.type),
-      ['text', 'number', 'number', 'number', 'date', 'number']);
+      ['text', 'number', 'number', 'number', 'date', 'number', 'date']);
 check('py NaN/None -> blank', [pyd.rows[3][1], pyd.rows[4][2]], ['', '']);
 check('py integral floats -> int (money title 2dp)',
       formatCell(pyd.rows[0][1], pyd.cols[1], 0), '12,500,000.00');
 check('py year column plain', formatCell(pyd.rows[0][3], pyd.cols[3], 0), '1995');
+// all-midnight 'written' now emits 00:00:00 full-precision; the grid's
+// finest-present rule must collapse it back to date-only (midnight regression)
 check('py date iso', formatCell(pyd.rows[0][4], pyd.cols[4], 0), '1995-03-15');
+check('py written collapses to day', pyd.cols[4].timePrec, { level: 'day', frac: 0 });
+// sub-second stamp survives full-precision emit -> grid shows ms (F=3, .125)
+check('py stamp F=3', pyd.cols[6].timePrec, { level: 'second', frac: 3 });
+check('py stamp ms renders', formatCell(pyd.rows[0][6], pyd.cols[6], 0), '2024-01-01 09:00:00.500');
+check('py stamp .125 renders', formatCell(pyd.rows[2][6], pyd.cols[6], 2), '2024-01-01 09:00:00.125');
 // loss_ratio + rate columns are now percents (D2): fractions <= 2, ratio names
 check('py loss_ratio is percent', pyd.cols[2].format, 'pct');
 check('py rate percent', formatCell(pyd.rows[3][5], pyd.cols[5], 3), '100.0%');

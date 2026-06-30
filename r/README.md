@@ -112,9 +112,11 @@ Run `source("r/demo.R")` for a side-by-side of the two over a stocks table
 Types are inferred from the values you send, exactly as the csv-viewer app
 infers them from a CSV. A few things worth knowing:
 
-- **Dates.** `Date` columns render `YYYY-MM-DD`. `POSIXct` columns render
-  `YYYY-MM-DD HH:MM` only if any value has a non-midnight time, otherwise
-  just the date.
+- **Dates.** `Date` columns render `YYYY-MM-DD`. `POSIXct` columns are
+  emitted at full precision and the grid shows their **finest present**
+  resolution: just the date when every value is midnight, `HH:MM` when only
+  minutes are present, `:SS` for whole seconds, down to `.fff` milliseconds
+  for sub-second data — with a uniform fractional width per column.
 - **Numbers.** Whole-valued numeric columns format as integers with
   thousands separators; columns with decimals get a uniform decimal count
   from their typical magnitude. Years (1800–2100, or a `year`-ish header)

@@ -25,17 +25,63 @@ function numberFormatter(dec) {
     return nf;
 }
 
-/* Parse a format spec into {kind, comma, dec}. Subset of the Python/d3
- * mini-language: optional ',' (thousands), optional '.N' (decimals), one
- * of f (fixed) d (integer) % (x100, percent) e (scientific) s (SI
- * suffix), plus the named specs 'year' and 'eng'. null/'' = auto rules.
- * Date format specs are explicitly out of scope (display stays ISO). */
-export function parseFormatSpec(spec) {
+/* Parse a format spec into a descriptor. `type` is the column's inferred
+ * type ('number' | 'date' | 'text') so a spec can be validated against it.
+ *
+ * Number columns — subset of the Python/d3 mini-language: optional ','
+ * (thousands), optional '.N' (decimals), one of f (fixed) d (integer)
+ * % (x100, percent) e (scientific) s (SI suffix), plus the named specs
+ * 'year' and 'eng'.
+ *
+ * Date columns — a strftime-style pattern (any spec containing '%' that is
+ * not the bare percent number spec) -> { kind: 'datefmt', pattern }; this
+ * overrides the auto finest-present rule. Tokens: see `strftime` below.
+ *
+ * null/'' = auto rules. A number spec on a date column (or a date pattern
+ * on a number column) is an error. */
+export function parseFormatSpec(spec, type) {
     if (spec === null || spec === undefined || spec === '') return null;
-    if (spec === 'year' || spec === 'eng') return { kind: spec };
+    // a strftime pattern carries a '%X' token (letter after %); the percent
+    // number spec ('%', '.2%', ',.0%') has '%' only as the terminal kind, so
+    // these never collide.
+    const isDateFmt = /%[YymdHMSf%]/.test(spec);
+    if (isDateFmt) {
+        if (type === 'number') throw new Error(`CsvGrid: date format '${spec}' on a number column`);
+        return { kind: 'datefmt', pattern: spec };
+    }
+    if (spec === 'year' || spec === 'eng') {
+        if (type === 'date') throw new Error(`CsvGrid: number format '${spec}' on a date column`);
+        return { kind: spec };
+    }
     const m = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(spec);
     if (!m) throw new Error(`CsvGrid: unrecognized format spec '${spec}'`);
+    if (type === 'date') throw new Error(`CsvGrid: number format '${spec}' on a date column`);
     return { kind: m[3], comma: !!m[1], dec: m[2] === undefined ? null : +m[2] };
+}
+
+/* Minimal strftime for the date-format spec. Supported tokens:
+ *   %Y 4-digit year   %y 2-digit year   %m month   %d day
+ *   %H hour (24)      %M minute         %S second
+ *   %f MILLISECONDS, 3 digits (NB: diverges from Python's %f = 6-digit
+ *      microseconds — we cap resolution at ms, so %f is ms here)
+ *   %% literal '%'
+ * All other characters (including unknown %X) pass through literally.
+ * Components are read in LOCAL time, matching the auto date rule. */
+export function strftime(d, pattern) {
+    const p2 = x => String(x).padStart(2, '0');
+    return pattern.replace(/%([YymdHMSf%])/g, (_, c) => {
+        switch (c) {
+            case 'Y': return String(d.getFullYear());
+            case 'y': return p2(d.getFullYear() % 100);
+            case 'm': return p2(d.getMonth() + 1);
+            case 'd': return p2(d.getDate());
+            case 'H': return p2(d.getHours());
+            case 'M': return p2(d.getMinutes());
+            case 'S': return p2(d.getSeconds());
+            case 'f': return String(d.getMilliseconds()).padStart(3, '0');
+            case '%': return '%';
+        }
+    });
 }
 
 const SI_TIERS = [[1e12, 'T'], [1e9, 'G'], [1e6, 'M'], [1e3, 'k'],
@@ -115,9 +161,23 @@ export function formatCell(raw, col, r, mode = 'auto') {
         const t = col.values[r];
         if (t === null) return isNullToken(raw) ? '' : raw;
         const d = new Date(t);
+        if (col.fmt?.kind === 'datefmt') return strftime(d, col.fmt.pattern);  // explicit wins
         const pad = x => String(x).padStart(2, '0');
         let s = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        if (col.hasTime) s += ` ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        // finest-present auto rule (see inferColumns): day shows date only;
+        // minute adds HH:MM; second adds :SS plus a uniform F-digit fraction
+        // (F=0 -> none) taken from the leading digits of the 3-digit ms.
+        const tp = col.timePrec ?? { level: col.hasTime ? 'minute' : 'day', frac: 0 };
+        if (tp.level !== 'day') {
+            s += ` ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            if (tp.level === 'second') {
+                s += `:${pad(d.getSeconds())}`;
+                if (tp.frac > 0) {
+                    const ms = String(d.getMilliseconds()).padStart(3, '0');
+                    s += '.' + ms.slice(0, tp.frac);
+                }
+            }
+        }
         return s;
     }
     return raw;

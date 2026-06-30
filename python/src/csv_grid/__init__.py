@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.7.1"
+__version__ = "3.8.0"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
@@ -76,10 +76,14 @@ def _jsonable(o):
 
 def payload(df, name: str | None = None, index: bool = False) -> dict:
     """The {records, columns[, name]} dict CsvGrid consumes (records as
-    arrays in column order). Dates become ISO strings (hh:mm only when a
-    column has non-midnight times); NaN/None/NaT become None (blank cells
-    in the grid); integral float columns become ints so the grid's
-    integer/year formatting rules apply. Types are re-inferred grid-side.
+    arrays in column order). Dates become ISO strings at FULL precision
+    (``YYYY-MM-DD HH:MM:SS``, plus ``.fff`` milliseconds when the column
+    carries any sub-second component); the grid owns the finest-present
+    collapse (an all-midnight column reduces to date-only, whole-second
+    data to ``:SS``, etc.) so this side no longer special-cases midnight.
+    NaN/None/NaT become None (blank cells in the grid); integral float
+    columns become ints so the grid's integer/year formatting rules apply.
+    Types are re-inferred grid-side.
     """
     import pandas as pd  # deferred so importing csv_grid stays cheap
 
@@ -91,10 +95,14 @@ def payload(df, name: str | None = None, index: bool = False) -> dict:
     for c in df.columns:
         s = df[c]
         if isinstance(s.dtype, pd.DatetimeTZDtype) or str(s.dtype).startswith("datetime64"):
-            midnight = (s.dt.hour.fillna(0).eq(0) & s.dt.minute.fillna(0).eq(0)
-                        & s.dt.second.fillna(0).eq(0)).all()
-            fmt = "%Y-%m-%d" if midnight else "%Y-%m-%d %H:%M"
-            vals = [None if pd.isna(v) else v.strftime(fmt) for v in s]
+            # any sub-second present in the column -> emit 3-digit ms for all
+            # rows (we cap at ms; sub-ms rounds away). The grid decides the
+            # uniform displayed width from the values it actually sees.
+            subsec = bool(s.dt.microsecond.fillna(0).ne(0).any())
+            vals = [None if pd.isna(v)
+                    else v.strftime("%Y-%m-%d %H:%M:%S")
+                         + (".%03d" % (v.microsecond // 1000) if subsec else "")
+                    for v in s]
         elif str(s.dtype).startswith("float"):
             nonnull = s.dropna()
             integral = len(nonnull) > 0 and nonnull.mod(1).eq(0).all()

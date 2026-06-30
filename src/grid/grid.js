@@ -348,7 +348,7 @@ export default class CsvGrid {
             cols.forEach((col, c) => { if (spec[c]) col.align = spec[c]; });
         }
         if (this.opts.formats) {
-            cols.forEach((col, c) => { col.fmt = parseFormatSpec(this.opts.formats[c]); });
+            cols.forEach((col, c) => { col.fmt = parseFormatSpec(this.opts.formats[c], col.type); });
         }
         this.fileName = name || '';
         this.guessedHeaders = d.headerless;

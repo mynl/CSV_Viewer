@@ -73,6 +73,40 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-06-30 — adaptive (finest-present) date/time precision (3.8.0)
+
+Executed `dev/plan-3.8.0-adaptive-time-precision.md`. Date columns now show
+exactly the resolution their data carries, decided once per column in the
+existing date pass (no extra loop): **day** if no time-of-day present,
+**minute** if minutes but no seconds, **second** otherwise with a uniform
+per-column fractional width `F∈{0..3}` from the finest ms present — the same
+"uniform per-column decimals" idea as the number columns. All-midnight columns
+collapse to date-only (the dangling ` 00:00` bug is gone).
+
+Two corrections to the written plan, agreed before executing:
+
+1. **Timezone bug.** The plan computed precision via `t % 86400000` on epoch
+   ms, but `makeDate` builds **local** dates — off-UTC, local midnight has a
+   nonzero epoch-ms remainder, so the midnight collapse would never fire.
+   Fixed by reading the **local** time-of-day (`new Date(t).getHours()` … etc.),
+   consistent with how `formatCell` renders.
+2. **`parseFormatSpec(spec, type)`** gained the column type so a number spec on
+   a date column (and vice versa) errors. Zero cost — it runs once per column
+   at load, reusing `col.type` we already computed.
+
+Explicit date format (strftime in `fmt`/`formats`) outranks the auto rule;
+tokens `%Y %y %m %d %H %M %S %f %%`, `%f` = **3-digit ms** (not Python's 6-digit
+µs — we cap at ms). Python emitter now emits full precision and the grid owns
+the collapse (its midnight branch deleted). Open point settled: **finest-present
+`F`**, not fixed 3-dp. Smoke test extended; fixtures regenerated; dist rebuilt;
+all green. Plan stays in `dev/` until Steve says it's done.
+
+The plan scoped only Python, but the **R** emitter (`r/R/csvgrid.R`) had the same
+seconds-dropping/midnight logic — brought it into line on Steve's go (full
+precision via `%OS3` when sub-second present, midnight branch removed; R
+`DESCRIPTION` → 3.8.0; embedded `iife.js`/`css` auto-refreshed by the vite
+`copy-assets` step). Steve commits JS + Python + R together.
+
 ## 2026-06-29 — decouple sort from filter + natural-key text sort (3.7.1)
 
 Data-driven follow-on to windowing. Built a Playwright probe (ephemeral

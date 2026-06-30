@@ -30,6 +30,12 @@ df = pd.DataFrame({
     "written": pd.to_datetime(
         ["1995-03-15", "2005-07-01", "2020-01-31", "2024-06-12", "2024-02-29"]),
     "rate": [1.05, 0.98, 1.12, 1.0, 1.03],
+    # sub-second stamps: exercises full-precision emit + the grid's
+    # finest-present collapse (this column -> 3-dp ms, .125 forces F=3)
+    "stamp": pd.to_datetime(
+        ["2024-01-01 09:00:00.500", "2024-01-01 09:00:00.250",
+         "2024-01-01 09:00:00.125", "2024-01-01 09:00:01.000",
+         "2024-01-01 09:00:02.000"]),
 })
 
 frag1 = to_html(df, name="portfolio.df", assets="inline")
@@ -38,7 +44,8 @@ frag2 = to_html(
     assets="inline",                  # also inline: head guard dedupes
     theme="light",                    # force light regardless of OS theme
     align="l--c",                     # center the year column
-    formats=[None, ",.0f", ".1%", "year", None, ",.2f"],
+    # last spec is a date pattern (strftime) on the sub-second stamp column
+    formats=[None, ",.0f", ".1%", "year", None, ",.2f", "%H:%M:%S.%f"],
     global_search=False,
     status_bar=False,
 )

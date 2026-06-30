@@ -1,4 +1,4 @@
-/* csv-grid v3.7.1 — built by Vite from src/grid/ of the
+/* csv-grid v3.8.0 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -92,7 +92,7 @@ function s(e) {
 		aligns: r
 	};
 }
-var c = /[$£€¥￥]/, l = /^\(?(?:[+-]?[$£€¥￥]?|[$£€¥￥][+-]?)(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, u = /^\(?[+-]?(?:inf(?:inity)?|∞)\)?$/i, d = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?Z?)?$/, f = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, p = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, m = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, h = [
+var c = /[$£€¥￥]/, l = /^\(?(?:[+-]?[$£€¥￥]?|[$£€¥￥][+-]?)(?:[0-9][0-9,]*(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?%?\)?$/, u = /^\(?[+-]?(?:inf(?:inity)?|∞)\)?$/i, d = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?Z?)?$/, f = /^(\d{1,4})([\/\-.])(\d{1,2})\2(\d{1,4})$/, p = /^(\d{1,2})[ \-]([A-Za-z]{3,9})\.?,?[ \-](\d{2,4})$/, m = /^([A-Za-z]{3,9})\.?,?[ \-](\d{1,2}),?[ \-](\d{2,4})$/, h = [
 	"january",
 	"february",
 	"march",
@@ -155,19 +155,19 @@ function b(e) {
 function x(e) {
 	return e = +e, e < 100 ? e < 50 ? 2e3 + e : 1900 + e : e;
 }
-function S(e, t, n, r = 0, i = 0, a = 0, o = !1) {
-	let s = new Date(e, t - 1, n, r, i, a);
-	return s.getFullYear() !== e || s.getMonth() !== t - 1 || s.getDate() !== +n ? null : {
-		t: s.getTime(),
-		hasTime: o
+function S(e, t, n, r = 0, i = 0, a = 0, o = 0, s = !1) {
+	let c = new Date(e, t - 1, n, r, i, a, o);
+	return c.getFullYear() !== e || c.getMonth() !== t - 1 || c.getDate() !== +n ? null : {
+		t: c.getTime(),
+		hasTime: s
 	};
 }
 function C(e, t = !1) {
 	e = e.trim();
 	let n = d.exec(e);
 	if (n) {
-		let [, e, t, r, i, a, o] = n;
-		return S(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), i !== void 0);
+		let [, e, t, r, i, a, o, s] = n, c = s ? Math.round(("0." + s) * 1e3) : 0;
+		return S(+e, +t, +r, +(i || 0), +(a || 0), +(o || 0), c, i !== void 0);
 	}
 	if (n = f.exec(e), n) {
 		let [, e, , r, i] = n;
@@ -338,10 +338,25 @@ function N(e, t) {
 					i && (s[e] = i.t);
 				}
 			}
+			let c = !1, l = !1, u = 0;
+			for (let e = 0; e < s.length; e++) {
+				let t = s[e];
+				if (t === null) continue;
+				let n = new Date(t), r = n.getMilliseconds();
+				if ((n.getHours() || n.getMinutes() || n.getSeconds() || r) && (c = !0), (n.getSeconds() || r) && (l = !0), r) {
+					let e = r % 100 == 0 ? 1 : r % 10 == 0 ? 2 : 3;
+					e > u && (u = e);
+				}
+			}
+			let d = c ? l ? "second" : "minute" : "day";
 			return {
 				name: e,
 				type: "date",
 				hasTime: i,
+				timePrec: {
+					level: d,
+					frac: d === "second" ? u : 0
+				},
 				ambiguousOrder: a && !o,
 				values: s
 			};
@@ -387,18 +402,45 @@ function I(e) {
 		maximumFractionDigits: e
 	}), F.set(e, t)), t;
 }
-function L(e) {
+function L(e, t) {
 	if (e == null || e === "") return null;
-	if (e === "year" || e === "eng") return { kind: e };
-	let t = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(e);
-	if (!t) throw Error(`CsvGrid: unrecognized format spec '${e}'`);
+	if (/%[YymdHMSf%]/.test(e)) {
+		if (t === "number") throw Error(`CsvGrid: date format '${e}' on a number column`);
+		return {
+			kind: "datefmt",
+			pattern: e
+		};
+	}
+	if (e === "year" || e === "eng") {
+		if (t === "date") throw Error(`CsvGrid: number format '${e}' on a date column`);
+		return { kind: e };
+	}
+	let n = /^(,)?(?:\.(\d+))?([fd%es])$/.exec(e);
+	if (!n) throw Error(`CsvGrid: unrecognized format spec '${e}'`);
+	if (t === "date") throw Error(`CsvGrid: number format '${e}' on a date column`);
 	return {
-		kind: t[3],
-		comma: !!t[1],
-		dec: t[2] === void 0 ? null : +t[2]
+		kind: n[3],
+		comma: !!n[1],
+		dec: n[2] === void 0 ? null : +n[2]
 	};
 }
-var R = [
+function R(e, t) {
+	let n = (e) => String(e).padStart(2, "0");
+	return t.replace(/%([YymdHMSf%])/g, (t, r) => {
+		switch (r) {
+			case "Y": return String(e.getFullYear());
+			case "y": return n(e.getFullYear() % 100);
+			case "m": return n(e.getMonth() + 1);
+			case "d": return n(e.getDate());
+			case "H": return n(e.getHours());
+			case "M": return n(e.getMinutes());
+			case "S": return n(e.getSeconds());
+			case "f": return String(e.getMilliseconds()).padStart(3, "0");
+			case "%": return "%";
+		}
+	});
+}
+var z = [
 	[0xe8d4a51000, "T"],
 	[1e9, "G"],
 	[1e6, "M"],
@@ -408,7 +450,7 @@ var R = [
 	[1e-6, "µ"],
 	[1e-9, "n"]
 ];
-function z(e, t) {
+function B(e, t) {
 	switch (t.kind) {
 		case "year": return String(e);
 		case "eng": return k(e);
@@ -429,26 +471,26 @@ function z(e, t) {
 			if (t.dec === null || t.dec === void 0) return k(e);
 			if (e === 0) return 0 .toFixed(t.dec);
 			let n = Math.abs(e);
-			for (let [r, i] of R) if (n >= r) return (e / r).toFixed(t.dec) + i;
+			for (let [r, i] of z) if (n >= r) return (e / r).toFixed(t.dec) + i;
 			return (e / 1e-9).toFixed(t.dec) + "n";
 		}
 	}
 }
-function B(e) {
+function V(e) {
 	return [...e].map((e) => ({
 		l: "left",
 		r: "right",
 		c: "center"
 	})[e] ?? null);
 }
-function V(e, t, n, r = "auto") {
+function ae(e, t, n, r = "auto") {
 	if (e = (e ?? "").trim(), e === "") return "";
 	if (r === "raw") return e;
 	if (t.type === "number") {
 		let r = t.values[n];
 		if (r === null) return _(e) ? "" : e;
 		if (!Number.isFinite(r)) return r > 0 ? "inf" : "-inf";
-		if (t.fmt) return z(r, t.fmt);
+		if (t.fmt) return B(r, t.fmt);
 		if (t.format === "year" || t.format === "plain") return String(r);
 		if (t.format === "eng") return k(r);
 		if (t.format === "pct") return I(t.dec).format(r * 100) + "%";
@@ -462,22 +504,31 @@ function V(e, t, n, r = "auto") {
 	if (t.type === "date") {
 		let r = t.values[n];
 		if (r === null) return _(e) ? "" : e;
-		let i = new Date(r), a = (e) => String(e).padStart(2, "0"), o = `${i.getFullYear()}-${a(i.getMonth() + 1)}-${a(i.getDate())}`;
-		return t.hasTime && (o += ` ${a(i.getHours())}:${a(i.getMinutes())}`), o;
+		let i = new Date(r);
+		if (t.fmt?.kind === "datefmt") return R(i, t.fmt.pattern);
+		let a = (e) => String(e).padStart(2, "0"), o = `${i.getFullYear()}-${a(i.getMonth() + 1)}-${a(i.getDate())}`, s = t.timePrec ?? {
+			level: t.hasTime ? "minute" : "day",
+			frac: 0
+		};
+		if (s.level !== "day" && (o += ` ${a(i.getHours())}:${a(i.getMinutes())}`, s.level === "second" && (o += `:${a(i.getSeconds())}`, s.frac > 0))) {
+			let e = String(i.getMilliseconds()).padStart(3, "0");
+			o += "." + e.slice(0, s.frac);
+		}
+		return o;
 	}
 	return e;
 }
-function ae(e, t) {
+function H(e, t) {
 	let n = (e) => (e = (e ?? "") + "", /[",\r\n]/.test(e) ? "\"" + e.replace(/"/g, "\"\"") + "\"" : e), r = (e) => e.map(n).join(","), i = [r(e)];
 	for (let e of t) i.push(r(e));
 	return i.join("\r\n");
 }
-function H(e, t, n = []) {
+function U(e, t, n = []) {
 	let r = (e) => ((e ?? "") + "").replace(/\|/g, "\\|").replace(/\s*\r?\n\s*/g, " "), i = (e) => e === "right" ? "---:" : e === "center" ? ":--:" : e === "left" ? ":---" : "---", a = (e) => "| " + e.map(r).join(" | ") + " |", o = "|" + e.map((e, t) => i(n[t])).join("|") + "|", s = [a(e), o];
 	for (let e of t) s.push(a(e));
 	return s.join("\n");
 }
-function U(e, t) {
+function W(e, t) {
 	if (!Array.isArray(e)) throw Error("CsvGrid: records must be an array.");
 	let n = (e) => e == null || typeof e == "number" && Number.isNaN(e) ? "" : String(e), r, i;
 	if (e.length && Array.isArray(e[0])) {
@@ -492,7 +543,7 @@ function U(e, t) {
 		headerless: !1
 	};
 }
-function W(e) {
+function G(e) {
 	let t = [];
 	for (let n of e.trim().split(/\s+/)) {
 		if (!n) continue;
@@ -504,8 +555,8 @@ function W(e) {
 	}
 	return t;
 }
-var G = /[\s_\-\/\\.,:;()[\]{}"']/;
-function K(e, t) {
+var K = /[\s_\-\/\\.,:;()[\]{}"']/;
+function q(e, t) {
 	let n = t.length, r = e.length;
 	if (r === 0) return 0;
 	if (r > n) return -1;
@@ -521,10 +572,10 @@ function K(e, t) {
 	let s = 100 - 3 * (a - o + 1 - r) - Math.min(o, 20);
 	i = 0;
 	let c = !1;
-	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || G.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
+	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || K.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
 	return s;
 }
-function q(e, t, n) {
+function J(e, t, n) {
 	let r = e.cs ? n : t, i, a = 0;
 	switch (e.kind) {
 		case "exact":
@@ -537,19 +588,19 @@ function q(e, t, n) {
 			i = r.endsWith(e.str);
 			break;
 		default: {
-			let t = K(e.str, r);
+			let t = q(e.str, r);
 			i = t >= 0, a = t;
 		}
 	}
 	return e.negate && (i = !i), i ? a : -1;
 }
-function J(e) {
+function oe(e) {
 	return e = (e ?? "").trim(), e === "" ? "" : (e = e.toLowerCase().normalize("NFKD").replace(/\p{Diacritic}/gu, ""), e.replace(/\d+/g, (e) => (e = e.replace(/^0+(?=\d)/, ""), "" + String.fromCharCode(e.length) + e)));
 }
-function oe(e, t, n, r = "equal-risk") {
-	return r === "coverage" ? ce(e, t, n) : se(e, t, n);
+function se(e, t, n, r = "equal-risk") {
+	return r === "coverage" ? le(e, t, n) : ce(e, t, n);
 }
-function se(e, t, n) {
+function ce(e, t, n) {
 	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
 	if (a(o) <= n) return o;
 	if (a(i(0)) >= n) return i(0);
@@ -560,13 +611,13 @@ function se(e, t, n) {
 	}
 	return i(s);
 }
-function ce(e, t, n) {
+function le(e, t, n) {
 	let r = e.map((e, n) => Math.max(t[n], e.length ? e[e.length - 1] : 0)), i = (e) => e.reduce((e, t) => e + t, 0);
 	if (i(r) <= n) return r;
 	if (i(t) >= n) return t.slice();
 	let a = t.slice(), o = n - i(t), s = [];
 	for (let n = 0; n < e.length; n++) {
-		let r = le(e[n], t[n]);
+		let r = ue(e[n], t[n]);
 		for (let e = 1; e < r.length; e++) {
 			let t = r[e].w - r[e - 1].w, i = r[e].cells - r[e - 1].cells;
 			t > 0 && i > 0 && s.push({
@@ -584,7 +635,7 @@ function ce(e, t, n) {
 	}
 	return a;
 }
-function le(e, t) {
+function ue(e, t) {
 	let n = e.length, r = 0;
 	for (; r < n && e[r] <= t;) r++;
 	let i = [{
@@ -610,7 +661,7 @@ function le(e, t) {
 	}
 	return a;
 }
-function ue(e, t) {
+function Y(e, t) {
 	let n = e.trim();
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
@@ -649,20 +700,20 @@ function ue(e, t) {
 	let r = n.toLowerCase();
 	return (e, t) => e.toLowerCase().includes(r);
 }
-function Y(e) {
+function X(e) {
 	return e.align ? `col-${e.type} align-${e.align}` : `col-${e.type}`;
 }
-function X(e) {
+function Z(e) {
 	return e.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 //#endregion
 //#region src/grid/grid.js
-var de = 1e6, Z = 2048, fe = 1e4, Q = 10;
+var de = 1e6, fe = 2048, pe = 1e4, Q = 10;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var pe = class t {
+var me = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -759,7 +810,7 @@ var pe = class t {
 			};
 		}
 		if (e.records !== void 0) return {
-			d: U(e.records, e.columns),
+			d: W(e.records, e.columns),
 			name: e.name ?? ""
 		};
 		throw Error("CsvGrid: data must be {csv}, {records[, columns]}, or {url}.");
@@ -802,13 +853,13 @@ var pe = class t {
 	_install(e, t) {
 		let { rows: n, cols: r } = e;
 		if (this.opts.align) {
-			let e = B(this.opts.align);
+			let e = V(this.opts.align);
 			r.forEach((t, n) => {
 				e[n] && (t.align = e[n]);
 			});
 		}
 		this.opts.formats && r.forEach((e, t) => {
-			e.fmt = L(this.opts.formats[t]);
+			e.fmt = L(this.opts.formats[t], e.type);
 		}), this.fileName = t || "", this.guessedHeaders = e.headerless, this.ambiguousDateCols = r.filter((e) => e.ambiguousOrder).map((e) => e.name), this.headers = e.headers, this.rows = n, this.cols = r;
 		let i = Array.isArray(this.opts.hiddenColumns) && this.opts.hiddenColumns.length ? new Set(this.opts.hiddenColumns) : null;
 		if (this.visibleCols = r.map((e, t) => t).filter((e) => !i || !i.has(this.headers[e])), this.selected = null, this.formatted = Array(n.length), this.searchRaw = null, this.searchLow = null, this.searchReady = !1, this.indexing = null, n.length * r.length <= this.opts.eagerCells) {
@@ -854,9 +905,9 @@ var pe = class t {
 		let r = e === "all" ? this.rows.map((e, t) => t) : this.view, i = n === "formatted" && r.length <= this.opts.renderCap, a = r.map((e) => i ? this.getFormattedRow(e) : this.cols.map((t, n) => this.rows[e][n] ?? ""));
 		if (t === "md") {
 			let e = this.cols.map((e) => e.align || (e.type === "number" ? "right" : e.type === "date" ? "center" : "left"));
-			return H(this.headers, a, e);
+			return U(this.headers, a, e);
 		}
-		return ae(this.headers, a);
+		return H(this.headers, a);
 	}
 	setWidthMode(e) {
 		this.opts.widthMode = e === "coverage" ? "coverage" : "equal-risk", this.applyLayout();
@@ -873,7 +924,7 @@ var pe = class t {
 		this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
 	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, Z), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, fe), a = [], o = [];
 		for (let t of this.visibleCols) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -915,7 +966,7 @@ var pe = class t {
 		if (!this.layout) return;
 		let e = this.els.table, t = this.expandAll ? Infinity : e.parentElement.clientWidth;
 		if (!t) return;
-		let n = oe(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
+		let n = se(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
 		for (let [e, t] of this.manualWidths) e < n.length && (n[e] = t);
 		let r = e.querySelector("colgroup");
 		r && r.remove(), r = document.createElement("colgroup");
@@ -927,14 +978,14 @@ var pe = class t {
 	}
 	getFormattedRow(e) {
 		let t = this.formatted[e];
-		return t || (t = this.cols.map((t, n) => V(this.rows[e][n], t, e, this.displayMode)), this.formatted[e] = t), t;
+		return t || (t = this.cols.map((t, n) => ae(this.rows[e][n], t, e, this.displayMode)), this.formatted[e] = t), t;
 	}
 	buildSearchIndexChunked() {
 		let e = this.loadGen, t = this.rows.length, n = Array(t), r = Array(t), i = 0;
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + fe);
+			let o = Math.min(t, i + pe);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -951,7 +1002,7 @@ var pe = class t {
 			let r = this.cols[n], i = this.sortDir;
 			if (r.type === "text") {
 				let r = Array(e);
-				for (let t = 0; t < e; t++) r[t] = J(this.rows[t][n]);
+				for (let t = 0; t < e; t++) r[t] = oe(this.rows[t][n]);
 				t.sort((e, t) => {
 					let n = r[e], a = r[t];
 					return n === "" || a === "" ? n === a ? 0 : n === "" ? 1 : -1 : n < a ? -i : n > a ? i : 0;
@@ -967,9 +1018,9 @@ var pe = class t {
 		this.sortedOrder = t;
 	}
 	rebuildView() {
-		let { rows: e, cols: t } = this, n = W(this.globalFilter);
+		let { rows: e, cols: t } = this, n = G(this.globalFilter);
 		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
-		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => ue(e || "", t[n])), a = i.some((e) => e) || n.length, o = r && this.sortCol === null;
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => Y(e || "", t[n])), a = i.some((e) => e) || n.length, o = r && this.sortCol === null;
 		(!this.sortedOrder || this.sortedOrder.length !== e.length) && this._buildSortOrder();
 		let s = this.sortedOrder;
 		if (!a) {
@@ -981,7 +1032,7 @@ var pe = class t {
 		for (let t = 0; t < s.length; t++) {
 			let r = s[t], a = !0, l = 0;
 			for (let e of n) {
-				let t = q(e, this.searchLow[r], this.searchRaw[r]);
+				let t = J(e, this.searchLow[r], this.searchRaw[r]);
 				if (t < 0) {
 					a = !1;
 					break;
@@ -1004,7 +1055,7 @@ var pe = class t {
 		let n = document.createElement("tr");
 		if (this.visibleCols.forEach((t, r) => {
 			let i = e[t], a = document.createElement("th");
-			a.className = Y(i), this.opts.sortable ? (a.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${X(i.name)}`, a.title = `${i.name} (${i.type}) — click to sort`, a.addEventListener("click", () => this.onSort(t))) : (a.innerHTML = `<span class="sort-arrow"></span>${X(i.name)}`, a.title = `${i.name} (${i.type})`, a.classList.add("csvgrid-nosort"));
+			a.className = X(i), this.opts.sortable ? (a.innerHTML = `<span class="sort-arrow">${this.sortCol === t ? this.sortDir === 1 ? "▲" : "▼" : ""}</span>${Z(i.name)}`, a.title = `${i.name} (${i.type}) — click to sort`, a.addEventListener("click", () => this.onSort(t))) : (a.innerHTML = `<span class="sort-arrow"></span>${Z(i.name)}`, a.title = `${i.name} (${i.type})`, a.classList.add("csvgrid-nosort"));
 			let o = document.createElement("span");
 			o.className = "col-resizer", o.title = "Drag to resize — double-click to fit content", o.addEventListener("mousedown", (e) => this.startColResize(e, r)), o.addEventListener("dblclick", (e) => {
 				e.stopPropagation(), this.fitColumn(r);
@@ -1050,7 +1101,7 @@ var pe = class t {
 		for (let n = e; n < t; n++) {
 			let e = a[n], t = this.getFormattedRow(e), r = this.visibleCols.map((e) => {
 				let n = i[e], r = t[e];
-				return r === "" ? `<td class="${Y(n)} blank">·</td>` : `<td class="${Y(n)}">${X(r)}</td>`;
+				return r === "" ? `<td class="${X(n)} blank">·</td>` : `<td class="${X(n)}">${Z(r)}</td>`;
 			});
 			c.push(`<tr${o ? ` data-r="${e}"` : ""}>${r.join("")}</tr>`);
 		}
@@ -1170,6 +1221,6 @@ var pe = class t {
 	}
 };
 //#endregion
-export { pe as default };
+export { me as default };
 
 //# sourceMappingURL=csv-grid.es.js.map
