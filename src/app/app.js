@@ -16,7 +16,7 @@
 import CsvGrid from '../grid/grid.js';
 import { cleanCsvText } from '../grid/core.js';
 
-const VERSION = '3.8.0';
+const VERSION = '3.9.0';
 
 const $ = id => document.getElementById(id);
 
@@ -351,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
     grid = new CsvGrid('#grid-root', null, {
         globalSearch: false,      // the navbar owns the search box
         expandButtons: false,     // the navbar owns Expand / Contract
+        exportButtons: false,     // the navbar owns Copy / Save
         statusBar: $('status'),   // row counts render into the footer
         widthMode,                // ?widths=coverage opts into the coverage fit
     });

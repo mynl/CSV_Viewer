@@ -108,6 +108,77 @@
     background: var(--csvgrid-muted);
     color: var(--csvgrid-bg);
 }
+/* Brief post-action confirmation on a Copy/Save button */
+.csvgrid-btn.csvgrid-flash {
+    background: var(--csvgrid-accent);
+    border-color: var(--csvgrid-accent);
+    color: var(--csvgrid-bg);
+}
+
+/* Copy / Save split-control: a flat primary + a ▾ disclosure menu, joined
+ * so they read as one button. Native <details> drives open/close (no JS,
+ * no document listener — multi-instance safe). */
+.csvgrid-export {
+    display: inline-flex;
+    position: relative;
+}
+.csvgrid-export .csvgrid-btn {
+    border-radius: 0;   /* squared inner edges; ends re-rounded below */
+}
+.csvgrid-export > .csvgrid-btn:first-child {
+    border-top-left-radius: 0.25rem;
+    border-bottom-left-radius: 0.25rem;
+}
+.csvgrid-export .csvgrid-menu-toggle {   /* match the reset's specificity so the right corners re-round */
+    border-top-right-radius: 0.25rem;
+    border-bottom-right-radius: 0.25rem;
+    border-left: 0;
+    list-style: none;   /* kill the native disclosure triangle */
+}
+.csvgrid-menu-toggle::-webkit-details-marker { display: none; }
+.csvgrid-menu-toggle::marker { content: ''; }
+.csvgrid-menu-panel {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    z-index: 5;
+    min-width: max-content;
+    display: flex;
+    flex-direction: column;
+    padding: 0.25rem 0;
+    border: 1px solid var(--csvgrid-border);
+    border-radius: 0.25rem;
+    background: var(--csvgrid-bg);
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.15);
+}
+.csvgrid-menu-item {
+    text-align: left;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.75rem;
+    border: 0;
+    background: transparent;
+    color: var(--csvgrid-fg);
+    cursor: pointer;
+}
+.csvgrid-menu-item:hover {
+    background: var(--csvgrid-row-hover);
+}
+.csvgrid-menu-sep {
+    height: 1px;
+    margin: 0.25rem 0;
+    background: var(--csvgrid-border);
+}
+.csvgrid-menu-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.75rem;
+    color: var(--csvgrid-fg);
+    cursor: pointer;
+}
 
 /* Scrollable table region; hosts cap its height / add card chrome */
 .csvgrid-scroll { overflow: auto; }

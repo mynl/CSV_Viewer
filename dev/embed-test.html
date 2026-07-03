@@ -58,6 +58,9 @@ new CsvGrid('#grid-b', {
     globalSearch: false,
     expandButtons: false,
     statusBar: false,
+    // exportButtons default on: toolbar shows with ONLY Copy/Save (Req-Toolbar-
+    // Visibility); 'rate' is hidden, so button output must omit it (visibleOnly)
+    hiddenColumns: ['rate'],
     align: 'l-c',                                  // center col 3 (lossRatio)
     formats: [null, ',.0f', '.1%', 'year', ',.2f'],
     worker: false,

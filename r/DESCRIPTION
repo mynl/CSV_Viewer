@@ -1,6 +1,6 @@
 Package: csvgrid
 Title: Interactive, Type-Aware Tables from Data Frames (the 'csv-viewer' Grid)
-Version: 3.8.0
+Version: 3.9.0
 Authors@R:
     person("Stephen J.", "Mildenhall", , "stephen.j.mildenhall@gmail.com",
            role = c("aut", "cre"))

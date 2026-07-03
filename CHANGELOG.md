@@ -1,5 +1,42 @@
 # Changelog
 
+## 3.9.0 (2026-07-03) — built-in Copy / Save toolbar buttons
+
+The grid component now ships its own copy/save UI, so library embedders (blog
+qmd pages, the python wrapper, `aggregate_api`) get it without wiring their own
+buttons. The serialization engine (`export()`) is unchanged — this is a UI +
+option layer on top of it. The viewer app is unaffected: its navbar already owns
+copy/save, so it opts out.
+
+- **`exportButtons` option** (default `true`) renders a **Copy** and a **Save**
+  split-control in the toolbar, to the right of Expand / Contract. Each is a flat
+  one-click primary — **current view → CSV, formatted** — plus a **▾ menu** for
+  Markdown, whole-table scope, and a **Formatted values** toggle (raw when
+  unchecked). Copy uses the async clipboard (hidden-textarea fallback); Save
+  downloads a file named from the grid's `name` (`.csv` gets a UTF-8 BOM). Brief
+  on-button "Copied" / "Saved" confirmation.
+- **Menus use native `<details>`** — no JS toggle and, per the multi-instance
+  rule, no document-level listener. Closing on click-away / tab-away is handled by
+  a per-instance `focusout` on the `<details>` element itself (element-level, so
+  still rule-compliant); it never eats a menu-item click (focus either moves into
+  the menu or not at all — see the code comment). Also gives one-menu-at-a-time
+  for free. Escape closes an open menu and returns focus to the ▾ (also a
+  per-instance keydown, not a document listener).
+- **Button output = what you see.** `export()` gains a `visibleOnly` flag; the
+  buttons pass it so `hiddenColumns` are dropped from copied/saved output. The
+  programmatic `export()` default is unchanged (all columns, `values='raw'`).
+- **Toolbar now renders** when `exportButtons` is on even with search and expand
+  both off.
+- **Filename safety:** new pure `util.safeFileName()` (extension stripped,
+  filesystem-illegal + control chars removed, trailing dot/space trimmed, `grid`
+  fallback); smoke-tested.
+- **Python:** `show()` / `to_html()` accept `export_buttons` (default `True`),
+  documented and mapped through `_OPTION_MAP`.
+- The viewer app passes `exportButtons:false` — its navbar copy/save is unchanged.
+
+Grid (`src/grid/grid.js`, `grid.css`, `util.js`); `dist/` + python assets
+rebuilt; version bumped across all five locations.
+
 ## 3.8.0 (2026-06-30) — adaptive (finest-present) date/time precision + explicit date formats
 
 Date columns now display exactly the resolution their data carries, and no

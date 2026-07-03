@@ -8,7 +8,7 @@ import { sniffDelimiter, parseCSV, parseNumber, parseDate, inferColumns,
          parseMarkdownTable, splitMdRow, isNullToken, isUnsafeBigInt } from '../src/grid/core.js';
 import { formatCell, makeColPredicate, parseQuery, fuzzyScore, termScore,
          solveWidths, sampleIndices, parseFormatSpec, formatWithSpec,
-         parseAlignSpec, normalizeRecords, toCSV, toMarkdown } from '../src/grid/util.js';
+         parseAlignSpec, normalizeRecords, toCSV, toMarkdown, safeFileName } from '../src/grid/util.js';
 
 let failures = 0;
 function check(label, got, want) {
@@ -461,6 +461,14 @@ check('toMarkdown escapes pipe, collapses newline',
 check('toMarkdown default separator when no aligns',
       toMarkdown(['a', 'b'], [['1', '2']]),
       '| a | b |\n|---|---|\n| 1 | 2 |');
+
+// --- safeFileName (3.9): download basename from a grid name
+check('safeFileName strips extension', safeFileName('statement.csv'), 'statement');
+check('safeFileName removes illegal chars', safeFileName('a/b:c*d?.csv'), 'abcd');
+check('safeFileName trims trailing dot/space', safeFileName('report .'), 'report');
+check('safeFileName empty -> fallback', safeFileName('', 'grid'), 'grid');
+check('safeFileName all-illegal -> fallback', safeFileName('///', 'grid'), 'grid');
+check('safeFileName keeps a clean name', safeFileName('my data', 'grid'), 'my data');
 
 // --- cleanCsvText (1.4): BOM + leading blank lines
 check('clean bom', cleanCsvText('﻿a,b\n1,2'), 'a,b\n1,2');

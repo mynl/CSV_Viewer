@@ -216,6 +216,19 @@ export function toMarkdown(headers, rows2d, aligns = []) {
     return out.join('\n');
 }
 
+/* A grid `name` reduced to a safe download basename: a trailing extension
+ * dropped, characters illegal on Windows/macOS/Linux and control chars
+ * removed, trailing dots/spaces trimmed (Windows). Empty result -> the
+ * caller's fallback. Extension is added back by the caller per format. */
+export function safeFileName(name, fallback = 'file') {
+    const n = (name || '')
+        .replace(/\.[^.\\/]+$/, '')             // drop a trailing extension
+        .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')  // illegal on Win/mac/Linux
+        .replace(/[. ]+$/, '')                  // no trailing dot/space (Windows)
+        .trim();
+    return n || fallback;
+}
+
 // ------------------------------------------------------------ records data
 
 /* Normalize {records, columns} data to a processData-shaped result:

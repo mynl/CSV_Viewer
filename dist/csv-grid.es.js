@@ -1,4 +1,4 @@
-/* csv-grid v3.8.0 — built by Vite from src/grid/ of the
+/* csv-grid v3.9.0 — built by Vite from src/grid/ of the
 * csv-viewer project. Generated file: do not edit. */
 //#region src/grid/core.js
 function e(e) {
@@ -528,7 +528,10 @@ function U(e, t, n = []) {
 	for (let e of t) s.push(a(e));
 	return s.join("\n");
 }
-function W(e, t) {
+function W(e, t = "file") {
+	return (e || "").replace(/\.[^.\\/]+$/, "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/[. ]+$/, "").trim() || t;
+}
+function G(e, t) {
 	if (!Array.isArray(e)) throw Error("CsvGrid: records must be an array.");
 	let n = (e) => e == null || typeof e == "number" && Number.isNaN(e) ? "" : String(e), r, i;
 	if (e.length && Array.isArray(e[0])) {
@@ -543,7 +546,7 @@ function W(e, t) {
 		headerless: !1
 	};
 }
-function G(e) {
+function K(e) {
 	let t = [];
 	for (let n of e.trim().split(/\s+/)) {
 		if (!n) continue;
@@ -555,8 +558,8 @@ function G(e) {
 	}
 	return t;
 }
-var K = /[\s_\-\/\\.,:;()[\]{}"']/;
-function q(e, t) {
+var q = /[\s_\-\/\\.,:;()[\]{}"']/;
+function J(e, t) {
 	let n = t.length, r = e.length;
 	if (r === 0) return 0;
 	if (r > n) return -1;
@@ -572,10 +575,10 @@ function q(e, t) {
 	let s = 100 - 3 * (a - o + 1 - r) - Math.min(o, 20);
 	i = 0;
 	let c = !1;
-	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || K.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
+	for (let n = o; n <= a && i < r; n++) t[n] === e[i] ? ((n === 0 || q.test(t[n - 1])) && (s += 8), c && (s += 4), c = !0, i++) : c = !1;
 	return s;
 }
-function J(e, t, n) {
+function oe(e, t, n) {
 	let r = e.cs ? n : t, i, a = 0;
 	switch (e.kind) {
 		case "exact":
@@ -588,19 +591,19 @@ function J(e, t, n) {
 			i = r.endsWith(e.str);
 			break;
 		default: {
-			let t = q(e.str, r);
+			let t = J(e.str, r);
 			i = t >= 0, a = t;
 		}
 	}
 	return e.negate && (i = !i), i ? a : -1;
 }
-function oe(e) {
+function se(e) {
 	return e = (e ?? "").trim(), e === "" ? "" : (e = e.toLowerCase().normalize("NFKD").replace(/\p{Diacritic}/gu, ""), e.replace(/\d+/g, (e) => (e = e.replace(/^0+(?=\d)/, ""), "" + String.fromCharCode(e.length) + e)));
 }
-function se(e, t, n, r = "equal-risk") {
-	return r === "coverage" ? le(e, t, n) : ce(e, t, n);
+function ce(e, t, n, r = "equal-risk") {
+	return r === "coverage" ? ue(e, t, n) : le(e, t, n);
 }
-function ce(e, t, n) {
+function le(e, t, n) {
 	let r = (e, t) => e.length ? e[Math.floor(t * (e.length - 1))] : 0, i = (n) => e.map((e, i) => Math.max(t[i], r(e, n))), a = (e) => e.reduce((e, t) => e + t, 0), o = i(1);
 	if (a(o) <= n) return o;
 	if (a(i(0)) >= n) return i(0);
@@ -611,13 +614,13 @@ function ce(e, t, n) {
 	}
 	return i(s);
 }
-function le(e, t, n) {
+function ue(e, t, n) {
 	let r = e.map((e, n) => Math.max(t[n], e.length ? e[e.length - 1] : 0)), i = (e) => e.reduce((e, t) => e + t, 0);
 	if (i(r) <= n) return r;
 	if (i(t) >= n) return t.slice();
 	let a = t.slice(), o = n - i(t), s = [];
 	for (let n = 0; n < e.length; n++) {
-		let r = ue(e[n], t[n]);
+		let r = Y(e[n], t[n]);
 		for (let e = 1; e < r.length; e++) {
 			let t = r[e].w - r[e - 1].w, i = r[e].cells - r[e - 1].cells;
 			t > 0 && i > 0 && s.push({
@@ -635,7 +638,7 @@ function le(e, t, n) {
 	}
 	return a;
 }
-function ue(e, t) {
+function Y(e, t) {
 	let n = e.length, r = 0;
 	for (; r < n && e[r] <= t;) r++;
 	let i = [{
@@ -661,7 +664,7 @@ function ue(e, t) {
 	}
 	return a;
 }
-function Y(e, t) {
+function de(e, t) {
 	let n = e.trim();
 	if (!n) return null;
 	if (t.type === "number" || t.type === "date") {
@@ -708,12 +711,12 @@ function Z(e) {
 }
 //#endregion
 //#region src/grid/grid.js
-var de = 1e6, fe = 2048, pe = 1e4, Q = 10;
+var fe = 1e6, pe = 2048, me = 1e4, Q = 10;
 function $(e, t) {
 	let n = document.createElement(e);
 	return t && (n.className = t), n;
 }
-var me = class t {
+var he = class t {
 	constructor(e, t, n = {}) {
 		let r = typeof e == "string" ? document.querySelector(e) : e;
 		if (!r) throw Error("CsvGrid: target element not found.");
@@ -723,6 +726,7 @@ var me = class t {
 			sortable: !0,
 			statusBar: !0,
 			expandButtons: !0,
+			exportButtons: !0,
 			align: null,
 			formats: null,
 			renderCap: 2048,
@@ -741,7 +745,7 @@ var me = class t {
 	}
 	_buildScaffold() {
 		let e = this.opts, t = this.root;
-		if (t.classList.add("csvgrid"), t.replaceChildren(), this.els = {}, e.globalSearch || e.expandButtons) {
+		if (t.classList.add("csvgrid"), t.replaceChildren(), this.els = {}, e.globalSearch || e.expandButtons || e.exportButtons) {
 			let n = $("div", "csvgrid-toolbar");
 			if (e.globalSearch) {
 				let e = $("input", "csvgrid-search");
@@ -755,7 +759,7 @@ var me = class t {
 				let t = $("button", "csvgrid-btn");
 				t.type = "button", t.textContent = "Contract", t.title = "Back to fitted widths (equal-risk squeeze); also clears any dragged widths", t.addEventListener("click", () => this.contract()), n.append(e, t);
 			}
-			t.appendChild(n);
+			e.exportButtons && n.append(this._buildExportControl("copy"), this._buildExportControl("save")), t.appendChild(n);
 		}
 		let n = $("div", "csvgrid-scroll");
 		n.addEventListener("scroll", () => this._onScroll());
@@ -781,6 +785,82 @@ var me = class t {
 			let t = e.target.closest("td, th");
 			t && !t.title && t.scrollWidth > t.clientWidth && (t.title = t.textContent);
 		}), this.opts.selectable && (t.dataset.selectable = "", a.addEventListener("click", (e) => this._onBodyClick(e)));
+	}
+	_buildExportControl(e) {
+		let t = e === "copy" ? "Copy" : "Save", n = $("span", "csvgrid-export"), r = $("button", "csvgrid-btn");
+		r.type = "button", r.textContent = t, r.title = `${t} the current view as CSV`, r.addEventListener("click", () => this._runExport(e, "view", "csv", n, r));
+		let i = $("details", "csvgrid-menu"), a = $("summary", "csvgrid-btn csvgrid-menu-toggle");
+		a.textContent = "▾", a.title = `More ${t.toLowerCase()} options`;
+		let o = $("div", "csvgrid-menu-panel");
+		for (let [t, a, s] of [
+			[
+				"view",
+				"csv",
+				"Current view → CSV"
+			],
+			[
+				"view",
+				"md",
+				"Current view → Markdown"
+			],
+			[
+				"all",
+				"csv",
+				"Whole table → CSV"
+			],
+			[
+				"all",
+				"md",
+				"Whole table → Markdown"
+			]
+		]) {
+			let c = $("button", "csvgrid-menu-item");
+			c.type = "button", c.textContent = s, c.addEventListener("click", () => {
+				i.open = !1, this._runExport(e, t, a, n, r);
+			}), o.appendChild(c);
+		}
+		o.appendChild($("div", "csvgrid-menu-sep"));
+		let s = $("label", "csvgrid-menu-check"), c = $("input", "csvgrid-export-formatted");
+		return c.type = "checkbox", c.checked = !0, s.append(c, document.createTextNode(" Formatted values")), o.appendChild(s), i.addEventListener("focusout", (e) => {
+			i.contains(e.relatedTarget) || (i.open = !1);
+		}), i.addEventListener("keydown", (e) => {
+			e.key === "Escape" && i.open && (e.preventDefault(), i.open = !1, a.focus());
+		}), i.append(a, o), n.append(r, i), n;
+	}
+	_runExport(e, t, n, r, i) {
+		let a = r.querySelector(".csvgrid-export-formatted"), o = a && a.checked ? "formatted" : "raw", s = this.export({
+			scope: t,
+			format: n,
+			values: o,
+			visibleOnly: !0
+		});
+		e === "copy" ? this._copyText(s, i) : this._saveText(s, n, i);
+	}
+	_copyText(e, t) {
+		let n = () => this._flash(t, "Copied"), r = () => this._flash(t, "Copy failed");
+		if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(e).then(n, r);
+		else {
+			let t = document.createElement("textarea");
+			t.value = e, t.style.cssText = "position:fixed;opacity:0", document.body.appendChild(t), t.select();
+			try {
+				document.execCommand("copy"), n();
+			} catch {
+				r();
+			}
+			t.remove();
+		}
+	}
+	_saveText(e, t, n) {
+		let r = t === "md", i = r ? e : "﻿" + e, a = (r ? "text/markdown" : "text/csv") + ";charset=utf-8", o = URL.createObjectURL(new Blob([i], { type: a })), s = document.createElement("a");
+		s.href = o, s.download = this._exportBaseName() + (r ? ".md" : ".csv"), document.body.appendChild(s), s.click(), s.remove(), setTimeout(() => URL.revokeObjectURL(o), 1e3), this._flash(n, "Saved");
+	}
+	_exportBaseName() {
+		return W(this.fileName, "grid");
+	}
+	_flash(e, t) {
+		clearTimeout(e._flashTimer), e._flashLabel === void 0 && (e._flashLabel = e.textContent), e.textContent = t, e.classList.add("csvgrid-flash"), e._flashTimer = setTimeout(() => {
+			e.textContent = e._flashLabel, e._flashLabel = void 0, e.classList.remove("csvgrid-flash");
+		}, 1200);
 	}
 	setData(e) {
 		let t = ++this.loadGen, n = new Promise((n, r) => {
@@ -810,14 +890,14 @@ var me = class t {
 			};
 		}
 		if (e.records !== void 0) return {
-			d: W(e.records, e.columns),
+			d: G(e.records, e.columns),
 			name: e.name ?? ""
 		};
 		throw Error("CsvGrid: data must be {csv}, {records[, columns]}, or {url}.");
 	}
 	_parse(t, n, r) {
 		if (t = e(t), !t.trim()) throw Error("No data found.");
-		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= de ? this._getWorker() : null;
+		let i = this._headerMode === "first-row" ? !0 : this._headerMode === "headerless" ? !1 : null, a = this.opts.worker !== !1 && t.length >= fe ? this._getWorker() : null;
 		return a ? (this._setStatus(`parsing ${r || "data"} (${(t.length / 1e6).toFixed(1)} MB)…`), new Promise((e, r) => {
 			this._pending.set(n, {
 				resolve: e,
@@ -901,13 +981,12 @@ var me = class t {
 	contract() {
 		this.expandAll = !1, this.manualWidths.clear(), this.applyLayout();
 	}
-	export({ scope: e = "view", format: t = "csv", values: n = "raw" } = {}) {
-		let r = e === "all" ? this.rows.map((e, t) => t) : this.view, i = n === "formatted" && r.length <= this.opts.renderCap, a = r.map((e) => i ? this.getFormattedRow(e) : this.cols.map((t, n) => this.rows[e][n] ?? ""));
-		if (t === "md") {
-			let e = this.cols.map((e) => e.align || (e.type === "number" ? "right" : e.type === "date" ? "center" : "left"));
-			return U(this.headers, a, e);
-		}
-		return H(this.headers, a);
+	export({ scope: e = "view", format: t = "csv", values: n = "raw", visibleOnly: r = !1 } = {}) {
+		let i = e === "all" ? this.rows.map((e, t) => t) : this.view, a = r ? this.visibleCols : this.cols.map((e, t) => t), o = n === "formatted" && i.length <= this.opts.renderCap, s = i.map((e) => {
+			let t = o ? this.getFormattedRow(e) : this.rows[e];
+			return a.map((e) => t[e] ?? "");
+		}), c = a.map((e) => this.headers[e]);
+		return t === "md" ? U(c, s, a.map((e) => this.cols[e].align || (this.cols[e].type === "number" ? "right" : this.cols[e].type === "date" ? "center" : "left"))) : H(c, s);
 	}
 	setWidthMode(e) {
 		this.opts.widthMode = e === "coverage" ? "coverage" : "equal-risk", this.applyLayout();
@@ -924,7 +1003,7 @@ var me = class t {
 		this.layout = this.measureLayout(), this.applyLayout(), this.refresh();
 	}
 	measureLayout() {
-		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, fe), a = [], o = [];
+		let e = (t._canvas ||= document.createElement("canvas")).getContext("2d"), n = getComputedStyle(this.els.table), r = `${n.fontSize} ${n.fontFamily}`, i = A(this.rows.length, pe), a = [], o = [];
 		for (let t of this.visibleCols) {
 			e.font = `bold ${r}`, o.push(Math.max(50, Math.ceil(e.measureText(this.cols[t].name).width) + 14 + 18)), e.font = r;
 			let n = [];
@@ -966,7 +1045,7 @@ var me = class t {
 		if (!this.layout) return;
 		let e = this.els.table, t = this.expandAll ? Infinity : e.parentElement.clientWidth;
 		if (!t) return;
-		let n = se(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
+		let n = ce(this.layout.arrays, this.layout.floors, t, this.opts.widthMode);
 		for (let [e, t] of this.manualWidths) e < n.length && (n[e] = t);
 		let r = e.querySelector("colgroup");
 		r && r.remove(), r = document.createElement("colgroup");
@@ -985,7 +1064,7 @@ var me = class t {
 		this.indexing = 0;
 		let a = () => {
 			if (e !== this.loadGen) return;
-			let o = Math.min(t, i + pe);
+			let o = Math.min(t, i + me);
 			for (; i < o; i++) {
 				let e = this.getFormattedRow(i).join(" ") + " " + this.rows[i].join(" ");
 				n[i] = e, r[i] = e.toLowerCase();
@@ -1002,7 +1081,7 @@ var me = class t {
 			let r = this.cols[n], i = this.sortDir;
 			if (r.type === "text") {
 				let r = Array(e);
-				for (let t = 0; t < e; t++) r[t] = oe(this.rows[t][n]);
+				for (let t = 0; t < e; t++) r[t] = se(this.rows[t][n]);
 				t.sort((e, t) => {
 					let n = r[e], a = r[t];
 					return n === "" || a === "" ? n === a ? 0 : n === "" ? 1 : -1 : n < a ? -i : n > a ? i : 0;
@@ -1018,9 +1097,9 @@ var me = class t {
 		this.sortedOrder = t;
 	}
 	rebuildView() {
-		let { rows: e, cols: t } = this, n = G(this.globalFilter);
+		let { rows: e, cols: t } = this, n = K(this.globalFilter);
 		n.length && !this.searchReady && (this.indexing === null && this.buildSearchIndexChunked(), n = []);
-		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => Y(e || "", t[n])), a = i.some((e) => e) || n.length, o = r && this.sortCol === null;
+		let r = n.some((e) => e.kind === "fuzzy" && !e.negate), i = this.colFilters.map((e, n) => de(e || "", t[n])), a = i.some((e) => e) || n.length, o = r && this.sortCol === null;
 		(!this.sortedOrder || this.sortedOrder.length !== e.length) && this._buildSortOrder();
 		let s = this.sortedOrder;
 		if (!a) {
@@ -1032,7 +1111,7 @@ var me = class t {
 		for (let t = 0; t < s.length; t++) {
 			let r = s[t], a = !0, l = 0;
 			for (let e of n) {
-				let t = J(e, this.searchLow[r], this.searchRaw[r]);
+				let t = oe(e, this.searchLow[r], this.searchRaw[r]);
 				if (t < 0) {
 					a = !1;
 					break;
@@ -1221,6 +1300,6 @@ var me = class t {
 	}
 };
 //#endregion
-export { me as default };
+export { he as default };
 
 //# sourceMappingURL=csv-grid.es.js.map

@@ -73,6 +73,35 @@ first, then raw values. So `^` anchors the start of the first column and
 `$` the end of the last RAW cell (which can differ from the displayed
 value). For per-cell matching use the column filter boxes.
 
+## 2026-07-03 — built-in Copy / Save toolbar buttons (3.9.0)
+
+Executed `dev/plan-copy-save.md` (requirements from a user). Key realization:
+the copy/save UI already existed — but only in the **app navbar** (`index.html`
++ `app.js`), not in the reusable **grid** (`src/grid/`), so library embedders
+(blog qmd, python wrapper) had `export()` but no buttons. This feature ports the
+UI down into the grid.
+
+- New `exportButtons` option (default `true`): a **Copy** + **Save**
+  split-control right of Expand/Contract. Flat primary = current view → CSV,
+  formatted (one click); **▾ menu** adds Markdown, whole-table, and a Formatted
+  toggle. Logic (`_copyText`/`_saveText`/`_flash`) ported from the app.
+- Menus are native `<details>` — chosen to avoid the banned document-level
+  listener (multi-instance rule). Close on click-away / tab-away added via a
+  per-instance `focusout` on the `<details>` itself (element-level = compliant);
+  safe against eating a menu-item click because focus either moves into the menu
+  (Chromium) or nowhere (Safari/FF don't focus buttons on click). Bonus:
+  one-menu-at-a-time falls out for free. Escape-to-close added too (per-instance
+  keydown, returns focus to the ▾).
+- `export()` gained `visibleOnly` so button output drops `hiddenColumns` (matches
+  what the user sees); the programmatic API default is unchanged (all cols, raw).
+- Filename sanitizing extracted to pure `util.safeFileName()` and smoke-tested;
+  the DOM sinks (clipboard, `<a download>`) stay manual/embed-test only.
+- App opts out with `exportButtons:false` (navbar still owns copy/save). Python
+  gets `export_buttons`. Five version locations → 3.9.0; dist + py assets rebuilt.
+- **Open decision deferred:** whether to later dedup the app's own
+  `copyText`/`saveText` by delegating to new public grid methods — left as-is for
+  a small diff this pass.
+
 ## 2026-06-30 — adaptive (finest-present) date/time precision (3.8.0)
 
 Executed `dev/plan-3.8.0-adaptive-time-precision.md`. Date columns now show

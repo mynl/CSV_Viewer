@@ -18,7 +18,7 @@ import json
 import uuid
 from importlib import resources
 
-__version__ = "3.8.0"
+__version__ = "3.9.0"
 __all__ = ["show", "to_html", "payload"]
 
 # python snake_case -> CsvGrid option names (see src/grid/grid.js)
@@ -28,6 +28,7 @@ _OPTION_MAP = {
     "sortable": "sortable",
     "status_bar": "statusBar",
     "expand_buttons": "expandButtons",
+    "export_buttons": "exportButtons",
     "align": "align",
     "formats": "formats",
     "width_mode": "widthMode",
@@ -233,6 +234,10 @@ def show(df, *, name: str | None = None, assets="inline",
     sortable : bool, default True        click headers to sort.
     status_bar : bool, default True      row-counts line.
     expand_buttons : bool, default True  Expand / Contract pair.
+    export_buttons : bool, default True  Copy / Save split-buttons (one-click
+                                         current view as CSV, plus a menu for
+                                         Markdown / whole-table / raw). Output
+                                         reflects visible columns only.
     align : str, optional                'llrcr…', one of l/r/c per column,
                                          overriding the type-based default.
     formats / fmt : list, optional       per-column format spec, None entry

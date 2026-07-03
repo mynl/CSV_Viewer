@@ -19,6 +19,12 @@
  *                           an element = render into the host's element,
  *                           false = none)
  *   expandButtons: true     Expand / Contract pair in the toolbar
+ *   exportButtons: true     Copy / Save split-buttons in the toolbar (each a
+ *                           flat one-click primary — current view, CSV,
+ *                           formatted — plus a ▾ menu for md / all-rows / raw).
+ *                           Output reflects what is SHOWN (hiddenColumns
+ *                           excluded); false = no buttons. The viewer app sets
+ *                           this false — its navbar owns copy/save.
  *   align: null             'llrcr…' one of l/r/c per column, overrides
  *                           type defaults (rides the markdown col.align
  *                           plumbing); other characters = keep default
@@ -79,7 +85,7 @@
 import { cleanCsvText, processData } from './core.js';
 import { parseFormatSpec, parseAlignSpec, formatCell, normalizeRecords,
          parseQuery, termScore, solveWidths, sampleIndices, makeColPredicate,
-         makeSortKey, cellClass, escapeHtml, toCSV, toMarkdown, CELL_PAD, MIN_COL } from './util.js';
+         makeSortKey, cellClass, escapeHtml, toCSV, toMarkdown, safeFileName, CELL_PAD, MIN_COL } from './util.js';
 
 const WORKER_MIN_CHARS = 1000000; // ~1 MB; below this parse synchronously
 const WIDTH_SAMPLE = 2048;        // rows sampled per column for width percentiles
@@ -100,7 +106,7 @@ export default class CsvGrid {
         root.csvgrid = this;     // instance handle on its own element (no ids, no globals)
         this.opts = {
             globalSearch: true, columnFilters: true, sortable: true,
-            statusBar: true, expandButtons: true, align: null, formats: null,
+            statusBar: true, expandButtons: true, exportButtons: true, align: null, formats: null,
             renderCap: 2048, eagerCells: 262144, worker: true,
             headerMode: 'auto', widthMode: 'equal-risk',
             maxRows: null, height: null, displayMode: 'auto',
@@ -161,7 +167,7 @@ export default class CsvGrid {
         root.classList.add('csvgrid');
         root.replaceChildren();
         this.els = {};
-        if (o.globalSearch || o.expandButtons) {
+        if (o.globalSearch || o.expandButtons || o.exportButtons) {
             const tb = el('div', 'csvgrid-toolbar');
             if (o.globalSearch) {
                 const inp = el('input', 'csvgrid-search');
@@ -194,6 +200,9 @@ export default class CsvGrid {
                 ct.title = 'Back to fitted widths (equal-risk squeeze); also clears any dragged widths';
                 ct.addEventListener('click', () => this.contract());
                 tb.append(ex, ct);
+            }
+            if (o.exportButtons) {
+                tb.append(this._buildExportControl('copy'), this._buildExportControl('save'));
             }
             root.appendChild(tb);
         }
@@ -243,6 +252,144 @@ export default class CsvGrid {
             root.dataset.selectable = '';
             body.addEventListener('click', e => this._onBodyClick(e));
         }
+    }
+
+    // --------------------------------------------------------- copy / save
+
+    /* Build one Copy or Save split-control: a flat one-click primary
+     * (current view → CSV) plus a ▾ disclosure menu for Markdown, whole-
+     * table, and the raw/formatted toggle. Native <details> gives the menu
+     * open/close with no JS and no document-level listener (multi-instance
+     * safe). A per-instance focusout on the <details> ITSELF (element-level,
+     * not document-level — rule-compliant) closes it when focus leaves the
+     * menu (click-away / tab-away): safe because a click on a menu item either
+     * moves focus INTO the menu (Chromium — relatedTarget stays inside, no
+     * close, the item's click then closes it) or moves focus nowhere (Safari/
+     * FF don't focus buttons on click — no focusout fires), so the item click
+     * is never eaten. Every action reads this control's own "Formatted values"
+     * checkbox and emits visible columns only. */
+    _buildExportControl(sink) {
+        const label = sink === 'copy' ? 'Copy' : 'Save';
+        const box = el('span', 'csvgrid-export');
+        const primary = el('button', 'csvgrid-btn');
+        primary.type = 'button';
+        primary.textContent = label;
+        primary.title = `${label} the current view as CSV`;
+        primary.addEventListener('click', () => this._runExport(sink, 'view', 'csv', box, primary));
+
+        const menu = el('details', 'csvgrid-menu');
+        const sum = el('summary', 'csvgrid-btn csvgrid-menu-toggle');
+        sum.textContent = '▾';
+        sum.title = `More ${label.toLowerCase()} options`;
+        const panel = el('div', 'csvgrid-menu-panel');
+        const items = [
+            ['view', 'csv', 'Current view → CSV'],
+            ['view', 'md',  'Current view → Markdown'],
+            ['all',  'csv', 'Whole table → CSV'],
+            ['all',  'md',  'Whole table → Markdown'],
+        ];
+        for (const [scope, format, text] of items) {
+            const it = el('button', 'csvgrid-menu-item');
+            it.type = 'button';
+            it.textContent = text;
+            it.addEventListener('click', () => {
+                menu.open = false;
+                this._runExport(sink, scope, format, box, primary);
+            });
+            panel.appendChild(it);
+        }
+        panel.appendChild(el('div', 'csvgrid-menu-sep'));
+        const lab = el('label', 'csvgrid-menu-check');
+        const cb = el('input', 'csvgrid-export-formatted');
+        cb.type = 'checkbox';
+        cb.checked = true;   // the buttons are for humans: default formatted
+        lab.append(cb, document.createTextNode(' Formatted values'));
+        panel.appendChild(lab);
+
+        // close on focus leaving the menu (relatedTarget null = focus went to
+        // nowhere/body, e.g. a click on blank page → also close)
+        menu.addEventListener('focusout', e => {
+            if (!menu.contains(e.relatedTarget)) menu.open = false;
+        });
+        // Escape closes an open menu and returns focus to the ▾ summary
+        // (accessible menu convention; native <details> doesn't do this).
+        menu.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && menu.open) {
+                e.preventDefault();
+                menu.open = false;
+                sum.focus();
+            }
+        });
+        menu.append(sum, panel);
+        box.append(primary, menu);
+        return box;
+    }
+
+    /* Serialize per this control's checkbox and route to the chosen sink.
+     * visibleOnly: button output mirrors what the user sees (hiddenColumns
+     * dropped), unlike the raw export() API. */
+    _runExport(sink, scope, format, box, flashBtn) {
+        const cb = box.querySelector('.csvgrid-export-formatted');
+        const values = cb && cb.checked ? 'formatted' : 'raw';
+        const text = this.export({ scope, format, values, visibleOnly: true });
+        if (sink === 'copy') this._copyText(text, flashBtn);
+        else this._saveText(text, format, flashBtn);
+    }
+
+    /* Clipboard copy: the async API on a secure context, a hidden-textarea
+     * execCommand fallback otherwise; brief on-button confirmation either
+     * way (never throws — Req-Clipboard-Availability). */
+    _copyText(text, btn) {
+        const ok = () => this._flash(btn, 'Copied'), bad = () => this._flash(btn, 'Copy failed');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(ok, bad);
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;opacity:0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); ok(); } catch { bad(); }
+            ta.remove();
+        }
+    }
+
+    /* Download as a file. CSV gets a UTF-8 BOM (Excel reads non-ASCII right;
+     * input strips BOM, so a round-trip stays clean); markdown gets none. */
+    _saveText(text, format, btn) {
+        const md = format === 'md';
+        const body = md ? text : '﻿' + text;   // UTF-8 BOM, CSV only
+        const mime = (md ? 'text/markdown' : 'text/csv') + ';charset=utf-8';
+        const url = URL.createObjectURL(new Blob([body], { type: mime }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = this._exportBaseName() + (md ? '.md' : '.csv');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        this._flash(btn, 'Saved');
+    }
+
+    /* The grid's name (status-line label) as a safe download basename;
+     * neutral 'grid' fallback. (Sanitizing lives in util.safeFileName.) */
+    _exportBaseName() {
+        return safeFileName(this.fileName, 'grid');
+    }
+
+    /* Brief non-modal confirmation on a button: swap its label to msg and
+     * tint it for ~1.2s, then restore. Per-button timer so a rapid re-click
+     * doesn't strand the temporary label. */
+    _flash(btn, msg) {
+        clearTimeout(btn._flashTimer);
+        if (btn._flashLabel === undefined) btn._flashLabel = btn.textContent;
+        btn.textContent = msg;
+        btn.classList.add('csvgrid-flash');
+        btn._flashTimer = setTimeout(() => {
+            btn.textContent = btn._flashLabel;
+            btn._flashLabel = undefined;
+            btn.classList.remove('csvgrid-flash');
+        }, 1200);
     }
 
     // ------------------------------------------------------------ data in
@@ -476,22 +623,30 @@ export default class CsvGrid {
      *   values: 'raw' (cells as loaded) | 'formatted' (as displayed)
      * `formatted` is honored only when the chosen scope's row count is
      * within renderCap (formatting a quarter-million cells on a click would
-     * stall); above that it transparently falls back to raw. Returns the
-     * string; the caller decides the sink (clipboard / file) and any BOM. */
-    export({ scope = 'view', format = 'csv', values = 'raw' } = {}) {
+     * stall); above that it transparently falls back to raw.
+     *   visibleOnly: false (default — emit EVERY column, incl. hiddenColumns,
+     *           the stable programmatic contract) | true (emit only the
+     *           visible columns; the button layer uses this so a copied grid
+     *           matches what the user sees).
+     * Returns the string; the caller decides the sink (clipboard / file) and
+     * any BOM. */
+    export({ scope = 'view', format = 'csv', values = 'raw', visibleOnly = false } = {}) {
         const idx = scope === 'all'
             ? this.rows.map((_, i) => i)        // original order, unfiltered
             : this.view;                        // current filter + sort
+        const cix = visibleOnly ? this.visibleCols : this.cols.map((_, c) => c);
         const formatted = values === 'formatted' && idx.length <= this.opts.renderCap;
-        const rows2d = idx.map(r => formatted
-            ? this.getFormattedRow(r)
-            : this.cols.map((_, c) => this.rows[r][c] ?? ''));
+        const rows2d = idx.map(r => {
+            const frow = formatted ? this.getFormattedRow(r) : this.rows[r];
+            return cix.map(c => frow[c] ?? '');
+        });
+        const headers = cix.map(c => this.headers[c]);
         if (format === 'md') {
-            const aligns = this.cols.map(col => col.align
-                || (col.type === 'number' ? 'right' : col.type === 'date' ? 'center' : 'left'));
-            return toMarkdown(this.headers, rows2d, aligns);
+            const aligns = cix.map(c => this.cols[c].align
+                || (this.cols[c].type === 'number' ? 'right' : this.cols[c].type === 'date' ? 'center' : 'left'));
+            return toMarkdown(headers, rows2d, aligns);
         }
-        return toCSV(this.headers, rows2d);
+        return toCSV(headers, rows2d);
     }
 
     /* Switch the squeeze allocation method and re-solve. Same measured
